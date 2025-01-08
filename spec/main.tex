@@ -971,7 +971,7 @@ This protocol is based on~\cite[Figure~5]{cggmp21}, but we have added the option
     \begin{itemize}
     \item Abort if $(\rid_j, X_j, A_j, u_j) \notin (\Bit^\kappa, \E, \E, \Bit^\kappa)$
           for some $j \in [n]$
-    \item Abort if $V_j \neq H(\Encode{hash\_com}(\sid, n, j, \rid_j, X_j, A_j, u_j, c_j))$
+    \item Abort if $V_j \neq H(\Encode{hash\_com}(\sid, j, \rid_j, X_j, A_j, u_j, c_j))$
           for some $j \in [n]$.
     \item Set $\rid = \bigoplus_j \rid_j$.
     \item {\bf (HD-wallets.)} If HD-wallets support enabled:
@@ -1059,7 +1059,7 @@ This protocol is based on~\cite[Figure~5]{cggmp21}, but we have added the option
           \begin{itemize}
           \item Note: make sure that $\vec{S}_j$ has length $t$
           \end{itemize}
-        \item Assert $V_j \? = H(\Encode{hash\_com}(\sid, n, j, t, \rid_j, \vec{S}_j, A_j, u_j, c_j))$.
+        \item Assert $V_j \? = H(\Encode{hash\_com}(\sid, j, \rid_j, \vec{S}_j, A_j, u_j, c_j))$.
         \item Define 
           $F_j(x) = \sum_{k \in [t]} x^k \cdot S_{j,k}$.
         \item Assert $\sigma_{j,i} \cdot G \? = F_j(i + 1)$.
