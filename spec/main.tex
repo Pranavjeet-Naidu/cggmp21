@@ -859,22 +859,20 @@ This protocol is run to generate auxiliary information for each signer in a clus
       \item Compute $\hat{\psi}_i = \proveni{prm}^L((\sid, i), (N_i, s_i, t_i), (\phi, \lambda))$.
       \item Sample $\rho_i, u_i \leftarrow \Bit^\kappa$, 
         and compute $V_i =
-        H(\Encode{hash\_com}(\sid, n, i, N_i, s_i, t_i, \hat{\psi}_i, \rho_i, u_i))$.
+        H(\Encode{hash\_com}(\sid, i, N_i, s_i, t_i, \hat{\psi}_i, \rho_i, u_i))$.
       \item Send $V_i$ to all parties.
     \end{itemize}
     
 
   \item[\textbf{Round 2.}] \
     \begin{itemize}
-      \item Receive $V_j$ from all parties.
+      \item Receive $V_j \in \Bit^\kappa$ from all parties.
       \item ({\bf Reliability check.}) Optionally, if the reliability check is enabled:
     \begin{itemize}
         \item 
         Compute $h_i = H(\Encode{echo}(\sid, V_0, \dots, V_{n-1}))$ and 
             send $h_i$ to all parties.
-        
-        
-        \item Upon receiving $h_j$ from all parties, abort if $h_i \neq h_j$ for some $j \in [n]$.
+        \item Upon receiving $h_j \in \Bit^\kappa$ from all parties, abort if $h_i \neq h_j$ for some $j \in [n]$.
     \end{itemize}
       \item Send $(N_i, s_i, t_i, \hat{\psi}_i, \rho_i, u_i)$ to all parties.
     \end{itemize}
@@ -889,13 +887,15 @@ This protocol is run to generate auxiliary information for each signer in a clus
 
       \item For $j \neq i$:
         \begin{itemize}
+          \item Assert $(N_j, s_j, t_j, \rho_j, u_j) \? \in
+            (\Z, \Z, \Z, \Bit^\kappa, \Bit^\kappa)$
           \item Assert $V_j =
-            H(\Encode{hash\_com}(\sid, n, j, N_j, s_j, t_j, \hat{\psi}_j, \rho_j, u_j))$.
+            H(\Encode{hash\_com}(\sid, j, N_j, s_j, t_j, \hat{\psi}_j, \rho_j, u_j))$.
           \item Assert $N_j$ is at least $8 \cdot \kappa - 1$ bits in length
           \item Assert $\verifyni{prm}^L((\sid, j), (N_j, s_j, t_j), \hat{\psi}_j)$.
           \item Construct Paillier encryption key from~$N_j$.
         \end{itemize}
-\item Compute $\rho=\bigoplus_j \rho_j$.
+      \item Compute $\rho=\bigoplus_j \rho_j$.
       \item Compute $\psi_i = \proveni{mod}^L((\sid, i, \rho), N_i, (p_i, q_i))$.
       \item For $j\neq i$ do:
         \begin{itemize}
