@@ -7,7 +7,7 @@ let
   # Latex
   tex = (pkgs.texlive.combine {
     inherit (pkgs.texlive) scheme-small
-      collection-mathscience preprint amsmath;
+      collection-mathscience preprint amsmath enumitem placeins;
   });
 
 in pkgs.stdenv.mkDerivation {
