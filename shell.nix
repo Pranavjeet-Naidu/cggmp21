@@ -2,7 +2,6 @@
 
 let
   pkgs = import <nixpkgs> {};
-  isDarwin = pkgs.hostPlatform.isDarwin;
 
   # Latex
   tex = (pkgs.texlive.combine {
@@ -15,5 +14,4 @@ in pkgs.stdenv.mkDerivation {
   nativeBuildInputs = [
     tex
   ];
-  buildInputs = pkgs.lib.optionals isDarwin [pkgs.darwin.apple_sdk.frameworks.Security];
 }
