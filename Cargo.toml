@@ -19,7 +19,7 @@ paillier-zk = { version = "0.4.1", path = "paillier-zk", default-features = fals
 
 generic-ec = { version = "0.4.1", default-features = false } 
 generic-ec-zkp = { version = "0.4.1", default-features = false } 
-round-based = { version = "0.4", default-features = false }
+round-based = { version = "0.4.1", default-features = false }
 
 udigest = { version = "0.2.1", default-features = false }
 
@@ -31,7 +31,8 @@ rand_core = { version = "0.6", default-features = false }
 rand_hash = { version = "0.1" }
 rand_dev = "0.1"
 
-futures = "0.3"
+futures = { version = "0.3", default-features = false }
+futures-util = { version = "0.3", default-features = false }
 
 anyhow = "1"
 thiserror = "1"

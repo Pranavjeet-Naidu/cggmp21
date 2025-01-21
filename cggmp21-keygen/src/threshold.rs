@@ -271,21 +271,22 @@ where
 
     tracer.send_msg();
     outgoings
-        .send(Outgoing::broadcast(Msg::Round2Broad(
+        .feed(Outgoing::broadcast(Msg::Round2Broad(
             my_decommitment.clone(),
         )))
         .await
         .map_err(IoError::send_message)?;
 
-    for j in utils::iter_peers(i, n) {
+    let messages = utils::iter_peers(i, n).map(|j| {
         let message = MsgRound2Uni {
             sigma: sigmas[usize::from(j)],
         };
-        outgoings
-            .send(Outgoing::p2p(j, Msg::Round2Uni(message)))
-            .await
-            .map_err(IoError::send_message)?;
-    }
+        Outgoing::p2p(j, Msg::Round2Uni(message))
+    });
+    outgoings
+        .send_all(&mut futures_util::stream::iter(messages.map(Ok)))
+        .await
+        .map_err(IoError::send_message)?;
     tracer.msg_sent();
 
     // Round 3

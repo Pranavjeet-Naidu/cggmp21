@@ -39,6 +39,7 @@ where
     let eid = ExecutionId::new(&eid);
 
     let key_shares = round_based::sim::run_with_setup(&shares, |_i, party, share| {
+        let party = cggmp21_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
         let pregenerated_data = primes.next().expect("Can't fetch primes");
         async move {
@@ -94,6 +95,7 @@ where
     let message_to_sign = cggmp21::signing::DataToSign::digest::<Sha256>(&[42; 100]);
     let participants = &(0..n).collect::<Vec<_>>();
     let sig = round_based::sim::run_with_setup(&key_shares, |_i, party, share| {
+        let party = cggmp21_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
         async move {
             cggmp21::signing(eid, share.core.i, participants, share)
@@ -136,6 +138,7 @@ where
     let eid = ExecutionId::new(&eid);
 
     let aux_infos = round_based::sim::run(n, |i, party| {
+        let party = cggmp21_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
         let pregenerated_data = primes.next().expect("Can't fetch primes");
         async move {
@@ -179,6 +182,7 @@ where
     let participants_shares = participants.iter().map(|i| &key_shares[usize::from(*i)]);
 
     let sig = round_based::sim::run_with_setup(participants_shares, |i, party, share| {
+        let party = cggmp21_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
         async move {
             cggmp21::signing(eid, i, participants, share)
