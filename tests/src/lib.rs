@@ -4,6 +4,88 @@ use generic_ec::Curve;
 use rand::RngCore;
 use serde_json::{Map, Value};
 
+/// Wraps a sink to buffer the messages. Used in [`buffer_outgoing`]
+#[pin_project::pin_project]
+pub struct BufferedSink<M, Inner> {
+    #[pin]
+    messages: std::collections::VecDeque<M>,
+    #[pin]
+    inner: Inner,
+}
+type BufferedDelivery<M, D> = (
+    <D as round_based::Delivery<M>>::Receive,
+    BufferedSink<round_based::Outgoing<M>, <D as round_based::Delivery<M>>::Send>,
+);
+
+impl<M: Unpin, Inner: futures::Sink<M>> futures::Sink<M> for BufferedSink<M, Inner> {
+    type Error = Inner::Error;
+
+    fn poll_ready(
+        self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        // Always ready to buffer
+        std::task::Poll::Ready(Ok(()))
+    }
+
+    fn start_send(self: std::pin::Pin<&mut Self>, item: M) -> Result<(), Self::Error> {
+        self.project().messages.get_mut().push_back(item);
+        Ok(())
+    }
+
+    fn poll_flush(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        // Feed all buffered messages one by one
+        while !self.messages.is_empty() {
+            let mut projection = self.as_mut().project();
+            let mut inner = projection.inner;
+            // In case the inner sink wasn't ready, this method will be retried.
+            // We rely on this and don't modify any internal state before this
+            // point
+            std::task::ready!(inner.as_mut().poll_ready(cx))?;
+            if let Some(item) = projection.messages.pop_front() {
+                inner.as_mut().start_send(item)?;
+            }
+        }
+        self.project().inner.poll_flush(cx)
+    }
+
+    fn poll_close(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        self.project().inner.poll_close(cx)
+    }
+}
+
+/// Modified 'Delivery' of the party to buffer outgoing messages. The messages
+/// fed to the 'Delivery' sink will be buffered indefinitely until `flush` is
+/// called
+///
+/// This is useful since the delivery used in round-based simulation doesn't do
+/// buffering at all, however we want to verify that we don't forget to flush
+/// the messages in our protocols. When this function is used, forgetting to
+/// flush will cause the test to get stuck.
+pub fn buffer_outgoing<M, D, R>(
+    party: round_based::MpcParty<M, D, R>,
+) -> round_based::MpcParty<M, BufferedDelivery<M, D>, R>
+where
+    M: Unpin,
+    D: round_based::Delivery<M>,
+    R: round_based::runtime::AsyncRuntime,
+{
+    party.map_delivery(|delivery| {
+        let (incoming, outgoing) = delivery.split();
+        let buffered_outgoing = BufferedSink::<round_based::Outgoing<M>, D::Send> {
+            messages: std::collections::VecDeque::new(),
+            inner: outgoing,
+        };
+        (incoming, buffered_outgoing)
+    })
+}
+
 pub mod external_verifier;
 
 lazy_static::lazy_static! {

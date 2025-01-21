@@ -687,7 +687,7 @@ where
 
     tracer.send_msg();
     outgoings
-        .send(Outgoing::broadcast(Msg::Round1a(MsgRound1a {
+        .feed(Outgoing::broadcast(Msg::Round1a(MsgRound1a {
             K: K_i.clone(),
             G: G_i.clone(),
         })))
@@ -717,11 +717,14 @@ where
 
         tracer.send_msg();
         outgoings
-            .send(Outgoing::p2p(j, Msg::Round1b(MsgRound1b { psi0 })))
+            .feed(Outgoing::p2p(j, Msg::Round1b(MsgRound1b { psi0 })))
             .await
             .map_err(IoError::send_message)?;
         tracer.msg_sent();
     }
+    tracer.send_msg();
+    outgoings.flush().await.map_err(IoError::send_message)?;
+    tracer.msg_sent();
 
     // Round 2
     tracer.round_begins();
@@ -952,7 +955,7 @@ where
 
         tracer.send_msg();
         outgoings
-            .send(Outgoing::p2p(
+            .feed(Outgoing::p2p(
                 j,
                 Msg::Round2(MsgRound2 {
                     Gamma: Gamma_i,
@@ -969,6 +972,9 @@ where
             .map_err(IoError::send_message)?;
         tracer.msg_sent();
     }
+    tracer.send_msg();
+    outgoings.flush().await.map_err(IoError::send_message)?;
+    tracer.msg_sent();
 
     // Round 3
     tracer.round_begins();
@@ -1126,7 +1132,7 @@ where
 
         tracer.send_msg();
         outgoings
-            .send(Outgoing::p2p(
+            .feed(Outgoing::p2p(
                 j,
                 Msg::Round3(MsgRound3 {
                     delta: delta_i,
@@ -1138,6 +1144,9 @@ where
             .map_err(IoError::send_message)?;
         tracer.msg_sent();
     }
+    tracer.send_msg();
+    outgoings.flush().await.map_err(IoError::send_message)?;
+    tracer.msg_sent();
 
     // Output
     tracer.named_round_begins("Presig output");
