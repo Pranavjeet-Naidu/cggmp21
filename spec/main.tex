@@ -33,6 +33,28 @@
 \newcommand{\dnote}[1]{{\textcolor{Orange}{Denis: #1}}}
 \newcommand{\nnote}[1]{{\textcolor{purple}{Mikito: #1}}}
 
+\newenvironment{inlineAlgorithm}{}{}
+
+\newcommand{\algoName}[1]{#1 \par}
+\newcommand{\algoInputs}[1]{
+    {\small \bf Inputs:} #1 \par
+}
+\newcommand{\algoInputsList}[1]{
+    {\small \bf Inputs:} 
+        \begin{itemize}[noitemsep,topsep=0pt]
+            #1
+        \end{itemize}
+}
+\newcommand{\algoOutputs}[1]{
+    {\small \bf Outputs:} #1 \par
+}
+\newcommand{\algoOutputsList}[1]{
+    {\small \bf Outputs:}
+        \begin{itemize}[noitemsep,topsep=0pt]
+            #1
+        \end{itemize}
+}
+
 %\newgeometry{vmargin={8mm,16mm}, hmargin={12mm,12mm}}
 
 \def\state{{\sf state}}
@@ -631,17 +653,19 @@ The prover and verifier agree on shared state $\state$ and security level~$L$ (w
 For this proof, the prover and verifier have common input $(N, s, t)$ with $s, t \in {\mathbb Z}_N^*$, and the prover additionally has secret input $\lambda$ such that $s=t^\lambda \bmod N$, along with the factorization of~$N$.
 
 \subsubsection{Interactive Version of the Proof}
-\begin{algorithm}
-\caption{$\mathtt{Commit}_\mathtt{prm}^L(N; \phi(N)) \to (\vec A; \vec a)$}
-{\bf Inputs:}
-    \begin{itemize}[noitemsep,topsep=0pt]
+
+\begin{description}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\mathtt{Commit}_\mathtt{prm}^L(N; \phi(N)) \to (\vec A; \vec a)$}
+\algoInputsList{
     \item security level $L = (m, \dots)$
     \item public data $N \in \Z$
     \item secret data $\phi(N) \in \Z$
-    \end{itemize}
-{\bf Outputs:}
-    $(\vec A; \vec a) \in (\Z_N^m; \Z_N^m)$
-    where $\vec A$ is sent to the verifier, and $\vec a$ is kept private
+}
+\algoOutputs{$(\vec A; \vec a) \in (\Z_N^m; \Z_N^m)$
+        where $\vec A$ is sent to the verifier, and $\vec a$ is kept private}
 \begin{algorithmic}[1]
 \For{i = 0, \dots, m-1}
     \State Sample $a_i \gets \Z_{\phi(N)}$
@@ -650,88 +674,82 @@ For this proof, the prover and verifier have common input $(N, s, t)$ with $s, t
 \State Set $\vec A = \{A_i\}_{i\in[m]}, \vec a = \{a_i\}_{i\in[m]}$
 \State \Return $(\vec A; \vec a)$
 \end{algorithmic}
-\end{algorithm}
+\end{inlineAlgorithm}
 
-\begin{algorithm}
-\caption{$\mathtt{Challenge}_\mathtt{prm}^L() \to \vec e$}
-{\bf Inputs:} security level $L = (m, \dots)$ \\
-{\bf Outputs:} $\vec e \in \Bit^m$
-\begin{algorithmic}[1]
-\State Sample $e_i \gets \Bit$ for all $i \in [m]$
-\State \Return $\vec e = \{e_i\}_{i\in[m]}$
-\end{algorithmic}
-\end{algorithm}
-
-\begin{algorithm}
-\caption{$\mathtt{Prove}_\mathtt{prm}^L(N, s, t; \phi(N), \lambda, \vec a) \to \vec z$}
-{\bf Inputs:}
-    \begin{itemize}[noitemsep,topsep=0pt]
+\item
+\begin{inlineAlgorithm}
+\algoName{$\mathtt{Prove}_\mathtt{prm}^L(N, s, t; \phi(N), \lambda, \vec a) \to \vec z$}
+\algoInputsList{
     \item security level $L = (m, \dots)$,
     \item public data $N, s, t \in \Z, \Z, \Z$,
     \item secret data $\phi(N), \lambda \in \Z, \Z$,
     \item secret commitment nonce $\vec a = \{a_i\}_{i\in[m]} \in \Z_N^m$
-    \end{itemize}
-{\bf Outputs:}
-    proof $\vec z \in \Z^m$
+}
+\algoOutputs{proof $\vec z \in \Z^m$}
 \begin{algorithmic}[1]
 \State Compute $z_i = a_i + e_i \cdot \lambda \bmod \phi(N)$ for all $i \in [m]$
 \State \Return $\vec z = \{z_i\}_{i\in[m]}$
 \end{algorithmic}
-\end{algorithm}
+\end{inlineAlgorithm}
 
-\begin{algorithm}
-\caption{$\mathtt{Verify}_\mathtt{prm}^L(N, s, t, \vec A, \vec e, \vec z)$}
-{\bf Inputs:}
-    \begin{itemize}[noitemsep,topsep=0pt]
+\item
+\begin{inlineAlgorithm}
+\algoName{$\mathtt{Verify}_\mathtt{prm}^L(N, s, t, \vec A, \vec e, \vec z)$}
+\algoInputsList{
     \item security level $L = (m, \dots)$,
     \item public data $N, s, t \in \Z, \Z, \Z$
     \item commitment $\vec A = \{A_i\}_{i\in[m]} \in \Z^m$
     \item challenge $\vec e = \{e_i\}_{i\in[m]} \in \Bit^m$
     \item proof $\vec z = \{z_i\}_{i\in[m]} \in \Z^m$
-    \end{itemize}
-{\bf Outputs:} Aborts if proof is invalid
+}
+\algoOutputs{Aborts if proof is invalid}
 \begin{algorithmic}[1]
 \State Assert $t^{z_i} \? = A_i s^{e_i} \bmod N$ for all $i \in [m]$
 \end{algorithmic}
-\end{algorithm}
+\end{inlineAlgorithm}
 
-\FloatBarrier
+\end{description}
+
+
 \subsubsection{Non-Interactive Version of the Proof}
 
-\begin{algorithm}
-\caption{$\mathtt{ProveNI}_\mathtt{prm}^L(\state, N, s, t; \phi(N), \lambda) \to (\vec A, \vec z)$}
-{\bf Inputs:}
-    \begin{itemize}[noitemsep,topsep=0pt]
+\begin{description}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\mathtt{ProveNI}_\mathtt{prm}^L(\state, N, s, t; \phi(N), \lambda) \to (\vec A, \vec z)$}
+\algoInputsList{
     \item security level $L = (m, \dots)$,
     \item shared state $\state \in \Bit^*$
     \item public data $N, s, t \in \Z, \Z, \Z$,
     \item secret data $\phi(N), \lambda \in \Z, \Z$,
-    \end{itemize}
-{\bf Outputs:} $\vec A, \vec z \in \Z_N^m, \Z_N^m$
+}
+\algoOutputs{$\vec A, \vec z \in \Z_N^m, \Z_N^m$}
 \begin{algorithmic}[1]
 \State Set $(\vec A; \vec a) \gets \mathtt{Commit}_\mathtt{prm}^L(N, \phi(N))$
 \State Deterministically derive a challenge $\vec e \in \Bit^m = \challengeni{prm}^L(\state, N, s, t, \vec A)$
 \State Compute proof $\vec z = \mathtt{Prove}_\mathtt{prm}^L(N, s, t, \phi(N), \lambda, \vec a)$
 \State \Return $(\vec A, \vec z)$
 \end{algorithmic}
-\end{algorithm}
+\end{inlineAlgorithm}
 
-\begin{algorithm}
-\caption{$\mathtt{VerifyNI}_\mathtt{prm}^L(\state, N, s, t, \vec A, \vec z)$}
-{\bf Inputs:}
-    \begin{itemize}[noitemsep,topsep=0pt]
+\item
+\begin{inlineAlgorithm}
+\algoName{$\mathtt{VerifyNI}_\mathtt{prm}^L(\state, N, s, t, \vec A, \vec z)$}
+\algoInputsList{
     \item security level $L = (m, \dots)$,
     \item shared state $\state \in \Bit^*$
     \item public data $N, s, t \in \Z, \Z, \Z$,
     \item commitment $\vec A \in \Z^m$, proof $\vec z \in \Z^m$
-    \end{itemize}
-{\bf Outputs:} Aborts if proof is invalid
+}
+\algoOutputs{Aborts if proof is invalid}
 \begin{algorithmic}[1]
 \State Deterministically derive a challenge $\vec e \in \Bit^m = \challengeni{prm}^L(\state, N, s, t, \vec A)$
 \State Invoke $\mathtt{Verify}_\mathtt{prm}^L(N, s, t, \vec A, \vec e, \vec z)$
 \end{algorithmic}
-\end{algorithm}
+\end{inlineAlgorithm}
 
+\end{description}
 
 \subsection{$\proof{log*}$: Group Element vs.\ Paillier Encryption in Range}
 The prover and verifier agree on shared state $\state$, auxiliary data $R_j=(N_j, s_j, t_j)$ with $s_j, t_j \in {\mathbb Z}^*_{N_j}$, 
