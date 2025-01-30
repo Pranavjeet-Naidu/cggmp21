@@ -415,7 +415,7 @@ And then we use pseudo-random stream $G$ to deterministically sample $y_1 \gets 
 
 We assume the prover and verifier agree on shared state $\state$, auxiliary data $R_j = (N_j, s_j, t_j)$ with $s_j, t_j \in \Z^*_{N_j}$, and a security level~$L$. 
 The prover and verifier have common input $(N_i, K)$, and the prover additionally has 
-secret input $(k, \rho)$ such that $k \in \pm 2^\ell$ and $K = \enc_{N_0}(k; \rho)$.
+secret input $(k, \rho)$ such that $k \in \pm 2^\ell$ and $K = \enc_{N_i}(k; \rho)$.
 %\hat N => N_j
 %N_0 => N_i
 In all the cases where this proof is used in the protocol, the prover knows the factorization of~$N_i$ (and thus knows~$\sk_i$) and the verifier knows the factorization of~$N_j$ (and thus knows $\sk_j$).
@@ -425,89 +425,134 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 
 \subsubsection{Interactive Version of the Proof}
 
-\begin{enumerate}
-    \item In the first round of the protocol, the prover does the following:
-    %$\commit{enc}^{L,R}((N_0, K); (k, \rho)) \to ((S, A, C); (\alpha, \mu, r, \gamma))$:
-    \begin{itemize}
-        \item The prover  samples the following values:
-        \[\alpha \gets \pm 2^{\ell + \varepsilon}, \;\;\;
-        \mu \gets \pm (2^\ell \cdot N_j), \;\;\;
-        r \gets \Z_{N_i}^*, \;\;\;
-        \gamma \gets \pm (2^{\ell + \varepsilon} \cdot N_j).\]
+\begin{description}
 
-        \item The prover then computes:
-\begin{itemize}
-        \item $S = s_j^k t_j^\mu \bmod N_j$ 
-            \item $A = \enc_{N_i}(\alpha; r)$  (this is computed as $\enc^\crt_{\sk_i}(\alpha; r)$ if $\sk_i$ is known)
-            \item $C = s_j^\alpha t_j^\gamma \bmod N_j$.
-\end{itemize}
-      Note that $S$ and $C$ are computed using fixed-based multiexponentiations.
-        
+\item
+\begin{inlineAlgorithm}
+\algoName{$\commit{enc}^L(R_j, N_i; k, [, \sk_i]) \to ((S, A, C); (\alpha, \mu, r, \gamma))$}
+\algoInputsList{
+    \item security level $L = (\ell, \varepsilon, \dots)$
+    \item auxilary data $R_j = (N_j, s_j, t_j) \in (\Z, \Z, \Z)$
+    \item public encryption key $N_i \in \Z$ and, if known, corresponding secret key $\sk_i$
+    \item secret plaintext $k \in \Z$
+}
+\algoOutputsList{
+    \item public commitment $(S, A, C) \in (\Z, \Z, \Z)$,
+    \item secret nonce $(\alpha, \mu, r, \gamma) \in (\Z, \Z, \Z, \Z)$
+}
+\begin{algorithmic}[1]
+\State $\alpha \gets \pm 2^{\ell + \varepsilon}$
+\State $\mu \gets \pm (2^\ell \cdot N_j)$
+\State $r \gets \Z_{N_i}^*$
+\State $\gamma \gets \pm (2^{\ell + \varepsilon} \cdot N_j)$
+\State 
+\State $S = s_j^k t_j^\mu \bmod N_j$ \Comment{use precomputed fixed-base multiexponentiation table}
+\State $A = \enc_{N_i}(\alpha; r)$  (this is computed as $\enc^\crt_{\sk_i}(\alpha; r)$ if $\sk_i$ is known)
+\State $C = s_j^\alpha t_j^\gamma \bmod N_j$ \Comment{use precomputed fixed-base multiexponentiation table}
+\State \Return $((S, A, C); (\alpha, \mu, r, \gamma))$
+\end{algorithmic}
+\end{inlineAlgorithm}
 
-        \item The prover sends first message $(S, A, C)$, and maintains local (secret) state $(\alpha, \mu, r, \gamma)$.
-    \end{itemize}
+\item
+\begin{inlineAlgorithm}
+\algoName{$\challenge{enc}^L() \to e$}
+\algoInputs{security level $L = (Q, \dots)$}
+\algoOutputs{$e \in \pm Q$}
+\begin{algorithmic}[1]
+\State Sample $e \gets \pm Q$
+\State \Return $e$
+\end{algorithmic}
 
-    \item The verifier chooses $e \gets \pm Q$ and sends $e$ to the prover.
+\item
+\begin{inlineAlgorithm}
+\algoName{$\prove{enc}((N_i, K), e; (\alpha, \mu, r, \gamma)) \to (z_1, z_2, z_3)$}
+\algoInputsList{
+    \item public data $(N_i, K) \in (\Z, \Z)$
+    \item challenge $e \in \Z$
+    \item local secret commitment none $(\alpha, \mu, r, \gamma) \in (\Z, \Z, \Z, \Z)$
+}
+\algoOutputs{$(z_1, z_2, z_3) \in (\Z, \Z, \Z)$}
+\begin{algorithmic}[1]
+\State $z_1 = \alpha + e k $
+\State $z_2 = r \cdot \rho^e \bmod N_i $
+\State $z_3 = \gamma + e \mu$
+\State \Return $(z_1, z_2, z_3)$
+\end{algorithmic}
+\end{inlineAlgorithm}
+\end{inlineAlgorithm}
 
-    \item On input $(N_i, K)$, challenge $e$, and local state including $(k, \rho), (\alpha, \mu, r, \gamma)$, the prover computes:
-\begin{itemize}
-\item    $z_1 = \alpha + e k $
-\item    $z_2 = r \cdot \rho^e \bmod N_i $
-\item    $z_3 = \gamma + e \mu$.
-\end{itemize}
-    It then sends $(z_1, z_2, z_3)$ to the verifier.
+\item
+\begin{inlineAlgorithm}
+\algoName{$\verify{enc}^L((N_i, K), (S, A, C), e, (z_1, z_2, z_3))$}
+\algoInputsList{
+    \item security level $L = (\varepsilon, \ell, \dots)$
+    \item public data $(N_i, K) \in (\Z, \Z^*_{N_i})$,
+    \item commitment $(S, A, C) \in (\Z, \Z, \Z)$,
+    \item challenge $e \in \Z$,
+    \item proof $(z_1, z_2, z_3) \in (\Z, \Z, \Z)$
+}
+\algoOutputs{aborts if proof is invalid}
+\begin{algorithmic}[1]
+\State $A \oplus (e \odot K) \? = \enc_{N_i}(z_1; z_2) \bmod N_i^2$
+\State $s_j^{z_1} t_j^{z_3} \? = C \cdot S^e \bmod N_j$ \Comment{use precomputed multiexp table to compute left part of equation}
+\State $z_1 \? \in \pm 2^{\ell + \varepsilon}$.
+\end{algorithmic}
+\end{inlineAlgorithm}
 
-    \item Given $(N_i, K)$, initial message $(S, A, C)$, challenge $e$, and response $(z_1, z_2, z_3)$, the verifier accepts if and only if all the following are true:
-\begin{itemize}
-\item $A \oplus (e \odot K) = \enc_{N_i}(z_1; z_2) \bmod N_i^2$ %(the latter is computed as $\enc^\crt_{\sk_i}(z_1; z_2)$ if $\sk_i$ is known)
-\item    $s_j^{z_1} t_j^{z_3} = C \cdot S^e \bmod N_j$  
-\item    $z_1 \in \pm 2^{\ell + \varepsilon}$.
-\end{itemize}
-Note the second computation involves a fixed-based multiexponentiation.
-\end{enumerate}
+\end{description}
 
 \subsubsection{Non-Interactive Version of the Proof}
 
-\begin{itemize}
-    \item We deterministically derive a challenge from inputs that include shared $\state$, auxiliary data~$R_j$, the common input~$(N_i, K)$, and the initial protocol message $(S, A, C)$.    
-    We write the resulting function as 
-    $e = \challengeni{enc}^{L}(\state, R_j, (N_i, K), (S, A, C))$.
+\begin{description}
 
-%    $\text{seed} = H(\sid \| R \| N_0 \| K \| S \| A \| C) \\ e \stackrel{\text{seed}}{\gets} \pm Q $ 
-    
-%    \jnote{Would be good to include the prover's ID in the hash. Also $\sid$ (since $s, t, \hat N$ might be shared across many sessions).} \dnote{This is a typo, $\sid$ must be in the hash. Added it. $\sid$ should include prover's ID (it's probably better to call it ctx or CST (context-separation tag)} \jnote{$\sid$ may include the prover's ID among all parties' IDs, but that is not enough: you want the distinguish the prover so the proof can't be replayed by another party} \dnote{Yes I understand that. It's going to work like that: we have $\sid_1$ defined at protocol level (e.g. at presigning) and $\sid_2$ defined at proof level. When proof is invoked, we set $\sid_2 = \sid_1 \| i \| \dots$ where $i$ is party index. I see that it's not taken into account in described presigning below, I will address that (added TBD in presigning section)}
+\item
+\begin{inlineAlgorithm}
+\algoName{$\proveni{enc}^L(\state, R_j, (N_i, K); k[, \sk_i]) \to ((S, A, C); (z_1, z_2, z_3))$}
+\algoInputsList{
+    \item security level $L = (Q, \dots)$,
+    \item shared state $\state \in \Bit^*$,
+    \item auxilary data $R_j$,
+    \item public encryption key $N_i \in \Z$ and, if known, corresponding secret key $\sk_i$,
+    \item plaintext $K \in \Z$,
+    \item secret plaintext $k \in \Z$
+}
+\algoOutputsList{
+    \item public commitment $(S, A, C) \in (\Z, \Z, \Z)$,
+    \item proof $(z_1, z_2, z_3) \in (\Z, \Z, \Z)$
+}
+\begin{algorithmic}[1]
+\State $((S, A, C); (\alpha, \mu, r, \gamma)) \gets \commit{enc}^L(R_j, N_i; k[, \sk_i])$
+    \Comment{generate commitment}
+\State $e \in \pm Q = \challengeni{enc}^L(\state, R_j, (N_i, K), (S, A, C))$
+    \Comment{deterministically derive challenge}
+\State $(z_1, z_2, z_3) = \prove{enc}((N_i, K), e; (\alpha, \mu, r, \gamma))$
+\State \Return $((S, A, C), (z_1, z_2, z_3))$
+\end{algorithmic}
+\end{inlineAlgorithm}
 
-    
-    \item The prover generates a proof as follows: first it computes $(S, A, C)$ as described above; then it computes $e = \challengeni{enc}^{L}(\state, R_j, (N_i, K), (S, A, C))$; next, it computes $(z_1, z_2, z_3)$ as described above, using the challenge~$e$. Finally, it outputs the proof $((S, A, C), (z_1, z_2, z_3))$. We write the resulting function as $\proveni{enc}^{L}(\state, R_j, (N_i, K), (k, \rho))$.
-    
-  %  $\proveni{enc}^{L,R}(\sid, (N_0, K); (k, \rho)) \to ((S, A, C), (z_1, z_2, z_3)):$
-   % \begin{enumerate}
-    %    \item Prover commits on input:
-        
-     %   $((S, A, C), (\alpha, \mu, r, \gamma)) = \commit{enc}^{L,R}((N_0, K); (k, \rho))$
+\item
+\begin{inlineAlgorithm}
+\algoName{$\verifyni{enc}^L(\state, R_j, (N_i, K), ((S, A, C), (z_1, z_2, z_3)))$}
+\algoInputsList{
+    \item security level $L = (Q, \dots)$,
+    \item shared state $\state \in \Bit^*$,
+    \item auxilary data $R_j$,
+    \item public data:
+        \begin{itemize}
+        \item public encryption key $N_i \in \Z$,
+        \item plaintext $K \in \Z$,
+        \end{itemize}
+    \item non-interactive proof $((S, A, C), (z_1, z_2, z_2)) \in ((\Z, \Z, \Z), (\Z, \Z, \Z))$
+}
+\algoOutputs{aborts if proof is invalid}
+\begin{algorithmic}[1]
+\State $e \in \pm Q = \challengeni{enc}^L(\state, R_j, (N_i, K), (S, A, C))$
+    \Comment{deterministically derive challenge}
+\State Assert $\verify{enc}^L((N_i, K), (S, A, C), e, (z_1, z_2, z_3))$
+\end{algorithmic}
+\end{inlineAlgorithm}
 
-      %  \item Derives challenge:
-
-       % $e = \challengeni{enc}^{L,R}(\sid, (N_0, K), (S, A, C))$
-
-       % \item Computes the proof: 
-
-        %$(z_1, z_2, z_3) = \prove{enc}^{L,R}((N_0, K), e; (k, \rho), (\alpha, \mu, r, \gamma))$
-
-%        \item Returns $((S, A, C), (z_1, z_2, z_3))$
- %   \end{enumerate}
-
-    \item A party verifies a proof $\psi=((S, A, C), (z_1, z_2, z_3))$ by first computing \[e = \challengeni{enc}^{L}(\state, R_j, (N_i, K), (S, A, C))\] and then verifying as described above, using the challenge~$e$. We write the resulting function as $\verifyni{enc}^{L}(\state, R_j, (N_i, K), \psi)$.
-    
- %   $\verifyni{enc}^{L,R}(\sid, (N_0, K), ((S, A, C), (z_1, z_2, z_3))):$
-  %  \begin{enumerate}
-   %     \item Derives challenge:
-
-%        $e = \challengeni{enc}^{L,R}(\sid, (N_0, K), (S, A, C))$
-
- %       \item Asserts $\verify{enc}^{L,R}((N_0, K), (S, A, C), e, (z_1, z_2, z_3))$
-  %  \end{enumerate}
-\end{itemize}
+\end{description}
 
 \subsection{\proof{aff\mbox{-}g}: Paillier Affine Operation with Group Commitment in Range}
 
@@ -658,7 +703,7 @@ For this proof, the prover and verifier have common input $(N, s, t)$ with $s, t
 
 \item
 \begin{inlineAlgorithm}
-\algoName{$\mathtt{Commit}_\mathtt{prm}^L(N; \phi(N)) \to (\vec A; \vec a)$}
+\algoName{$\commit{prm}^L(N; \phi(N)) \to (\vec A; \vec a)$}
 \algoInputsList{
     \item security level $L = (m, \dots)$
     \item public data $N \in \Z$
@@ -678,7 +723,7 @@ For this proof, the prover and verifier have common input $(N, s, t)$ with $s, t
 
 \item
 \begin{inlineAlgorithm}
-\algoName{$\mathtt{Prove}_\mathtt{prm}^L(N, s, t; \phi(N), \lambda, \vec a) \to \vec z$}
+\algoName{$\prove{prm}^L(N, s, t; \phi(N), \lambda, \vec a) \to \vec z$}
 \algoInputsList{
     \item security level $L = (m, \dots)$,
     \item public data $N, s, t \in \Z, \Z, \Z$,
@@ -694,7 +739,7 @@ For this proof, the prover and verifier have common input $(N, s, t)$ with $s, t
 
 \item
 \begin{inlineAlgorithm}
-\algoName{$\mathtt{Verify}_\mathtt{prm}^L(N, s, t, \vec A, \vec e, \vec z)$}
+\algoName{$\verify{prm}^L(N, s, t, \vec A, \vec e, \vec z)$}
 \algoInputsList{
     \item security level $L = (m, \dots)$,
     \item public data $N, s, t \in \Z, \Z, \Z$
@@ -717,7 +762,7 @@ For this proof, the prover and verifier have common input $(N, s, t)$ with $s, t
 
 \item
 \begin{inlineAlgorithm}
-\algoName{$\mathtt{ProveNI}_\mathtt{prm}^L(\state, N, s, t; \phi(N), \lambda) \to (\vec A, \vec z)$}
+\algoName{$\proveni{prm}^L(\state, N, s, t; \phi(N), \lambda) \to (\vec A, \vec z)$}
 \algoInputsList{
     \item security level $L = (m, \dots)$,
     \item shared state $\state \in \Bit^*$
@@ -735,7 +780,7 @@ For this proof, the prover and verifier have common input $(N, s, t)$ with $s, t
 
 \item
 \begin{inlineAlgorithm}
-\algoName{$\mathtt{VerifyNI}_\mathtt{prm}^L(\state, N, s, t, \vec A, \vec z)$}
+\algoName{$\verifyni{prm}^L(\state, N, s, t, \vec A, \vec z)$}
 \algoInputsList{
     \item security level $L = (m, \dots)$,
     \item shared state $\state \in \Bit^*$
