@@ -465,10 +465,11 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 
 \item
 \begin{inlineAlgorithm}
-\algoName{$\prove{enc}((N_i, K), e; (\alpha, \mu, r, \gamma)) \to (z_1, z_2, z_3)$}
+\algoName{$\prove{enc}((N_i, K), e; \rho, (\alpha, \mu, r, \gamma)) \to (z_1, z_2, z_3)$}
 \algoInputsList{
     \item public data $(N_i, K) \in (\Z, \Z)$
     \item challenge $e \in \Z$
+    \item secret nonce $\rho \in \Z$
     \item local secret commitment none $(\alpha, \mu, r, \gamma) \in (\Z, \Z, \Z, \Z)$
 }
 \algoOutputs{$(z_1, z_2, z_3) \in (\Z, \Z, \Z)$}
@@ -493,6 +494,7 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 }
 \algoOutputs{aborts if proof is invalid}
 \begin{algorithmic}[1]
+\State $K \? \in \Z^*_{N_i}$
 \State $A \oplus (e \odot K) \? = \enc_{N_i}(z_1; z_2) \bmod N_i^2$
 \State $s_j^{z_1} t_j^{z_3} \? = C \cdot S^e \bmod N_j$ \Comment{use precomputed multiexp table to compute left part of equation}
 \State $z_1 \? \in \pm 2^{\ell + \varepsilon}$.
@@ -507,14 +509,14 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 
 \item
 \begin{inlineAlgorithm}
-\algoName{$\proveni{enc}^L(\state, R_j, (N_i, K); k[, \sk_i]) \to ((S, A, C); (z_1, z_2, z_3))$}
+\algoName{$\proveni{enc}^L(\state, R_j, (N_i, K); k, \rho[, \sk_i]) \to ((S, A, C); (z_1, z_2, z_3))$}
 \algoInputsList{
     \item security level $L = (Q, \dots)$,
     \item shared state $\state \in \Bit^*$,
     \item auxilary data $R_j$,
     \item public encryption key $N_i \in \Z$ and, if known, corresponding secret key $\sk_i$,
-    \item plaintext $K \in \Z$,
-    \item secret plaintext $k \in \Z$
+    \item public ciphertext $K \in \Z$,
+    \item secret plaintext $k \in \Z$ and secret nonce $\rho \in \Z$
 }
 \algoOutputsList{
     \item public commitment $(S, A, C) \in (\Z, \Z, \Z)$,
@@ -525,7 +527,7 @@ In all the cases where this proof is used in the protocol, the prover knows the 
     \Comment{generate commitment}
 \State $e \in \pm Q = \challengeni{enc}^L(\state, R_j, (N_i, K), (S, A, C))$
     \Comment{deterministically derive challenge}
-\State $(z_1, z_2, z_3) = \prove{enc}((N_i, K), e; (\alpha, \mu, r, \gamma))$
+\State $(z_1, z_2, z_3) = \prove{enc}((N_i, K), e; \rho, (\alpha, \mu, r, \gamma))$
 \State \Return $((S, A, C), (z_1, z_2, z_3))$
 \end{algorithmic}
 \end{inlineAlgorithm}
@@ -539,8 +541,8 @@ In all the cases where this proof is used in the protocol, the prover knows the 
     \item auxilary data $R_j$,
     \item public data:
         \begin{itemize}
-        \item public encryption key $N_i \in \Z$,
-        \item plaintext $K \in \Z$,
+        \item encryption key $N_i \in \Z$,
+        \item ciphertext $K \in \Z$,
         \end{itemize}
     \item non-interactive proof $((S, A, C), (z_1, z_2, z_2)) \in ((\Z, \Z, \Z), (\Z, \Z, \Z))$
 }
