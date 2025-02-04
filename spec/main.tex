@@ -583,73 +583,206 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 %    \item Implicit constraints: $2^{\ell' + \varepsilon} < N_0/2, N_1/2$
 
 \subsubsection{Interactive Version of the Proof}
-\begin{enumerate}
-    \item In the first round of the protocol, the prover does the following:
-   % $\commit{aff\mbox{-}g}^{L,R}((N_j, N_i, C, D, Y, X); (x, y, \rho, \rho_y)) \to ((A,B_x,B_y,E,S,F,T); (\alpha,\beta,r,r_y,\gamma,\delta,m,\mu))$:
-    \begin{itemize}
-        \item The prover samples the following values: 
+\begin{description}
 
-        $\begin{aligned}
-            \alpha &\gets \pm 2^{\ell+\varepsilon},   & r   &\gets \Z^*_{N_j}, & \gamma, \delta &\gets \pm (2^{\ell + \varepsilon} \cdot N_j)\\
-            \beta &\gets \pm 2^{\ell' + \varepsilon}, & r_y &\gets \Z^*_{N_i}, & m, \mu         &\gets \pm (2^\ell \cdot N_j).
-        \end{aligned}$
-
-        \item The prover then computes:
-\begin{itemize}
-        \item $A = (\alpha \odot C) \oplus \enc_{N_j}(\beta; r)$
-          \item  $B_x = \alpha \cdot G $
-          \item  $B_y = \enc_{N_i}(\beta; r_y)$ (this is computed as $\enc^\crt_{\sk_i}(\beta; r_y)$ if $\sk_i$ is known)
-            \item $E = s_j^\alpha t_j^\gamma \bmod N_j, \; S = s_j^x t_j^m \bmod N_j$ 
-            \item $F = s_j^\beta t_j^\delta \bmod N_j, \; T = s_j^y t_j^\mu \bmod N_j$.
-        \end{itemize}
-        Note that the final two sets of computations are fixed-based multiexponentiations.
-
-        \item The prover sends first message $(A,B_x,B_y,E,S,F,T)$, and maintains local (secret) state $(\alpha, \beta, r, r_y, \gamma, \delta, m, \mu)$.
-    \end{itemize}
-
-    \item The verifier chooses $e \leftarrow \pm Q$ and sends $e$ to the prover.
-
-    \item On input $(N_j, N_i, C, D, Y, X)$, the challenge $e$, and local state that includes $(x, y, \rho, \rho_y)$, $(\alpha,\beta,r,r_y,\gamma,\delta,m,\mu)$, the prover computes:
+\item
+\begin{inlineAlgorithm}
+\algoName{$\commit{aff\mbox{-}g}^L(
+    R_j, (N_i, C); (x, y)
+) \to (
+    (A, B_x, B_y, E, S, F, T);
+    (\alpha, \beta, r, r_y, \gamma, \delta, m, \mu)
+)$}
+\algoInputsList{
+    \item security level $L = (\ell, \varepsilon, \dots)$,
+    \item auxilary data $R_j = (N_j, s_j, t_j) \in (\Z, \Z, \Z)$,
+    \item public data $N_i, C \in \Z, \Z$
+    \item secret data $x, y \in \Z, \Z$
+}
+\algoOutputsList{
+    \item public commitment $(A, B_x, B_y, E, S, F, T) \in (\Z, \E, \Z, \Z, \Z, \Z, \Z)$,
+    \item proof $(\alpha, \beta, r, r_y, \gamma, \delta, m, \mu) \in \Z^8$
+}
+\begin{algorithmic}[1]
+\State Sample:
 
     $\begin{aligned}
-        & z_1 = \alpha + e x \\
-        & z_2 = \beta + e y \\
-        & z_3 = \gamma + e m \\ 
-        & z_4 = \delta + e \mu \\
-        & w = r \cdot \rho^e \bmod N_j \\
-        & w_y = r_y \cdot \rho_y^e \bmod N_i,
+    \alpha &\gets \pm 2^{\ell+\varepsilon},   & r   &\gets \Z^*_{N_j}, & \gamma, \delta &\gets \pm (2^{\ell + \varepsilon} \cdot N_j)\\
+    \beta &\gets \pm 2^{\ell' + \varepsilon}, & r_y &\gets \Z^*_{N_i}, & m, \mu         &\gets \pm (2^\ell \cdot N_j).
     \end{aligned}$
-    
-    and sends $(z_1, z_2, z_3, z_4, w, w_y)$ to the verifier.
+\State $A = (\alpha \odot C) \oplus \enc_{N_j}(\beta; r)$
+\State $B_x = \alpha \cdot G $
+\State $B_y = \enc_{N_i}(\beta; r_y)$ \Comment{this is computed as $\enc^\crt_{\sk_i}(\beta; r_y)$ if $\sk_i$ is known}
+\State $E = s_j^\alpha t_j^\gamma \bmod N_j$ \Comment{this and below can be computed via pregenerated table for fixed-base multiexp}
+\State $S = s_j^x t_j^m \bmod N_j$ 
+\State $F = s_j^\beta t_j^\delta \bmod N_j$
+\State $T = s_j^y t_j^\mu \bmod N_j$
+\State \Return $((A, B_x, B_y, E, S, F, T); (\alpha, \beta, r, r_y, \gamma, \delta, m, \mu))$
+\end{algorithmic}
+\end{inlineAlgorithm}
 
-    \item Given $(N_j,N_i,C,D,Y,X)$, initial message $(A,B_x,B_y,E,S,F,T)$, challenge $e$, and response $(z_1, z_2, z_3, z_4, w, w_y)$, the verifier accepts if and only if all the following are true:
-    
-$\begin{aligned}
-    &  A \oplus (e \odot D)  = (z_1 \odot C) \oplus \enc^\crt_{\sk_j}(z_2; w)\bmod N_j^2\\
-    &  z_1 \cdot G = B_x + e \cdot X \\
-    &  B_y \oplus (e \odot Y)  = \enc_{N_i}(z_2; w_y) \bmod N_i^2\\
-    &  s_j^{z_1} t_j^{z_3} = E \cdot S^e \bmod N_j
-                                            \\
-    &  s_j^{z_2} t_j^{z_4} = F \cdot T^e \bmod N_j \\
-    &  z_1 \in \pm 2^{\ell + \varepsilon} \\
-    &  z_2 \in \pm 2^{\ell' + \varepsilon}.
-    \end{aligned}$
-    
-Note that two of the above computations involve fixed-base multiexponentiations.
-   
-\end{enumerate}
+\item
+\begin{inlineAlgorithm}
+\algoName{$\challenge{aff\mbox{-}g}^L() \to e$}
+\algoInputs{security level $L = (Q, \dots)$}
+\algoOutputs{challenge $e \in \pm Q$}
+\begin{algorithmic}[1]
+\State Sample $e \gets \pm Q$
+\State \Return $e$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\prove{aff\mbox{-}g}(
+    (N_j, N_i, C, D, Y, X),
+    e;
+    (x, y, \rho, \rho_y),
+    (\alpha, \beta, r, r_y, \gamma, \delta, m, \mu)
+) \to (z_1, z_2, z_3, z_4, w, w_y)$}
+\algoInputsList{
+    \item public data $(N_j, N_i, C, D, Y, X) \in (\Z, \Z, \Z, \Z, \Z, \E)$
+    \item challenge $e \in \Z$
+    \item secret data $(x, y, \rho, \rho_y) \in \Z^4$
+    \item secret commitment nonce $(\alpha, \beta, r, r_y, \gamma, \delta, m, \mu) \in \Z^8$
+}
+\algoOutputs{proof $(z_1, z_2, z_3, z_4, w, w_y) \in \Z^6$}
+\begin{algorithmic}[1]
+\State $z_1 = \alpha + e x$
+\State $z_2 = \beta + e y$
+\State $z_3 = \gamma + e m$
+\State $z_4 = \delta + e \mu$
+\State $w = r \cdot \rho^e \bmod N_j$
+\State $w_y = r_y \cdot \rho_y^e \bmod N_i$
+\State \Return $(z_1, z_2, z_3, z_4, w, w_y)$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\verify{aff\mbox{-}g}^L(
+    R_j,
+    (N_j, N_i, C, D, Y, X),
+    (A, B_x, B_y, E, S, F, T),
+    e,
+    (z_1, z_2, z_3, z_4, w, w_y);
+    [\sk_j]
+)$}
+\algoInputsList{
+    \item security level $L = (\ell, \ell', \varepsilon, \dots)$
+    \item auxilary data $R_j = (s, t, \dots) \in (\Z, \Z, \dots)$
+    \item public data $(N_j, N_i, C, D, Y, X) \in (\Z, \Z, \Z, \Z, \Z, \E)$
+    \item commiment $(A, B_x, B_y, E, S, F, T) \in (\Z, \E, \Z, \Z, \Z, \Z, \Z)$
+    \item challenge $e \in \Z$
+    \item proof $(z_1, z_2, z_3, z_4, w, w_y) \in \Z^6$
+    \item if known, private key $\sk_j$, corresponding to $N_j$
+}
+\algoOutputs{aborts if proof is invalid}
+\begin{algorithmic}[1]
+\State $A \oplus (e \odot D) \? = (z_1 \odot C) \oplus \enc^\crt_{\sk_j}(z_2; w)\bmod N_j^2$
+\State $z_1 \cdot G \? = B_x + e \cdot X$
+\State $B_y \oplus (e \odot Y) \? = \enc_{N_i}(z_2; w_y) \bmod N_i^2$
+\State $s_j^{z_1} t_j^{z_3} \? = E \cdot S^e \bmod N_j$ \Comment{left part is computed via pregenerated fixed-base mulitexp table}
+\State $s_j^{z_2} t_j^{z_4} \? = F \cdot T^e \bmod N_j$
+\State $z_1 \? \in \pm 2^{\ell + \varepsilon}$
+\State $z_2 \? \in \pm 2^{\ell' + \varepsilon}$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\end{description}
 
 \subsubsection{Non-Interactive Version of the Proof}
-\begin{itemize}
-    \item We deterministically derive a challenge from inputs that include shared $\state$, the auxiliary data~$R_j$, the common input~$(N_j,N_i,C,D,Y,X)$, and the initial protocol message $(A,B_x,B_y,E,S,F,T)$.    
-We write the resulting function as \[e = \challengeni{aff\mbox{-}g}^{L}(\state,R_j,(N_j,N_i,C,D,Y,X),(A,B_x,B_y,E,S,F,T)).\]
 
-    \item The prover generates a proof as follows: it computes its initial message $(A,B_x,B_y,E,S,F,T)$ as described above; then it computes \[e = \challengeni{aff\mbox{-}g}^{L}(\state,R_j,(N_j,N_i,C,D,Y,X),(A,B_x,B_y,E,S,F,T));\] next, it computes $(z_1,z_2,z_3,z_4,w,w_y)$ as described above, using the challenge~$e$. Finally, it outputs the proof $((A,B_x,B_y,E,S,F,T), (z_1,z_2,z_3,z_4,w,w_y))$. We write the resulting function as $\proveni{aff\mbox{-}g}^{\E,L}(\state, R_j, (N_j, N_i, C, D, Y, C); (x,y,\rho,\rho_y))$. 
-  
-    \item A party verifies a proof $\psi=((A,B_x,B_y,E,S,F,T), (z_1,z_2,z_3,z_4,w,w_y))$ by first computing 
-    \[e = \challengeni{aff\mbox{-}g}^{L}(\state,R_j,(N_j,N_i,C,D,Y,X),(A,B_x,B_y,E,S,F,T))\]
-    and then verifying as described above, using the challenge~$e$. We write the resulting function as $\verifyni{aff\mbox{-}g}^{\E,L}(\state,R_j, (N_j,N_i,C,D,Y,X), \psi)$.
-\end{itemize}
+\begin{description}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\proveni{aff\mbox{-}g}^L(
+    \state,
+    R_j,
+    (N_j, N_i, C, D, Y, X);
+    (x, y, \rho, \rho_y)
+) \to (
+    (A, B_x, B_y, E, S, F, T),
+    (z_1, z_2, z_3, z_4, w, w_y)
+)$}
+\algoInputsList{
+    \item security level $L = (Q, \dots) \in (\Z, \dots)$,
+    \item shared state $\state \in \Bit^*$,
+    \item auxiliary data $R_j$,
+    \item public data $(N_j, N_i, C, D, Y, X) \in (\Z, \Z, \Z, \Z, \Z, \E)$,
+    \item secret data $(x, y, \rho, \rho_y) \in \Z^4$
+}
+\algoOutputsList{
+    \item public commitment $(A, B_x, B_y, E, S, F, T) \in (\Z, \E, \Z, \Z, \Z, \Z, \Z)$
+    \item proof $(z_1, z_2, z_3, z_4, w, w_y) \in \Z^6$
+}
+\begin{algorithmic}[1]
+\State $(A, B_x, B_y, E, S, F, T);
+        (\alpha, \beta, r, r_y, \gamma, \delta, m, \mu)
+        \gets \commit{aff\mbox{-}g}^L(R_j, (N_i, C); (x, y))$
+\State $e \in \pm Q = \challengeni{aff\mbox{-}g}^L(
+    \state,
+    R_j,
+    (N_j, N_i, C, D, Y, X),
+    (A, B_x, B_y, E, S, F, T)
+)$
+\State $(z_1, z_2, z_3, z_4, w, w_y) = \prove{aff\mbox{-}g}(
+    (N_j, N_i, C, D, Y, X),
+    e;
+    (x, y, \rho, \rho_y),
+    (\alpha, \beta, r, r_y, \gamma, \delta, m, \mu)
+)$
+\State \Return $(
+    (A, B_x, B_y, E, S, F, T),
+    (z_1, z_2, z_3, z_4, w, w_y)
+)$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\verifyni{aff\mbox{-}g}^L(
+    \state,
+    R_j,
+    (N_j, N_i, C, D, Y, X),
+    (
+        (A, B_x, B_y, E, S, F, T),
+        (z_1, z_2, z_3, z_4, w, w_y)
+    );
+    [\sk_j]
+)$}
+\algoInputsList{
+    \item security level $L = (Q, \dots) \in (\Z, \dots)$,
+    \item auxiliary data $R_j$,
+    \item public data $(N_j, N_i, C, D, Y, X) \in (\Z, \Z, \Z, \Z, \Z, \E)$,
+    \item non-interactive proof consisting of:
+        \begin{itemize}
+        \item commitment $(A, B_x, B_y, E, S, F, T) \in (\Z, \E, \Z, \Z, \Z, \Z, \Z)$
+        \item proof $(z_1, z_2, z_3, z_4, w, w_y) \in \Z^6$
+        \end{itemize}
+    \item if known, secret key $\sk_j$, corresponding to $N_j$
+}
+\algoOutputs{aborts if proof is invalid}
+\begin{algorithmic}[1]
+\State $e \in \pm Q = \challengeni{aff\mbox{-}g}^L(
+    \state,
+    R_j,
+    (N_j, N_i, C, D, Y, X),
+    (A, B_x, B_y, E, S, F, T)
+)$
+\State Assert $\verify{aff\mbox{-}g}^L(
+    R_j,
+    (N_j, N_i, C, D, Y, X),
+    (A, B_x, B_y, E, S, F, T),
+    e,
+    (z_1, z_2, z_3, z_4, w, w_y);
+    [\sk_j]
+)$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\end{description}
 
 \subsection{$\proof{mod}$: Paillier-Blum Modulus}
 The prover and verifier agree on shared state $\state$ and a security level~$L$ (which determines~$m$). For this proof, the prover and verifier have common input~$N$, and the prover additionally has as secret input primes $p, q=3 \bmod 4$ such that~$N=pq$.
