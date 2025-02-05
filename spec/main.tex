@@ -70,6 +70,7 @@
 {{\ensuremath{\mathtt{enc}}^\crt_{\sk_i}}}
 \newcommand{\encCrti}[1]{{\ensuremath{\mathtt{enc}}^\crt_{\sk_{#1}}}}
 \newcommand{\sid}{\ensuremath{\mathtt{sid}}}
+\newcommand{\fn}[1]{\ensuremath{\mathtt{#1}}}
 \newcommand{\proof}[1]{\ensuremath{\Pi^{\mathtt{#1}}}}
 \newcommand{\commit}[1]{\ensuremath{\mathtt{Commit}_{\mathtt{#1}}}}
 \newcommand{\challenge}[1]{\ensuremath{\mathtt{Challenge}_{\mathtt{#1}}}}
@@ -80,6 +81,8 @@
 \newcommand{\verifyni}[1]{\ensuremath{\mathtt{VerifyNI}_{\mathtt{#1}}}}
 \newcommand{\ou}{\text{\;or\;}} % \or is prohibited in latex for some reason
 \newcommand{\Encode}[1]{\ensuremath{\mathtt{Encode}_{\mathtt{#1}}}}
+
+\newcommand{\jacobi}[2]{\ensuremath{\left( \frac{#1}{#2} \right)}}
 
 \newcommand{\changedt}[1]{\colorbox{Salmon}{#1}}
 \newcommand{\changed}[1]{\colorbox{Salmon}{$\displaystyle #1$}}
@@ -385,6 +388,63 @@ Encoding function should satisfy these properties:
 \item {\bf Platform-independence.} Encoding should be the same regardless of platform or machine on which it's
     executed.
 \end{itemize}
+
+\section{Utility functions}
+This section contains functions definitions that are needed in the protocol or ZK proofs.
+
+\begin{description}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\fn{blum\_sqrt}(x, p, q, N) \to y$}
+\algoInputsList{
+    \item $x$ is a quadratic residue in $\Z_N$,
+    \item primes $p, q$ that are congruent to 3 modulo 4,
+    \item $N = p \cdot q$
+}
+\algoOutputs{$y$ such that $y^2 = x \bmod N$}
+\begin{algorithmic}[1]
+\State $e = ((p - 1) \cdot (q - 1) + 4) / 8$
+    \Comment{Described in \cite{crypto-handbook}, p. 75, Fact 2.160}
+\State $y = x^e \bmod N$
+\State \Return $y$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\fn{find\_residue}(y, w, p, q, N) \to (a, b, y') \; \text{or} \; \bot$}
+Finds $a, b \in \Bit^2$ such that $y' = (-1)^a w^b y$ is a quadratic residue in $\Z_N$.
+
+\algoInputsList{
+    \item $y \in \Z$,
+    \item primes $p, q \in \Z, \Z$ that are congruent to 3 modulo 4,
+    \item $N = p \cdot q$,
+    \item $w$ with Jacobi symbol $\jacobi{w}{N} = -1$
+}
+\algoOutputs{
+    $(a, b, y')$ such that $y' = (-1)^a w^b y$ is a quadratic residue in $\Z_N$
+}
+\begin{algorithmic}[1]
+\State Calculate $\jacobi{y}{p}, \jacobi{y}{q}$
+\If{$\jacobi{y}{p} = 1 \land \jacobi{y}{q} = 1$}
+    \Return $(a = 0, b = 0, y' = y)$
+\EndIf
+\If{$\jacobi{y}{p} = -1 \land \jacobi{y}{q} = -1$}
+    \Return $(a = 1, b = 0, y' = n-y)$
+\EndIf
+\State Calculate $\jacobi{wy}{p}, \jacobi{wy}{q}$
+\If{$\jacobi{wy}{p} = 1 \land \jacobi{wy}{q} = 1$}
+    \Return $(a = 0, b = 1, y' = wy)$
+\EndIf
+\If{$\jacobi{wy}{p} = -1 \land \jacobi{wy}{q} = -1$}
+    \Return $(a = 1, b = 1, y' = n-wy)$
+\EndIf
+\State \Return $\bot$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\end{description}
 
 \section{Zero-Knowledge Proofs}
 In this section we describe the various zero-knowledge proofs that are used as sub-routines in the protocol. In each case we first describe an interactive version of the proof; we then describe how we implement a non-interactive version of the proof using the Fiat-Shamir transform.
@@ -789,44 +849,127 @@ The prover and verifier agree on shared state $\state$ and a security level~$L$ 
 
 \subsubsection{Interactive Version of the Proof}
 
-\begin{enumerate} 
-\item In the first round of the protocol, the prover samples uniform 
-$w \in \mathbb{Z}_N$
-    with Jacobi symbol $\left( \frac{w}{N} \right) = -1$. It sends $w$ to the verifier and maintains local state~$w$.
+\begin{description}
 
-  \item The verifier chooses uniform $y_i \in \mathbb{Z}_N$ for $i=1,\ldots, m$.
+\item
+\begin{inlineAlgorithm}
+\algoName{$\commit{mod}(N) \to w$}
+\algoInputs{public key $N \in \Z$}
+\algoOutputs{$w \in \Z_N$}
+\begin{algorithmic}[1]
+\State Sample $w \gets \Z_N$ with Jacobi symbol $\left( \frac{w}{N} \right) = -1$
+\Comment{\parbox[t]{.4\linewidth}{can be done with rejection sampling: sample $w \gets \Z_N$, output $w$ if $\left( \frac{w}{N} \right) = -1$, repeat otherwise}}
+\State \Return $w$
+\end{algorithmic}
+\end{inlineAlgorithm}
 
-  \item Given $N$, the challenge $y_1, \ldots, y_m$, and local state that includes $p, q, w$, the prover does the following for $i=1,\ldots,m$:
-    \begin{enumerate}
-      \item Compute $a_i, b_i \in \Bit$ such that $y'_i = (-1)^{a_i} w^{b_i} y_i \bmod N$ is a quadratic residue  modulo~$N$.
-      \item Let $x_i$ be the principal\footnote{This means that $x_i$ is itself a quadratic residue.} 4th root of $y'_i$ modulo~$N$.
-      \item Compute $N' = N^{-1} \bmod \phi(N)$ and set $z_i = y_i ^ {N'} \bmod N$.
-    \end{enumerate}
-Send $\{(x_i, a_i, b_i, z_i)\}_{i=1}^m$ to the verifier. 
-    
-  \item Given $N$, initial message $w$, challenge $\{y_i\}_{i=1}^m$, and response 
-  $\{(x_i, a_i, b_i, z_i)\}_{i=1}^m$, the verifier accepts if and only if all the following are true:
-    \begin{enumerate}
-      \item $N$ is an odd non-prime.
-      \item For $i \in \{1, \ldots, m\}$: \begin{itemize}
-          \item $z_i^N = y_i \bmod N$.
-          \item $x_i^4 = (-1)^{a_i} w^{b_i} y_i \bmod N$.
-      \end{itemize} 
-    \end{enumerate}
+\item
+\begin{inlineAlgorithm}
+\algoName{$\challenge{mod}^L(N) \to \vec y$}
+\algoInputsList{
+    \item security level $L = (m, \dots)$,
+    \item public key $N \in \Z$
+}
+\algoOutputs{
+    $\vec y \in \Z_N^m$
+}
+\begin{algorithmic}[1]
+\State Sample $y_i \gets \Z_N$ for $i \in [m]$
+\State \Return $\vec y = \{y_i\}_{i\in[m]}$
+\end{algorithmic}
+\end{inlineAlgorithm}
 
-\end{enumerate}
+\item
+\begin{inlineAlgorithm}
+\algoName{$\prove{mod}^L(N, \vec y, w; (p, q)) \to \{(x_i, a_i, b_i, z_i)\}_{i\in[m]}$}
+\algoInputsList{
+    \item security level $L = (m, \dots)$,
+    \item public key $N \in \Z$,
+    \item challenge $\vec y = \{y_i\}_{i\in[m]} \in \Z^m$,
+    \item commitment $w \in \Z$,
+    \item secret data: primes $p, q \in \Z, \Z$ that are congruent 3 modulo 4 such that $N = p \cdot q$
+}
+\algoOutputs{$\{(x_i, a_i, b_i, z_i)\}_{i\in[m]} \in \{(\Z, \Z, \Z, \Z)\}^m$}
+\begin{algorithmic}[1]
+\State $N' = N^{-1} \bmod \phi(N)$
+\For{$i \in [m]$}
+    \State $(a_i, b_i, y'_i) = \fn{find\_residue}(y_i, w, p, q, N)$
+    \State $x_i = \fn{blum\_sqrt}(\fn{blum\_sqrt}(y'_i, p, q, N), p, q, N)$
+        \Comment{\parbox[t]{.3\linewidth}{$x_i$ is principal 4th root of $y'_i$ modulo $N$}}
+    \State $z_i = y_i^{N_i} \bmod N$
+\EndFor
+\State \Return $\{(x_i, a_i, b_i, z_i)\}_{i \in [m]}$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\verify{mod}^L(N, w, \{y_i\}_{i\in[m]}, \{(x_i, a_i, b_i, z_i)\}_{i\in[m]})$}
+\algoInputsList{
+    \item security level $L = (m, \dots)$,
+    \item public data $N \in \Z$,
+    \item commitment $w \in \Z$,
+    \item challenge $\{y_i\}_{i\in[m]} \in \Z^m$,
+    \item proof $\{(x_i, a_i, b_i, z_i)\}_{i\in[m]} \in \{(\Z, \Z, \Z, \Z)\}^m$
+}
+\algoOutputs{aborts if proof is invalid}
+\begin{algorithmic}[1]
+\State Assert that $N$ is odd non-prime
+\For{$i \in [m]$}
+    \State $z_i^N \? = y_i \bmod N$
+    \State $x_i^4 \? = (-1)^{a_i}w^{b_i}y_i \bmod N$
+\EndFor
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\end{description}
 
 \subsubsection{Non-Interactive Version of the Proof}
 
-\begin{itemize}
-  \item We deterministically derive a challenge from inputs that include shared $\state$, the common input~$N$, and the initial protocol message~$w$.   
-  We write the resulting function as $(y_1, \ldots, y_m)=\challengeni{mod}^L(\state, N, w)$.
+\begin{description}
 
-  \item The prover generates a proof by first computing its initial message $w$ as described above; then it computes 
-        $(y_1, \ldots, y_m) = \challengeni{mod}^L(\state, N, w)$; next, it computes $\{(x_i, a_i, b_i, z_i)\}_{i=1}^m$ as described above, using the challenge $\{y_i\}_{i=1}^m$. It outputs the proof $(w, \{(x_i, a_i, b_i, z_i)\}_{i=1}^m)$. We write the resulting function as $\proveni{mod}^L((\state, N), (p, q))$.
+\item
+\begin{inlineAlgorithm}
+\algoName{$\proveni{mod}^L(\state, N; (p, q)) \to (w, \{(x_i, a_i, b_i, z_i)\}_{i\in[m]})$}
+\algoInputsList{
+    \item security level $L = (m, \dots)$,
+    \item shared $\state \in \Bit^*$,
+    \item public data $N \in \Z$,
+    \item secret data: primes $p,q \in \Z,\Z$ that are congruent 3 modulo 4 such that $N = p \cdot q$
+}
+\algoOutputsList{
+    \item challenge $w \in \Z$,
+    \item proof $\{(x_i, a_i, b_i, z_i)\}_{i\in[m]} \in \{(\Z, \Z, \Z, \Z)\}^m$
+}
+\begin{algorithmic}[1]
+\State $w \gets \commit{mod}(N)$
+\State $\{y_i\}_{i\in[m]} = \challengeni{mod}^L(\state, N, w)$
+\State $\{(x_i, a_i, b_i, z_i)\}_{i\in[m]} = \prove{mod}^L(N, \{y_i\}_{i\in[m]}, w; (p, q))$
+\State \Return $\{(x_i, a_i, b_i, z_i)\}_{i\in[m]}$
+\end{algorithmic}
+\end{inlineAlgorithm}
 
-  \item A party verifies a proof  $(w, \{(x_i, a_i, b_i, z_i)\}_{i=1}^m)$ by first computing \[(y_1, \ldots, y_m) = \challengeni{mod}^L(\state, N, w)\] and then verifying as described above, using the challenge~$\{y_i\}_{i=1}^m$.
-\end{itemize}
+\item
+\begin{inlineAlgorithm}
+\algoName{$\verifyni{mod}^L(\state, N, (w, \{(x_i, a_i, b_i, z_i)\}_{i\in[m]}))$}
+\algoInputsList{
+    \item security level $L = (m, \dots)$,
+    \item shared $\state \in \Bit^*$,
+    \item public data: $N \in \Z$,
+    \item non-interactive proof:
+        \begin{itemize}
+        \item challenge $w \in \Z$,
+        \item proof $\{(x_i, a_i, b_i, z_i)\}_{i\in[m]} \in \{(\Z, \Z, \Z, \Z)\}^m$
+        \end{itemize}
+}
+\algoOutputs{aborts if proof is invalid}
+\begin{algorithmic}[1]
+\State $\{y_i\}_{i\in[m]} = \challengeni{mod}^L(\state, N, w)$
+\State Assert $\verify{mod}^L(N, w, \{y_i\}_{i\in[m]}, \{(x_i, a_i, b_i, z_i)\}_{i\in[m]})$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\end{description}
 
 \subsection{$\proof{prm}$: Ring-Pedersen Parameters}
 The prover and verifier agree on shared state $\state$ and security level~$L$ (which determines~$m$). 
