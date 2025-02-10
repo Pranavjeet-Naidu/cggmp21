@@ -1265,7 +1265,7 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 
 \subsection{$\proof{fac}$: No Small Factor Proof}
 The prover and verifier agree on shared state $\state$, auxiliary data $R_j=(N_j, s_j, t_j)$ with $s_j, t_j \in {\mathbb Z}_{N_j}^*$, and a security level~$L$. 
-For this proof, the prover and verifier have common input~$N_i$, and the prover additionally has primes $2^\ell < p, q < \pm 2^\ell \cdot \sqrt{N_i}$ with $N_i=pq$. 
+For this proof, the prover and verifier have common input~$N_i$, and the prover additionally has primes $2^\ell < p, q < 2^\ell \cdot \sqrt{N_i}$ with $N_i=pq$. 
 In all the cases where this proof is used in the protocol, the verifier knows the factorization of $N_j$ (and hence knows~$\sk_j$).
 
 %  \item Proof guarantees: $p_0, q_0 > 2^\ell$
@@ -1273,87 +1273,222 @@ In all the cases where this proof is used in the protocol, the verifier knows th
 
 
 \subsubsection{Interactive Version of the Proof}
-\begin{enumerate}
-  \item In the first round of the protocol, the prover does the following:
 
-    \begin{itemize}
-      \item The prover samples the following values:
+\begin{description}
 
-        $\alpha, \beta \gets \pm \left(2^{\ell + \varepsilon} \sqrt{N_i}\right)$ \\
-        $\mu, \nu \gets \pm \left(2^{\ell} N_j\right)$ \\
-        $\sigma \gets \pm \left(2^{\ell} N_i N_j\right)$ \\
-        $r \gets \pm \left(2^{\ell + \varepsilon} N_i N_j\right)$ \\
-        $x, y \gets \pm \left(2^{\ell + \varepsilon} N_j\right)$.
+\item
+\begin{inlineAlgorithm}
+\algoName{$\commit{fac}^L(R_j, N_i) \to ((P, Q, A, B, T, \sigma), (\alpha, \beta, \mu, \nu, r, x, y))$}
+\algoInputsList{
+    \item security level $L = (\ell, \varepsilon, \dots)$,
+    \item auxiliary data $R_j = (N_j, s_j, t_j) \in \Z^3$,
+    \item public data $N_i \in \Z$
+}
+\algoOutputsList{
+    \item public commitment $(P, Q, A, B, T, \sigma) \in \Z^6$,
+    \item secret nonce $(\alpha, \beta, \mu, \nu, r, x, y) \in \Z^7$
+}
+\begin{algorithmic}[1]
+\State $\alpha, \beta \gets \pm \left(2^{\ell + \varepsilon} \sqrt{N_i}\right)$
+\State $\mu, \nu \gets \pm \left(2^{\ell} N_j\right)$
+\State $\sigma \gets \pm \left(2^{\ell} N_i N_j\right)$
+\State $r \gets \pm \left(2^{\ell + \varepsilon} N_i N_j\right)$
+\State $x, y \gets \pm \left(2^{\ell + \varepsilon} N_j\right)$
+\State
+\State $P = s_j^{p} t_j^\mu \bmod N_j$ 
+\State $Q = s_j^{q} t_j^\nu \bmod N_j$ 
+\State $A = s_j^\alpha t_j^x \bmod N_j$ 
+\State $B = s_j^\beta t_j^y \bmod N_j$ 
+    \Comment{$P,Q,A,B$ are computed using fixed-base multiexp}
+\State $T = Q^\alpha t_j^r \bmod N_j$
+\State
+\State \Return $((P, Q, A, B, T, \sigma), (\alpha, \beta, \mu, \nu, r, x, y))$
+\end{algorithmic}
+\end{inlineAlgorithm}
 
-      \item The prover then computes:
-\begin{itemize}
-\item        $P = s_j^{p} t_j^\mu \bmod N_j$ 
-\item        $Q = s_j^{q} t_j^\nu \bmod N_j$ 
-\item        $A = s_j^\alpha t_j^x \bmod N_j$ 
-\item        $B = s_j^\beta t_j^y \bmod N_j$ 
-\item        $T = Q^\alpha t_j^r \bmod N_j$.
- \end{itemize}
- Note that $P,Q,A,B$ are computed using fixed-base multiexponentiations. %(It is also possible to express computation of $T$ as a fixed-base multiexponentiation $T=(s^qt^\nu)^\alpha \cdot t^r = s^{q\alpha}t^{\nu\alpha+r} \bmod N_j$ and then use multiexp preprocessing, but I'm not sure this will be a net win.)
-      \item The prover sends the first message  $(P, Q, A, B, T, \sigma)$ 
-        and also maintains local (secret) state $(\alpha, \beta, \mu, \nu, r, x, y)$.
-    \end{itemize}
+\item
+\begin{inlineAlgorithm}
+\algoName{$\challenge{fac}^L() \to e$}
+\algoInputs{security level $L \in (Q, \dots)$}
+\algoOutputs{challenge $e \in \pm Q$}
+\begin{algorithmic}[1]
+\State $e \gets \pm Q$
+\State \Return $e$
+\end{algorithmic}
+\end{inlineAlgorithm}
 
-  \item The verifier chooses $e \leftarrow \pm Q$ and sends $e$ to the prover.
+\item
+\begin{inlineAlgorithm}
+\algoName{$\prove{fac}(
+    e;
+    (p, q),
+    (\alpha, \beta, \mu, \nu, r, x, y)
+) \to (z_1, z_2, w_1, w_2, v)$}
+\algoInputsList{
+    \item challenge $e \in \Z$,
+    \item secret data: primes $p, q \in \Z^2$,
+    \item secret commitment nonce: $(\alpha, \beta, \mu, \nu, r, x, y) \in \Z^7$
+}
+\algoOutputs{proof $(z_1, z_2, w_1, w_2, v) \in \Z^5$}
+\begin{algorithmic}[1]
+\State $z_1 = \alpha + ep$
+\State $z_2 = \beta + eq$
+\State $w_1 = x + e\mu$
+\State $w_2 = y + e\nu$
+\State $v = r + e \cdot (\sigma - \nu p)$
+\State \Return $(z_1, z_2, w_1, w_2, v)$
+\end{algorithmic}
+\end{inlineAlgorithm}
 
-  \item On input $N_i$, the challenge $e$, and local state that includes $(p, q)$, $\sigma$, and 
-  $(\alpha, \beta, \mu, \nu, r, x, y)$, the prover computes: \\
-    $z_1 = \alpha + ep$ \\
-    $z_2 = \beta + eq$ \\
-    $w_1 = x + e\mu$ \\
-    $w_2 = y + e\nu$ \\
-    $v = r + e \cdot (\sigma - \nu p)$,
+\item
+\begin{inlineAlgorithm}
+\algoName{$\verify{fac}^L(
+    R_j,
+    N_i,
+    (P, Q, A, B, T, \sigma),
+    e,
+    (z_1, z_2, w_1, w_2, v)
+)$}
+\algoInputsList{
+    \item auxiliary data $R_j = (N_j, s_j, t_j) \in \Z^3$,
+    \item public data $N_i \in \Z$,
+    \item commitment $(P, Q, A, B, T, \sigma) \in \Z^6$,
+    \item challenge $e \in \Z$,
+    \item proof $(z_1, z_2, w_1, w_2, v) \in \Z^5$
+}
+\algoOutputs{aborts if proof is invalid}
+\begin{algorithmic}[1]
+\State $s_j^{z_1} t_j^{w_1} \? = A \cdot P^e \bmod N_j$ 
+\State $s_j^{z_2} t_j^{w_2} \? = B \cdot Q^e \bmod N_j$
+    \Comment{This and previous expressions involve fixed-base multiexp}
+\State $Q^{z_1} t_j^{v} \? = T \cdot (s_j^{N_i} t_j^\sigma)^e \bmod N_j$ 
+\State $z_1 \? \in \pm \left(2^{\ell + \varepsilon} \sqrt{N_i}\right)$ 
+\State $z_2 \? \in \pm \left(2^{\ell + \varepsilon} \sqrt{N_i}\right)$
+\end{algorithmic}
+\end{inlineAlgorithm}
 
-    and sends $(z_1, z_2, w_1, w_2, v)$ to the verifier.
-
-  \item Given $N_i$, initial message $(P, Q, A, B, T, \sigma)$, challenge $e$, and response $(z_1, z_2, w_1, w_2, v)$, the verifier accepts if and only if the following are true: \begin{itemize}
-\item    $s_j^{z_1} t_j^{w_1} = A \cdot P^e \bmod N_j$ 
-\item    $s_j^{z_2} t_j^{w_2} = B \cdot Q^e \bmod N_j$ 
-\item    $Q^{z_1} t_j^{v} = T \cdot (s_j^{N_i} t_j^\sigma)^e \bmod N_j$ 
-\item    $z_1 \in \pm \left(2^{\ell + \varepsilon} \sqrt{N_i}\right)$ 
-\item    $z_2 \in \pm \left(2^{\ell + \varepsilon} \sqrt{N_i}\right)$.
-\end{itemize}
-Note that the 1st and 2nd checks involve fixed-base multiexponentiations.
-
-\end{enumerate}
+\end{description}
 
 \subsubsection{Non-Interactive Version of the Proof}
 
-\begin{itemize}
-  \item We deterministically derive a challenge from inputs that include shared $\state$, the auxiliary data~$R_j$, the common input~$N_i$, and the initial protocol message~$(P, Q, A, B, T, \sigma)$.
-  We write the resulting function as
-  $e=\challengeni{fac}^{L} (\state, R_j, N_i, (P, Q, A, B, T, \sigma))$.
+\begin{description}
 
- 
+\item
+\begin{inlineAlgorithm}
+\algoName{$\proveni{fac}^L(\state, R_j, N_i; (p, q))
+    \to ((P, Q, A, B, T, \sigma); (z_1, z_2, w_1, w_2, v))$}
+\algoInputsList{
+    \item security level $L = (Q, \dots)$,
+    \item shared $\state \in \Bit^*$,
+    \item auxiliary data $R_j$,
+    \item public data $N_i \in \Z$,
+    \item secret data: primes $p, q \in \Z^2$
+}
+\algoOutputsList{
+    \item commitment $(P, Q, A, B, T, \sigma) \in \Z^6$,
+    \item proof $(z_1, z_2, w_1, w_2, v) \in \Z^5$
+}
+\begin{algorithmic}[1]
+\State $((P, Q, A, B, T, \sigma), (\alpha, \beta, \mu, \nu, r, x, y))
+    \gets \commit{fac}^L(R_j, N_i)$
+\State $e \in \pm Q = \challengeni{fac}^L(\state, R_j, N_i, (P, Q, A, B, T, \sigma))$
+\State $(z_1, z_2, w_1, w_2, v) = \prove{fac}(
+    e;
+    (p, q),
+    (\alpha, \beta, \mu, \nu, r, x, y)
+)$
+\State \Return $((P, Q, A, B, T, \sigma), (z_1, z_2, w_1, w_2, v))$
+\end{algorithmic}
+\end{inlineAlgorithm}
 
-  \item A proof is computed as follows:  compute initial message $(P, Q, A, B, T, \sigma)$ as described above; compute $e=\challengeni{fac}^{L} (\state, R_j, N_i, (P, Q, A, B, T, \sigma))$; next compute $(z_1, z_2, w_1, w_2, v)$ as described above, using challenge~$e$. Output the proof $((P, Q, A, B, T, \sigma), (z_1, z_2, w_1, w_2, v))$. We write the resulting function as $\proveni{fac}^{L}(\state, R_j, N_i, (p_i, q_i))$.
-
-  \item A party verifies a proof $\phi=((P, Q, A, B, T, \sigma), (z_1, z_2, w_1, w_2, v))$ by first computing \[e=\challengeni{fac}^{L} (\state, R_j, N_i, (P, Q, A, B, T, \sigma))\] and then verifying as described above, using the challenge~$e$. We write the resulting function as $\verifyni{fac}^{L}(\state, R_j, N_i, \phi)$.
+\item
+\begin{inlineAlgorithm}
+\algoName{$\proveni{fac}^L(\state, R_j, N_i, ((P, Q, A, B, T, \sigma), (z_1, z_2, w_1, w_2, v)))$}
+\algoInputsList{
+    \item security level $L = (Q, \dots)$,
+    \item shared $\state \in \Bit^*$,
+    \item auxiliary data $R_j$,
+    \item public data $N_i \in \Z$,
+    \item non-interactive proof, consisting of:
+        \begin{itemize}
+        \item commitment $(P, Q, A, B, T, \sigma) \in \Z^6$,
+        \item proof $(z_1, z_2, w_1, w_2, v) \in \Z^5$
 \end{itemize}
+}
+\algoOutputs{aborts if proof is invalid}
+\begin{algorithmic}[1]
+\State $e \in \pm Q = \challengeni{fac}^L(\state, R_j, N_i, (P, Q, A, B, T, \sigma))$
+\State Assert $\verify{fac}^L(
+    R_j,
+    N_i,
+    (P, Q, A, B, T, \sigma),
+    e,
+    (z_1, z_2, w_1, w_2, v)
+)$
+\end{algorithmic}
+\end{inlineAlgorithm}
 
+\end{description}
 
 \subsection{\proof{sch}: Schnorr Proof of Knowledge}
 We describe the standard Schnorr proof of knowledge, and also set up notation that we will use in what follows.
-\begin{itemize}
-    \item $\commit{sch}() \to (A; \alpha)$ \\
-    $\alpha \gets \Z_q \\
-    A = \alpha \cdot G$ \\
-    return $(A, \alpha)$
 
-    \item $\challenge{sch}() \to e$ \\
-    return $e \gets \Z_q$
+\begin{description}
 
-    \item $\prove{sch}(\alpha, e, x) \to z$ \\
-    return $z = \alpha + e x \bmod q$
+\item
+\begin{inlineAlgorithm}
+\algoName{$\commit{sch}() \to (A; \alpha)$}
+\algoInputs{—}
+\algoOutputs{public commitment $A \in \E$ and secret nonce $\alpha \in \Z_q$}
+\begin{algorithmic}[1]
+\State $\alpha \gets \Z_q$
+\State $A = \alpha \cdot G$
+\State \Return $(A; \alpha)$
+\end{algorithmic}
+\end{inlineAlgorithm}
 
-    \item $\verify{sch}(z, A, e, X)$ \\
-    accept iff $z \cdot G = A + e \cdot X$.
-\end{itemize}
+\item
+\begin{inlineAlgorithm}
+\algoName{$\challenge{sch}() \to e$}
+\algoInputs{—}
+\algoOutputs{challenge $e \in \Z_q$}
+\begin{algorithmic}[1]
+\State $e \gets \Z_q$
+\State \Return $e$
+\end{algorithmic}
+\end{inlineAlgorithm}
 
+\item
+\begin{inlineAlgorithm}
+\algoName{$\prove{sch}(e; \alpha, x) \to z$}
+\algoInputsList{
+    \item challenge $e \in \Z_q$,
+    \item secret commitment nonce $\alpha \in \Z_q$,
+    \item secret data: $x \in \Z_q$
+}
+\algoOutputs{proof $z \in \Z_q$}
+\begin{algorithmic}[1]
+\State $z = \alpha + e x \bmod q$
+\State \Return $z$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\verify{sch}(X, A, e, z)$}
+\algoInputsList{
+    \item public data $X \in \E$,
+    \item public commitment $A \in \E$,
+    \item challenge $e \in \Z_q$,
+    \item proof $z \in \Z_q$
+}
+\algoOutputs{aborts if proof is invalid}
+\begin{algorithmic}[1]
+\State $z \cdot G \? = A + e \cdot X$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\end{description}
 
 \section{Threshold Protocols}
 
