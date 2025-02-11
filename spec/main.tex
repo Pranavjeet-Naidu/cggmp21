@@ -1561,7 +1561,7 @@ This protocol is run to generate auxiliary information for each signer in a clus
         \begin{itemize}
           \item Assert $(N_j, s_j, t_j, \rho_j, u_j) \? \in
             (\Z, \Z, \Z, \Bit^\kappa, \Bit^\kappa)$
-          \item Assert $V_j =
+          \item Assert $V_j \? =
             H(\Encode[hash\_com](\sid, j, N_j, s_j, t_j, \hat{\psi}_j, \rho_j, u_j))$.
           \item Assert $N_j$ is at least $8 \cdot \kappa - 1$ bits in length
           \item Assert $\verifyni{prm}^L(\Encode(\sid, j), N_j, s_j, t_j, \hat{\psi}_j)$.
@@ -1651,18 +1651,18 @@ This protocol is based on~\cite[Figure~5]{cggmp21}, but we have added the option
       \item Check that $c_j \? \in \Bit^{256}$ for all $j \in [n]$
       \item Set chain code $c = \bigoplus_j c_j$
     \end{itemize}
-    \item Set $e_i = \challengeni{sch}(\sid, i, \rid, X_i, A_i)$
+    \item Set $e_i \in \Z_q = \challengeni{sch}(\sid, i, \rid, X_i, A_i)$
           and compute $\psi_i = \prove{sch}(e_i; \tau_i, x_i)$.
     \item Send $\psi_i$ to all parties.
     \end{itemize}
 
 \item[\bf Output.] 
-    Upon receiving $\psi_j \in \Fq$ from all other parties:
+    Upon receiving $\psi_j \in \Z_q$ from all other parties:
     \begin{itemize}
     \item 
         For all $j \ne i$:
         \begin{itemize}
-            \item Set $e_j = \challengeni{sch}(\sid, j, \rid, X_j, A_j)$.
+            \item Set $e_j \in \Z_q = \challengeni{sch}(\sid, j, \rid, X_j, A_j)$.
             \item Assert $\verify{sch}(X_j, A_j, e_j, \psi_j)$.
         \end{itemize}
 
@@ -1747,7 +1747,7 @@ This protocol is based on~\cite[Figure~5]{cggmp21}, but we have added the option
             $X_j = F(j + 1)$. 
             Let $\vec{X} = (X_j)_{j \in [n]}$.
       \item Compute $x_i = \sum_{j \in [n]} \sigma_{j,i}$.
-      \item Compute challenge $e_i = \challengeni{sch}(\sid, i, \rid, X_i, A_i)$.
+      \item Compute challenge $e_i \in \Z_q = \challengeni{sch}(\sid, i, \rid, X_i, A_i)$.
       \item Compute Schnorr proof $\psi_i = \prove{sch}(e_i; \tau_i, \sigma_i)$.
       \item Send $\psi_i$ to all parties.
     \end{itemize}
@@ -1756,7 +1756,7 @@ This protocol is based on~\cite[Figure~5]{cggmp21}, but we have added the option
   Upon receiving $\psi_j \in \Fq$ from all parties:
     \begin{itemize}
       \item For $j \neq i$:
-      set $e_j = \challengeni{sch}(\sid, j, \rid, X_j, A_j)$ and 
+      set $e_j \in \Z_q = \challengeni{sch}(\sid, j, \rid, X_j, A_j)$ and 
       assert $\verify{sch}(X_j, A_j, e_j, \psi_j)$.
       \item Compute $Y = \sum_{j \in [n]} S_{j,0}$.
       \item Create identity mapping $I : [n] \to \Z_q \setminus \{0\}$,
@@ -1788,7 +1788,7 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
 
     \item[\textbf{Round 1.}] \
     \begin{itemize}
-        \item Sample $k_i, \gamma_i \gets \Z_q$, $\rho_i, v_i \gets \Z^*_{N_i}$, and set $G_i = \enc^\crt_{\sk_i}(\gamma_i; v_i)$,
+        \item Sample $k_i, \gamma_i \gets \Z_q^2$, $\rho_i, v_i \gets (\Z^*_{N_i})^2$, and set $G_i = \enc^\crt_{\sk_i}(\gamma_i; v_i)$,
             $K_i = \enc^\crt_{\sk_i}(k_i; \rho_i)$. 
         \item For $j \ne i$ compute $\psi^0_{j,i} = \proveni{enc}^{L}(\Encode(\sid, i), R_j, (N_i, K_i); k_i, \rho_i, \sk_i)$. 
         \item Send $(K_i, G_i)$ to all parties, and for $j \neq i$ send $\psi^0_{j,i}$ to $P_j$.
@@ -1811,9 +1811,9 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
         \item Compute $\Gamma_i = \gamma_i \cdot G$.
         \item For $j \neq i$ do:
         \begin{itemize}
-            \item Sample $r_{i,j}, \hat{r}_{i,j} \gets \Z_{N_i}$,
-                $s_{i,j}, \hat{s}_{i,j} \gets \Z_{N_j}$, and
-                $\beta_{i,j}, \hat{\beta}_{i,j} \gets \pm 2^{\ell'}$.
+            \item Sample $r_{i,j}, \hat{r}_{i,j} \gets \Z_{N_i}^2$,
+                $s_{i,j}, \hat{s}_{i,j} \gets \Z_{N_j}^2$, and
+                $\beta_{i,j}, \hat{\beta}_{i,j} \gets (\pm 2^{\ell'})^2$.
             \item Compute $D_{j,i} = (\gamma_i \odot K_j) \oplus \enci{j}(-\beta_{i,j}; s_{i,j})$
                 and $F_{j,i} = \enc^\crt_{\sk_i}(-\beta_{i,j}; r_{i,j})$.
             \item Compute $\hat{D}_{j,i} = (x_i \odot K_j) \oplus \enci{j}(-\hat{\beta}_{i,j}; \hat{s}_{i,j})$
@@ -1843,7 +1843,7 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
 
         \item For $j \ne i$, do:
         \begin{itemize}
-            \item Compute $\alpha_{i,j} = \dec_{(p_i,q_i)}(D_{i,j})$ and $\hat{\alpha}_{i,j} = \dec_{(p_i,q_i)}(\hat{D}_{i,j})$.
+            \item Compute $\alpha_{i,j} = \dec_{\sk_i}(D_{i,j})$ and $\hat{\alpha}_{i,j} = \dec_{\sk_i}(\hat{D}_{i,j})$.
             \item Compute $\psi''_{j,i} = \proveni{log*}^L(\Encode(\sid, i), R_j, (N_i, K_i, \Delta_i, \Gamma); (k_i, \rho_i), \sk_i)$.
         \end{itemize}
         \item  Compute $\delta_i = \gamma_i k_i + \sum_{j \ne i}(\alpha_{i,j} + \beta_{i,j}) \bmod q$ and
@@ -1872,14 +1872,14 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
   Size of signing set $t$,
   identities of parties in signing set,
   index $i\in [t]$,
-  index map\footnote{$S(i)$ is the index that $P_i$ had at key-generation time.} $S : [t] \to [n]$,
+  injective index map\footnote{$S(i)$ is the index that $P_i$ had at key-generation time.} $S : [t] \to [n]$,
   key share $K_{S(i)}$,
   context separation string $\sid$,
   security level $L$, curve $\E$ with generator $G$.
 
   {\bf HD-wallets inputs:} additive $\text{shift} \in \Fq$ \footnote{Deriving additive shift is up to specific standard of HD-wallets, e.g. see \cite{bip32} or \cite{slip10} \label{deriving-shift-note}} ($\text{shift} = 0$ disables HD derivation)
 
-    \item[\bf Setup.] The key share $K_{S(i)}$ contains $\threshold$, number of key holders~$n$, secret share $x'_{S(i)}$, parties' public shares $\vec X' = (X'_j)_{j \in [n]}$, a map $I : [n] \to \Fq \setminus \{0\}$, Paillier secret key $\sk_{S(i)}$, parties' Paillier keys $\vec N' = (N'_j)_{j \in [n]}$, and parties' auxiliary information $\vec R' = (s_j, t_j, \hat N)_{j \in [n]}$.
+    \item[\bf Setup.] The key share $K_{S(i)}$ contains $\threshold$, number of key holders~$n$, secret share $x'_{S(i)}$, parties' public shares $\vec X' = (X'_j)_{j \in [n]}$, an injective map $I : [n] \to \Fq \setminus \{0\}$, Paillier secret key $\sk_{S(i)}$, parties' Paillier keys $\vec N' = (N'_j)_{j \in [n]}$, and parties' auxiliary information $\vec R' = (s_j, t_j, \hat N)_{j \in [n]}$.
 
     \item[\bf Step 1.] Set $\sk_i = \sk_{S(i)}$ and 
                        $\vec R = (R'_{S(j)})_{j \in [n]}$. Then:
