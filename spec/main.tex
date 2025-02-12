@@ -389,65 +389,28 @@ Encoding function should satisfy these properties:
     executed.
 \end{itemize}
 
-\section{Utility functions}
-This section contains functions definitions that are needed in the protocol or ZK proofs.
 
-\begin{description}
-
-\item
-\begin{inlineAlgorithm}
-\algoName{$\fn{blum\_sqrt}(x, p, q, N) \to y$}
-\algoInputsList{
-    \item $x$ is a quadratic residue in $\Z_N$,
-    \item primes $p, q$ that are congruent to 3 modulo 4,
-    \item $N = p \cdot q$
-}
-\algoOutputs{$y$ such that $y^2 = x \bmod N$}
-\begin{algorithmic}[1]
-\State $e = ((p - 1) \cdot (q - 1) + 4) / 8$
-    \Comment{Described in \cite{crypto-handbook}, p. 75, Fact 2.160}
-\State $y = x^e \bmod N$
-\State \Return $y$
-\end{algorithmic}
-\end{inlineAlgorithm}
-
-\item
-\begin{inlineAlgorithm}
-\algoName{$\fn{find\_residue}(y, w, p, q, N) \to (a, b, y') \; \text{or} \; \bot$}
-Finds $a, b \in \Bit^2$ such that $y' = (-1)^a w^b y$ is a quadratic residue in $\Z_N$.
-
-\algoInputsList{
-    \item $y \in \Z$,
-    \item primes $p, q \in \Z, \Z$ that are congruent to 3 modulo 4,
-    \item $N = p \cdot q$,
-    \item $w$ with Jacobi symbol $\jacobi{w}{N} = -1$
-}
-\algoOutputs{
-    $(a, b, y')$ such that $y' = (-1)^a w^b y$ is a quadratic residue in $\Z_N$
-}
-\begin{algorithmic}[1]
-\State Calculate $\jacobi{y}{p}, \jacobi{y}{q}$
-\If{$\jacobi{y}{p} = 1 \land \jacobi{y}{q} = 1$}
-    \Return $(a = 0, b = 0, y' = y)$
-\EndIf
-\If{$\jacobi{y}{p} = -1 \land \jacobi{y}{q} = -1$}
-    \Return $(a = 1, b = 0, y' = n-y)$
-\EndIf
-\State Calculate $\jacobi{wy}{p}, \jacobi{wy}{q}$
-\If{$\jacobi{wy}{p} = 1 \land \jacobi{wy}{q} = 1$}
-    \Return $(a = 0, b = 1, y' = wy)$
-\EndIf
-\If{$\jacobi{wy}{p} = -1 \land \jacobi{wy}{q} = -1$}
-    \Return $(a = 1, b = 1, y' = n-wy)$
-\EndIf
-\State \Return $\bot$
-\end{algorithmic}
-\end{inlineAlgorithm}
-
-\end{description}
 
 \section{Zero-Knowledge Proofs}
 In this section we describe the various zero-knowledge proofs that are used as sub-routines in the protocol. In each case we first describe an interactive version of the proof; we then describe how we implement a non-interactive version of the proof using the Fiat-Shamir transform.
+
+\subsection{Implementation guidelines}
+ZK proofs are defined as set of functions, for each function we explicitly define:
+\begin{itemize}
+\item Input arguments and their domains
+
+Implementation MUST validate input arguments. For instance, if there's an argument $K \in \Z_N^*$, implementation must verify that $0 \le K < N \land \gcd(K, N) = 1$.
+
+To avoid reduntant validation of input arguments, we typically relax their domain. For instance, the proof might require that $R = (N, s, t) \in (\Z, \Z^*_N, \Z^*_N)$, however, $R$ is in fact validated during the auxiliary information generation protocol (via $\proof{prm}$), so we do not require other proofs to validate $R$, and thus we only require that $R = (N, s, t) \in (\Z, \Z, \Z)$.
+
+\item Output and its domain
+
+Domain of function output bears informational purpose. Sometimes it's not accurate enough, e.g. we write that output is in $\Z$ where in fact we could narrow it to $\Z^*_N$. The reason is simply that it takes time to determine output domain, and it doesn't have much of benefit to have it specified.
+
+\item Body
+
+Function body is as close to actual implementation code as possible. Input arguments validation must be done before any of body instructions is executed.
+\end{itemize}
 
 \subsection{Non-Interactive Challenge Derivation}
 In order to implement Fiat-Shamir transform correctly, we need to deterministically and securely derive a challenge
@@ -505,7 +468,7 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 \State $\mu \gets \pm (2^\ell \cdot N_j)$
 \State $r \gets \Z_{N_i}^*$
 \State $\gamma \gets \pm (2^{\ell + \varepsilon} \cdot N_j)$
-\State 
+\Statex
 \State $S = s_j^k t_j^\mu \bmod N_j$ \Comment{use precomputed fixed-base multiexponentiation table}
 \State $A = \enc_{N_i}(\alpha; r)$  (this is computed as $\enc^\crt_{\sk_i}(\alpha; r)$ if $\sk_i$ is known)
 \State $C = s_j^\alpha t_j^\gamma \bmod N_j$ \Comment{use precomputed fixed-base multiexponentiation table}
@@ -673,7 +636,7 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 \State $A = (\alpha \odot C) \oplus \enc_{N_j}(\beta; r)$
 \State $B_x = \alpha \cdot G $
 \State $B_y = \enc_{N_i}(\beta; r_y)$ \Comment{this is computed as $\enc^\crt_{\sk_i}(\beta; r_y)$ if $\sk_i$ is known}
-\State $E = s_j^\alpha t_j^\gamma \bmod N_j$ \Comment{this and below can be computed via pregenerated table for fixed-base multiexp}
+\State $E = s_j^\alpha t_j^\gamma \bmod N_j$ \Comment{\parbox[t]{.6\linewidth}{this and below can be computed via pregenerated table for fixed-base multiexp}}
 \State $S = s_j^x t_j^m \bmod N_j$ 
 \State $F = s_j^\beta t_j^\delta \bmod N_j$
 \State $T = s_j^y t_j^\mu \bmod N_j$
@@ -847,6 +810,67 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 \subsection{$\proof{mod}$: Paillier-Blum Modulus}
 The prover and verifier agree on shared state $\state$ and a security level~$L$ (which determines~$m$). For this proof, the prover and verifier have common input~$N$, and the prover additionally has as secret input primes $p, q=3 \bmod 4$ such that~$N=pq$.
 
+\subsubsection{Utility function}
+Below we describe additional functions that are used within the proof.
+
+\begin{description}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\fn{blum\_sqrt}(x, p, q, N) \to y$}
+\algoInputsList{
+    \item $x$ is a quadratic residue in $\Z_N$,
+    \item primes $p, q$ that are congruent to 3 modulo 4,
+    \item $N = p \cdot q$
+}
+\algoOutputs{$y$ such that $y^2 = x \bmod N$}
+{\bf \small Note:} caller must guarantee that all inputs are correct, so the implementation of this function is not required to validate the arguments. If inputs are not valid,
+the output is undefined.
+\begin{algorithmic}[1]
+\State $e = ((p - 1) \cdot (q - 1) + 4) / 8$
+    \Comment{Described in \cite{crypto-handbook}, p. 75, Fact 2.160}
+\State $y = x^e \bmod N$
+\State \Return $y$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\fn{find\_residue}(y, w, p, q, N) \to (a, b, y') \; \text{or} \; \bot$}
+Finds $a, b \in \Bit^2$ such that $y' = (-1)^a w^b y$ is a quadratic residue in $\Z_N$.
+
+\algoInputsList{
+    \item $y \in \Z$,
+    \item primes $p, q \in \Z, \Z$ that are congruent to 3 modulo 4,
+    \item $N = p \cdot q$,
+    \item $w$ with Jacobi symbol $\jacobi{w}{N} = -1$
+}
+\algoOutputs{
+    $(a, b, y')$ such that $y' = (-1)^a w^b y$ is a quadratic residue in $\Z_N$
+}
+{\bf \small Note:} caller must guarantee that all inputs are correct, so the implementation of this function is not required to validate the arguments. If inputs are not valid,
+the output is undefined.
+\begin{algorithmic}[1]
+\State Calculate $\jacobi{y}{p}, \jacobi{y}{q}$
+\If{$\jacobi{y}{p} = 1 \land \jacobi{y}{q} = 1$}
+    \Return $(a = 0, b = 0, y' = y)$
+\EndIf
+\If{$\jacobi{y}{p} = -1 \land \jacobi{y}{q} = -1$}
+    \Return $(a = 1, b = 0, y' = n-y)$
+\EndIf
+\State Calculate $\jacobi{wy}{p}, \jacobi{wy}{q}$
+\If{$\jacobi{wy}{p} = 1 \land \jacobi{wy}{q} = 1$}
+    \Return $(a = 0, b = 1, y' = wy)$
+\EndIf
+\If{$\jacobi{wy}{p} = -1 \land \jacobi{wy}{q} = -1$}
+    \Return $(a = 1, b = 1, y' = n-wy)$
+\EndIf
+\State \Return $\bot$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\end{description}
+
 \subsubsection{Interactive Version of the Proof}
 
 \begin{description}
@@ -888,6 +912,8 @@ The prover and verifier agree on shared state $\state$ and a security level~$L$ 
     \item challenge $\vec y = \{y_i\}_{i\in[m]} \in \Z^m$,
     \item commitment $w \in \Z$,
     \item secret data: primes $p, q \in \Z, \Z$ that are congruent 3 modulo 4 such that $N = p \cdot q$
+
+    {\bf Note:} $p, q$ are assumed to be valid, so the implementation does not need to verify their correctness. In the protocol, it's the prover who generates the primes using appropriate procedure. If invalid $p, q$ are given, then resulting proof is invalid.
 }
 \algoOutputs{$\{(x_i, a_i, b_i, z_i)\}_{i\in[m]} \in \{(\Z, \Z, \Z, \Z)\}^m$}
 \begin{algorithmic}[1]
@@ -936,6 +962,8 @@ The prover and verifier agree on shared state $\state$ and a security level~$L$ 
     \item shared $\state \in \Bit^*$,
     \item public data $N \in \Z$,
     \item secret data: primes $p,q \in \Z,\Z$ that are congruent 3 modulo 4 such that $N = p \cdot q$
+
+    {\bf Note:} $p, q$ are assumed to be valid, so the implementation does not need to verify their correctness. In the protocol, it's the prover who generates the primes using appropriate procedure. If invalid $p, q$ are given, then resulting proof is invalid.
 }
 \algoOutputsList{
     \item challenge $w \in \Z$,
@@ -1108,10 +1136,10 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 \State $\mu \gets \pm (2^\ell \cdot N_j)$
 \State $r \gets \Z^*_{N_i}$
 \State $\gamma \gets \pm (2^{\ell + \varepsilon} \cdot N_j)$
-\State
+\Statex
 \State $S = s_j^x t_j^\mu \bmod N_j$
     \Comment{computed using fixed-based multiexp}
-\State $A = \enc_{N_i}(\alpha; r)$ (this is computed as $\enc^\crt_{\sk_i}(\alpha; r)$ when $\sk_i$ is known) 
+\State $A = \enc_{N_i}(\alpha; r)$ \Comment{this is computed as $\enc^\crt_{\sk_i}(\alpha; r)$ when $\sk_i$ is known} 
 \State $Y = \alpha \cdot B$ 
 \State $D = s_j^\alpha t_j^\gamma \bmod N_j$
     \Comment{computed using fixed-based multiexp}
@@ -1294,14 +1322,14 @@ In all the cases where this proof is used in the protocol, the verifier knows th
 \State $\sigma \gets \pm \left(2^{\ell} N_i N_j\right)$
 \State $r \gets \pm \left(2^{\ell + \varepsilon} N_i N_j\right)$
 \State $x, y \gets \pm \left(2^{\ell + \varepsilon} N_j\right)$
-\State
+\Statex
 \State $P = s_j^{p} t_j^\mu \bmod N_j$ 
 \State $Q = s_j^{q} t_j^\nu \bmod N_j$ 
 \State $A = s_j^\alpha t_j^x \bmod N_j$ 
 \State $B = s_j^\beta t_j^y \bmod N_j$ 
     \Comment{$P,Q,A,B$ are computed using fixed-base multiexp}
 \State $T = Q^\alpha t_j^r \bmod N_j$
-\State
+\Statex
 \State \Return $((P, Q, A, B, T, \sigma), (\alpha, \beta, \mu, \nu, r, x, y))$
 \end{algorithmic}
 \end{inlineAlgorithm}
