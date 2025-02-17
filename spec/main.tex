@@ -71,6 +71,7 @@
 \newcommand{\encCrti}[1]{{\ensuremath{\mathtt{enc}}^\crt_{\sk_{#1}}}}
 \newcommand{\sid}{\ensuremath{\mathtt{sid}}}
 \newcommand{\fn}[1]{\ensuremath{\mathtt{#1}}}
+\newcommand{\var}[1]{\ensuremath{\mathtt{#1}}}
 \newcommand{\proof}[1]{\ensuremath{\Pi^{\mathtt{#1}}}}
 \newcommand{\commit}[1]{\ensuremath{\mathtt{Commit}_{\mathtt{#1}}}}
 \newcommand{\challenge}[1]{\ensuremath{\mathtt{Challenge}_{\mathtt{#1}}}}
@@ -313,6 +314,8 @@ for completeness, we describe an algorithm for computing the $\{s_i\}_{i \in \{0
 Assuming $B$ is a power of~2, the exponentiation in line~3 requires $\lg B$ squarings; the algorithm thus uses only $k\lg B$ squarings overall.
 
 \subsection{Security Parameters}
+\label{sec:security-params}
+
 The protocol relies on several user-defined parameters that determine its security. Note  these do not include the curve order~$q$, which is fixed by the underlying signature scheme  rather than by the threshold protocol itself.
 We let $\lambda$ denote the bit length of the curve order (so $2^\lambda \leq q < 2^{\lambda+1}$) and assume $\lambda\geq 256$ (which is the case for the signature schemes we support).
 
@@ -1544,80 +1547,79 @@ Since we have not yet implemented a $t$-out-of-$n$ version of key refresh, and d
 
 This protocol is run to generate auxiliary information for each signer in a cluster.  
 
-\begin{description}
-  \item[\textbf{Input.}]
-    Party index $i$,
-    context separation string $\sid$,
-    security level $L$.
 
-  \item[\textbf{Round 1.}] \
-    \begin{itemize}
-    \item Generate $4\kappa$-bit safe primes $p_i, q_i$ using the algorithm from Section~\ref{sec:safe-prime}.
-      \item Compute $N_i = p_iq_i$ and $\phi = (p_i - 1)(q_i - 1)$, and create a Paillier decryption key $\sk_i$ using those values.
-     \item Sample  $r \gets \Z_{N_i}^{*}$ and $\lambda \gets \Z_\phi$,
+\begin{description}
+    \item[\textbf{Input.}] \
+    \begin{itemize}[noitemsep,topsep=0pt]
+    \item party index $i$, $0 \le i < n$,
+    \item amount of parties in the protocol $n \ge 2$,
+    \item context separation string $\sid \in \Bit^*$,
+    \item security level $L$ (see Section~\ref{sec:security-params}),
+    \item flag $\var{echo\_enabled} \in \Bit$ indicating whether reliability check is enabled
+    \end{itemize}
+
+    \item[\textbf{Round 1.}] \
+    \begin{algorithmic}[1]
+        \State Generate $4\kappa$-bit safe primes $p_i, q_i$ using the algorithm from Section~\ref{sec:safe-prime}.
+        \State Compute $N_i = p_iq_i$ and $\phi = (p_i - 1)(q_i - 1)$, and create a Paillier decryption key $\sk_i$ using those values.
+        \State Sample  $r \gets \Z_{N_i}^{*}$ and $\lambda \gets \Z_\phi$,
         and compute $t_i = r_i^2 \bmod N_i$ and $s_i = t_i^\lambda \bmod N_i$.
-      \item Compute $\hat{\psi}_i = \proveni{prm}^L(\Encode(\sid, i), N_i, s_i, t_i; \phi, \lambda)$.
-      \item Sample $\rho_i, u_i \leftarrow \Bit^\kappa$, 
+        \State Compute $\hat{\psi}_i = \proveni{prm}^L(\Encode(\sid, i), N_i, s_i, t_i; \phi, \lambda)$.
+        \State Sample $\rho_i, u_i \leftarrow \Bit^\kappa$, 
         and compute $V_i =
         H(\Encode[hash\_com](\sid, i, N_i, s_i, t_i, \hat{\psi}_i, \rho_i, u_i))$.
-      \item Send $V_i$ to all parties.
-    \end{itemize}
+        \State Send $V_i$ to all parties.
+    \end{algorithmic}
     
 
-  \item[\textbf{Round 2.}] \
-    \begin{itemize}
-      \item Receive $V_j \in \Bit^\kappa$ from all parties.
-      \item ({\bf Reliability check.}) Optionally, if the reliability check is enabled:
-    \begin{itemize}
-        \item 
-        Compute $h_i = H(\Encode[echo](\sid, V_0, \dots, V_{n-1}))$ and 
-            send $h_i$ to all parties.
-        \item Upon receiving $h_j \in \Bit^\kappa$ from all parties, abort if $h_i \neq h_j$ for some $j \in [n]$.
-    \end{itemize}
-      \item Send $(N_i, s_i, t_i, \hat{\psi}_i, \rho_i, u_i)$ to all parties.
-    \end{itemize}
+    \item[\textbf{Round 2.}] \
+    \begin{algorithmic}[1]
+        \State Receive $V_j \in \Bit^\kappa$ from all parties
+        \If{$\var{echo\_enabled}$} \Comment{Reliability check}
+            \State Compute $h_i = H(\Encode[echo](\sid, V_0, \dots, V_{n-1}))$ and 
+            send $h_i$ to all parties
+            \State Upon receiving $h_j \in \Bit^\kappa$ from all parties, abort if $h_i \neq h_j$ for some $j \in [n]$
+        \EndIf
+        \State Send $(N_i, s_i, t_i, \hat{\psi}_i, \rho_i, u_i)$ to all parties
+    \end{algorithmic}
 
-  \item[\textbf{Round 3.}] \
+    \item[\textbf{Round 3.}] \
 
-    \begin{itemize}
-      \item Receive $(N_j, s_j, t_j, \hat{\psi}_j, \rho_j, u_j)$
-        from all parties.
-      \item For all $j \in [n]$, set $R_j = (N_j, s_j, t_j)$; let
-       $\vec{R} = (R_j)_{j \in [n]}$.
+    \begin{algorithmic}[1]
+        \State Receive $(N_j, s_j, t_j, \hat{\psi}_j, \rho_j, u_j)$
+        from all parties
+        \State For all $j \in [n]$, set $R_j = (N_j, s_j, t_j)$; let
+        $\vec{R} = (R_j)_{j \in [n]}$
 
-      \item For $j \neq i$:
-        \begin{itemize}
-          \item Assert $(N_j, s_j, t_j, \rho_j, u_j) \? \in
-            (\Z, \Z, \Z, \Bit^\kappa, \Bit^\kappa)$
-          \item Assert $V_j \? =
-            H(\Encode[hash\_com](\sid, j, N_j, s_j, t_j, \hat{\psi}_j, \rho_j, u_j))$.
-          \item Assert $N_j$ is at least $8 \cdot \kappa - 1$ bits in length
-          \item Assert $\verifyni{prm}^L(\Encode(\sid, j), N_j, s_j, t_j, \hat{\psi}_j)$.
-          \item Construct Paillier encryption key from~$N_j$.
-        \end{itemize}
-      \item Compute $\rho=\bigoplus_j \rho_j$.
-      \item Compute $\psi_i = \proveni{mod}^L(\Encode(\sid, i, \rho), N_i; (p_i, q_i))$.
-      \item For $j\neq i$ do:
-        \begin{itemize}
-          \item Compute $\phi_i^j = \proveni{fac}^{L}(\Encode(\sid, i, \rho), R_j, N_i; (p_i, q_i))$.
-          \item Send $(\psi_i, \phi_i^j)$ to $P_j$.
-        \end{itemize}
+        \For{$j \in [n] \setminus \{i\}$}
+            \State Assert $(N_j, s_j, t_j, \rho_j, u_j) \? \in
+                (\Z, \Z, \Z, \Bit^\kappa, \Bit^\kappa)$
+            \State Assert $V_j \? =
+                H(\Encode[hash\_com](\sid, j, N_j, s_j, t_j, \hat{\psi}_j, \rho_j, u_j))$
+            \State Assert $N_j$ is at least $8 \cdot \kappa - 1$ bits in length
+            \State Assert $\verifyni{prm}^L(\Encode(\sid, j), N_j, s_j, t_j, \hat{\psi}_j)$
+            \State Construct Paillier encryption key from~$N_j$
+        \EndFor
+        \State Compute $\rho=\bigoplus_j \rho_j$
+        \State Compute $\psi_i = \proveni{mod}^L(\Encode(\sid, i, \rho), N_i; (p_i, q_i))$
+        \For{$j \in [n] \setminus \{i\}$}
+            \State Compute $\phi_i^j = \proveni{fac}^{L}(\Encode(\sid, i, \rho), R_j, N_i; (p_i, q_i))$
+            \State Send $(\psi_i, \phi_i^j)$ to $P_j$
+        \EndFor
+    \end{algorithmic}
 
-    \end{itemize}
 
-  \item[\textbf{Output.}] \
+    \item[\textbf{Output.}] \
 
-    \begin{itemize}
-      \item Receive $(\psi_j, \phi_j^i)$ from all parties.
-      \item For $j \neq i$ do: 
-        \begin{itemize}
-          \item Assert $\verifyni{mod}^L(\Encode(\sid, j, \rho), N_j, \psi_j)$.
-          \item Assert $\verifyni{fac}^{L}(\Encode(\sid, j, \rho), R_i, N_j, \phi_j^i)$.
-        \end{itemize}
-
-      \item For $j \in [n]$ (including $j=i$), precompute a fixed-based multiexponentiation table $T_j$ as described in Section~\ref{sec:multiexp}. Let $\vec{T} = (T_j)_{j \in [n]}$.
-      \item Return $(p_i, q_i, \vec{R}, \vec{T})$.
-    \end{itemize}
+    \begin{algorithmic}[1]
+        \State Receive $(\psi_j, \phi_j^i)$ from all parties
+        \For{$j \in [n] \setminus \{i\}$}
+            \State Assert $\verifyni{mod}^L(\Encode(\sid, j, \rho), N_j, \psi_j)$
+            \State Assert $\verifyni{fac}^{L}(\Encode(\sid, j, \rho), R_i, N_j, \phi_j^i)$
+        \EndFor
+        \State For $j \in [n]$ (including $j=i$), precompute a fixed-based multiexponentiation table $T_j$ as described in Section~\ref{sec:multiexp}. Let $\vec{T} = (T_j)_{j \in [n]}$
+        \State \Return $(p_i, q_i, \vec{R}, \vec{T})$
+    \end{algorithmic}
 
 \end{description}
 
@@ -1631,74 +1633,74 @@ We implement two versions of distributed key generation. One generates a key alo
 This protocol is based on~\cite[Figure~5]{cggmp21}, but we have added the option to replace the broadcast channel with a reliable broadcast subroutine, and we added optional support of HD-wallets.
 
 \begin{description}
-\item[\bf Input.]
-    Party index $i$,
-    number of signers $n$,
-    context separation string \sid,
-    security level~$L$,
-    curve $\E$ with generator $G$ of prime order $q$.
-
-\item[\bf Round 1.] \
-\begin{itemize}
-    \item Sample $x_i \gets \Z_q$, 
-          and set $X_i = x_i \cdot G$.
-    \item Sample $\rid_i \gets \Bit^\kappa$.
-    \item Compute $(A_i; \tau_i) = \commit{sch}()$.
-    \item {\bf (HD-wallets.)} 
-    \begin{itemize}
-      \item If HD-wallets support enabled, sample local chain code contribution $c_i \gets \Bit^{256}$ (32-bytes string)
-      \item Otherwise, set $c_i = \bot$
-    \end{itemize}
-    \item Sample $u_i \gets \Bit^\kappa$
-          and set $V_i = H(\Encode[hash\_com](\sid, i, \rid_i, X_i, A_i, u_i, c_i))$.
-    \item Send $V_i$ to all parties.
-\end{itemize}
-
-\item[\bf Round 2.] Upon receiving $V_j \in \Bit^\kappa$ from all parties:
-\begin{itemize}
-    \item {\bf (Reliability check.)} Optionally, if the reliability check is enabled:
-\begin{itemize}
-    \item Compute $h_i = H(\Encode[echo](\sid, V_0, \dots, V_{n-1}))$ and
-        send $h_i$ to all parties.
-    
-    \item Upon receiving $h_j \in \Bit^\kappa$ from all other parties: abort if $h_i \neq h_j$ for some $j\in [n]$.
-\end{itemize}
-    \item Send $(\rid_i, X_i, A_i, u_i, c_i)$ to all parties.
+    \item[\bf Input.] \
+    \begin{itemize}[noitemsep,topsep=0pt]
+    \item party index $i$, $0 \le i < n$,
+    \item number of signers $n \ge 2$,
+    \item context separation string $\sid \in \Bit^*$,
+    \item security level $L$ (see Section~\ref{sec:security-params}),
+    \item flag $\var{echo\_enabled} \in \Bit$ indicating whether reliability check is enabled,
+    \item flag $\var{hd\_enabled} \in \Bit$ indicating whether HD-wallets support is enabled,
+    \item curve $\E$ with generator $G$ of prime order $q$
     \end{itemize}
 
-\item[\bf Round 3.] 
-    Upon receiving $(\rid_j, X_j, A_j, u_j, c_j)$ from all other parties:
-    \begin{itemize}
-    \item Abort if $(\rid_j, X_j, A_j, u_j) \notin (\Bit^\kappa, \E, \E, \Bit^\kappa)$
-          for some $j \in [n]$
-    \item Abort if $V_j \neq H(\Encode[hash\_com](\sid, j, \rid_j, X_j, A_j, u_j, c_j))$
-          for some $j \in [n]$.
-    \item Set $\rid = \bigoplus_j \rid_j$.
-    \item {\bf (HD-wallets.)} If HD-wallets support enabled:
-    \begin{itemize}
-      \item Check that $c_j \? \in \Bit^{256}$ for all $j \in [n]$
-      \item Set chain code $c = \bigoplus_j c_j$
-    \end{itemize}
-    \item Set $e_i \in \Z_q = \challengeni{sch}(\sid, i, \rid, X_i, A_i)$
-          and compute $\psi_i = \prove{sch}(e_i; \tau_i, x_i)$.
-    \item Send $\psi_i$ to all parties.
-    \end{itemize}
+    \item[\bf Round 1.] \
+    \begin{algorithmic}[1]
+        \State Sample $x_i \gets \Z_q$, 
+        and set $X_i = x_i \cdot G$
+        \State Sample $\rid_i \gets \Bit^\kappa$
+        \State Compute $(A_i; \tau_i) = \commit{sch}()$
+        \If{\var{hd\_wallets}}
+            \State Sample local chain code contribution $c_i \gets \Bit^{256}$ (32-bytes string)
+        \Else
+            \State Set $c_i = \bot$
+        \EndIf
+        \State Sample $u_i \gets \Bit^\kappa$
+        and set $V_i = H(\Encode[hash\_com](\sid, i, \rid_i, X_i, A_i, u_i, c_i))$
+        \State Send $V_i$ to all parties
+    \end{algorithmic}
 
-\item[\bf Output.] 
-    Upon receiving $\psi_j \in \Z_q$ from all other parties:
-    \begin{itemize}
-    \item 
-        For all $j \ne i$:
-        \begin{itemize}
-            \item Set $e_j \in \Z_q = \challengeni{sch}(\sid, j, \rid, X_j, A_j)$.
-            \item Assert $\verify{sch}(X_j, A_j, e_j, \psi_j)$.
-        \end{itemize}
+    \item[\bf Round 2.] \
+    \begin{algorithmic}[1]
+        \State Receive $V_j \in \Bit^\kappa$ from all parties
+        \If{$\var{echo\_enabled}$} \Comment{Reliability check}
+            \State Compute $h_i = H(\Encode[echo](\sid, V_0, \dots, V_{n-1}))$ and
+            send $h_i$ to all parties
+            \State Upon receiving $h_j \in \Bit^\kappa$ from all other parties: abort if $h_i \neq h_j$ for some $j\in [n]$
+        \EndIf
+        \State Send $(\rid_i, X_i, A_i, u_i, c_i)$ to all parties
+    \end{algorithmic}
+ 
+    \item[\bf Round 3.] \
+    \begin{algorithmic}[1]
+        \State Receive $(\rid_j, X_j, A_j, u_j, c_j)$ from all other parties
+        \State Abort if $(\rid_j, X_j, A_j, u_j) \notin (\Bit^\kappa, \E, \E, \Bit^\kappa)$
+               for some $j \in [n]$
+        \State Abort if $V_j \neq H(\Encode[hash\_com](\sid, j, \rid_j, X_j, A_j, u_j, c_j))$
+               for some $j \in [n]$
+        \State Set $\rid = \bigoplus_j \rid_j$
+        \If{$\var{hd\_wallets}$}
+            \State Check that $c_j \? \in \Bit^{256}$ for all $j \in [n]$
+            \State Set chain code $c = \bigoplus_j c_j$
+        \EndIf
+        \State Set $e_i \in \Z_q = \challengeni{sch}(\sid, i, \rid, X_i, A_i)$
+               and compute $\psi_i = \prove{sch}(e_i; \tau_i, x_i)$
+        \State Send $\psi_i$ to all parties
+    \end{algorithmic}
 
-    \item Set $X = \sum_j X_j$,
-              $\vec X = (X_j)_{j\in[n]}$.
+    \item[\bf Output.] \
+    \begin{algorithmic}[1]
+        \State Upon receiving $\psi_j \in \Z_q$ from all other parties:
+        \For{$j \in [n] \setminus \{i\}$}
+            \State Set $e_j \in \Z_q = \challengeni{sch}(\sid, j, \rid, X_j, A_j)$
+            \State Assert $\verify{sch}(X_j, A_j, e_j, \psi_j)$
+        \EndFor
 
-    \item Output $(X, x_i, \vec X, c)$.
-    \end{itemize}
+        \State Set $X = \sum_j X_j$,
+               $\vec X = (X_j)_{j\in[n]}$
+
+        \State \Return $(X, x_i, \vec X, c)$
+    \end{algorithmic}
 
 \end{description}
 
@@ -1706,91 +1708,86 @@ This protocol is based on~\cite[Figure~5]{cggmp21}, but we have added the option
 \label{sec:t-of-n-dkg}
 
 \begin{description}
-
-  \item[\textbf{Input.}]
-    Party index $i$,
-    threshold parameter $t$,
-    number of signers $n$,
-    context separation string $\sid$,
-    security level~$L$,
-    curve $E$ with generator $G$ of prime order $q$.
-
-  \item[\textbf{Round 1.}] \
-    \begin{itemize}
-      \item Sample $s_{i,0}, \ldots, s_{i,{t-1}} \gets \Z_q^t$. 
-            Set $\vec S_i = (s_{i,k} \cdot G)_{k \in [t]}$.
-            Let $f_i(x) = \sum_{k \in [t]} s_{i,k} \cdot x^k$ and $F_i(x) = f_i(x) \cdot G$.
-      \item Compute $\sigma_{i,j} = f_i(j + 1)$ for all $j \in [n]$.
-      \item Sample $\rid_i \gets \Bit^\kappa$.
-      \item Compute $(A_i; \tau_i) \gets \commit{sch}()$. % $(r_i, h_i) \gets \commit{sch}()$
-      \item {\bf (HD-wallets.)} 
-      \begin{itemize}
-        \item If HD-wallets support enabled, sample local chain code contribution $c_i \gets \Bit^{256}$ (32-bytes string)
-        \item Otherwise, set $c_i = \bot$
-      \end{itemize}
-
-      \item Sample $u_i \gets \Bit^\kappa$
-        and compute $V_i = H(\Encode[hash\_com](\sid, i, \rid_i, \vec{S_i}, A_i, u_i, c_i))$.
-      \item Send $V_i$ to all parties.
+    \item[\bf Input.] \
+    \begin{itemize}[noitemsep,topsep=0pt]
+    \item party index $i$, $0 \le i < n$,
+    \item threshold parameter $t$, $2 \le t \le n$,
+    \item number of signers $n \ge 2$,
+    \item context separation string $\sid \in \Bit^*$,
+    \item security level $L$ (see Section~\ref{sec:security-params}),
+    \item flag $\var{echo\_enabled} \in \Bit$ indicating whether reliability check is enabled,
+    \item flag $\var{hd\_enabled} \in \Bit$ indicating whether HD-wallets support is enabled,
+    \item curve $\E$ with generator $G$ of prime order $q$
     \end{itemize}
 
+    \item[\textbf{Round 1.}] \
+    \begin{algorithmic}[1]
+        \State Sample $s_{i,0}, \ldots, s_{i,{t-1}} \gets \Z_q^t$. 
+        \State Set $\vec S_i = (s_{i,k} \cdot G)_{k \in [t]}$
+        \State Let $f_i(x) = \sum_{k \in [t]} s_{i,k} \cdot x^k$ and $F_i(x) = f_i(x) \cdot G$
+        \State Compute $\sigma_{i,j} = f_i(j + 1)$ for all $j \in [n]$
+        \State Sample $\rid_i \gets \Bit^\kappa$
+        \State Compute $(A_i; \tau_i) \gets \commit{sch}()$
+        \If{$\var{hd\_wallets}$} 
+            \State Sample local chain code contribution $c_i \gets \Bit^{256}$ (32-bytes string)
+        \Else
+            \State Set $c_i = \bot$
+        \EndIf
+        \State Sample $u_i \gets \Bit^\kappa$
+               and compute $V_i = H(\Encode[hash\_com](\sid, i, \rid_i, \vec{S_i}, A_i, u_i, c_i))$
+        \State Send $V_i$ to all parties
+    \end{algorithmic}
 
-  \item[\textbf{Round 2.}] 
-    Upon receiving $V_j \in \Bit^\kappa$ from all parties:
-    \begin{itemize}
-      \item {\bf (Reliability check.)} Optionally, if the reliability check is enabled:
-    \begin{itemize}
-        \item 
-        Compute $h_i = H(\Encode[echo](\sid, V_0, \dots, V_{n-1}))$, and send $h_i$ to all parties.
-        
-        \item Upon receiving $h_j \in \Bit^\kappa$ from all  parties: abort if 
-        $h_i \neq h_j$ for some $j \in [n]$.
-    \end{itemize}
-      \item Send $(\rid_i, \vec{S}_i, A_i, u_i, c_i)$ to all parties.
-      \item For all $j \neq i$, send $\sigma_{i,j}$ to $P_j$ via private channel.
-    \end{itemize}
 
-  \item[\textbf{Round 3.}] 
-    Upon receiving $(\rid_j, \vec{S}_j, A_j, u_j, c_j)$ and $\sigma_{j,i}$ from all parties:
-    \begin{itemize}
-      \item For each party $j \neq i$:
-        \begin{itemize}
-        \item Check that $(\rid_j, \vec{S}_j, A_j, u_j) \? \in (\Bit^\kappa, \E^t, \E, \Bit^\kappa)$
-          \begin{itemize}
-          \item Note: make sure that $\vec{S}_j$ has length $t$
-          \end{itemize}
-        \item Assert $V_j \? = H(\Encode[hash\_com](\sid, j, \rid_j, \vec{S}_j, A_j, u_j, c_j))$.
-        \item Define 
-          $F_j(x) = \sum_{k \in [t]} x^k \cdot S_{j,k}$.
-        \item Assert $\sigma_{j,i} \cdot G \? = F_j(i + 1)$.
-        \end{itemize}
-        \item Compute $\rid = \bigoplus_{j \in [n]} \rid_j$.
-        \item {\bf (HD-wallets.)} If HD-wallets support enabled:
-        \begin{itemize}
-          \item Check that $c_j \? \in \Bit^{256}$ for all $j \in [n]$
-          \item Set chain code $c = \bigoplus_{j \in [n]} c_j$
-        \end{itemize}
-        \item Let $F(x) = \sum_{k \in [t]} x^k \cdot \left(\sum_{j\in [n]} S_{j,k}\right) = \sum_{j \in [n]} F_j(x)$. 
-        \item   For $j \in [n]$, compute
-            $X_j = F(j + 1)$. 
-            Let $\vec{X} = (X_j)_{j \in [n]}$.
-      \item Compute $x_i = \sum_{j \in [n]} \sigma_{j,i}$.
-      \item Compute challenge $e_i \in \Z_q = \challengeni{sch}(\sid, i, \rid, X_i, A_i)$.
-      \item Compute Schnorr proof $\psi_i = \prove{sch}(e_i; \tau_i, \sigma_i)$.
-      \item Send $\psi_i$ to all parties.
-    \end{itemize}
+    \item[\textbf{Round 2.}] \
+    \begin{algorithmic}[1]
+        \State Receive $V_j \in \Bit^\kappa$ from all parties
+        \If{$\var{echo\_enabled}$} \Comment{Reliability check}
+            \State Compute $h_i = H(\Encode[echo](\sid, V_0, \dots, V_{n-1}))$, and send $h_i$ to all parties.
+            \State Upon receiving $h_j \in \Bit^\kappa$ from all  parties: abort if 
+                   $h_i \neq h_j$ for some $j \in [n]$.
+        \EndIf
+        \State Send $(\rid_i, \vec{S}_i, A_i, u_i, c_i)$ to all parties.
+        \State For all $j \neq i$, send $\sigma_{i,j}$ to $P_j$ via private channel.
+    \end{algorithmic}
 
-  \item[\textbf{Output.}] 
-  Upon receiving $\psi_j \in \Fq$ from all parties:
-    \begin{itemize}
-      \item For $j \neq i$:
-      set $e_j \in \Z_q = \challengeni{sch}(\sid, j, \rid, X_j, A_j)$ and 
-      assert $\verify{sch}(X_j, A_j, e_j, \psi_j)$.
-      \item Compute $Y = \sum_{j \in [n]} S_{j,0}$.
-      \item Create identity mapping $I : [n] \to \Z_q \setminus \{0\}$,
-        $I(i) = i + 1$.
-      \item Return $(Y, x_i, \vec{X}, I, c)$.
-    \end{itemize}
+    \item[\textbf{Round 3.}] \
+    \begin{algorithmic}[1]
+        \State Receive $(\rid_j, \vec{S}_j, A_j, u_j, c_j)$ and $\sigma_{j,i}$ from all parties:
+        \For{$j \in [n] \setminus \{i\}$}
+            \State Check that $(\rid_j, \vec{S}_j, A_j, u_j) \? \in (\Bit^\kappa, \E^t, \E, \Bit^\kappa)$
+                \Comment{\parbox[t]{.3\linewidth}{make sure that $\vec{S}_j$ has length $t$}}
+            \State Assert $V_j \? = H(\Encode[hash\_com](\sid, j, \rid_j, \vec{S}_j, A_j, u_j, c_j))$
+            \State Define $F_j(x) = \sum_{k \in [t]} x^k \cdot S_{j,k}$
+            \State Assert $\sigma_{j,i} \cdot G \? = F_j(i + 1)$
+        \EndFor
+        \State Compute $\rid = \bigoplus_{j \in [n]} \rid_j$
+        \If{$\var{hd\_wallet}$}
+            \State Check that $c_j \? \in \Bit^{256}$ for all $j \in [n]$
+            \State Set chain code $c = \bigoplus_{j \in [n]} c_j$
+        \EndIf
+        \State Let $F(x) = \sum_{k \in [t]} x^k \cdot \left(\sum_{j\in [n]} S_{j,k}\right) = \sum_{j \in [n]} F_j(x)$
+        \State For $j \in [n]$,
+               compute $X_j = F(j + 1)$. 
+               Let $\vec{X} = (X_j)_{j \in [n]}$
+        \State Compute $x_i = \sum_{j \in [n]} \sigma_{j,i}$
+        \State Compute challenge $e_i \in \Z_q = \challengeni{sch}(\sid, i, \rid, X_i, A_i)$
+        \State Compute Schnorr proof $\psi_i = \prove{sch}(e_i; \tau_i, \sigma_i)$
+        \State Send $\psi_i$ to all parties
+    \end{algorithmic}
+
+    \item[\textbf{Output.}] \
+    \begin{algorithmic}[1]
+        \State Receive $\psi_j \in \Fq$ from all parties
+        \For{$j \in [n] \setminus \{i\}$}
+            \State Set $e_j \in \Z_q = \challengeni{sch}(\sid, j, \rid, X_j, A_j)$ 
+            \State Assert $\verify{sch}(X_j, A_j, e_j, \psi_j)$
+        \EndFor
+        \State Compute $Y = \sum_{j \in [n]} S_{j,0}$
+        \State Create identity mapping $I : [n] \to \Z_q \setminus \{0\}$,
+               $I(i) = i + 1$
+        \State \Return $(Y, x_i, \vec{X}, I, c)$
+    \end{algorithmic}
 
 \end{description}
 
@@ -1810,127 +1807,155 @@ The threshold version of the protocol, which is not described in~\cite{cggmp21},
 The following protocol is based on \cite[Figure~7]{cggmp21}, although we have corrected some typos and eliminated some extraneous parts. (In particular, we do not have identifiable abort.)
 
 \begin{description}
-    \item[\textbf{Input.}] Number of parties $n$, party index $i\in [n]$, secret share $x_i$, list of signers' public-key shares $\vec X = \{X_j\}_{j \in [n]}$, 
-    %public key $\pk = \sum_{j\in[n]} X_j$, 
-    Paillier private key $\sk_i$, list of signers' auxiliary data $\vec R = ((s_j, t_j, N_j))_{j\in[n]}$, context separation string $\sid$, security level~$L$, elliptic curve $\E$ with generator~$G$.
+    \item[\bf Input.] \
+    \begin{itemize}[noitemsep,topsep=0pt]
+    \item party index $i$, $0 \le i < n$,
+    \item number of signers $n \ge 2$,
+    \item (additive) secret share $x_i \in \Z_q$,
+    \item list of signers' public key shares $\vec X = \{X_j\}_{j\in[n]} \in \E^n$,
+    \item Paillier private key $\sk_i$,
+    \item list of signers' auxiliary data $\vec R = \{(s_j, t_j, N_j)\}_{j\in[n]} \in \{\Z^3\}^n$,
+    \item context separation string $\sid \in \Bit^*$,
+    \item security level $L$ (see Section~\ref{sec:security-params}),
+    \item flag $\var{echo\_enabled} \in \Bit$ indicating whether reliability check is enabled,
+    \item curve $\E$ with generator $G$ of prime order $q$
+    \end{itemize}
 
     \item[\textbf{Round 1.}] \
-    \begin{itemize}
-        \item Sample $k_i, \gamma_i \gets \Z_q^2$, $\rho_i, v_i \gets (\Z^*_{N_i})^2$, and set $G_i = \enc^\crt_{\sk_i}(\gamma_i; v_i)$,
-            $K_i = \enc^\crt_{\sk_i}(k_i; \rho_i)$. 
-        \item For $j \ne i$ compute $\psi^0_{j,i} = \proveni{enc}^{L}(\Encode(\sid, i), R_j, (N_i, K_i); k_i, \rho_i, \sk_i)$. 
-        \item Send $(K_i, G_i)$ to all parties, and for $j \neq i$ send $\psi^0_{j,i}$ to $P_j$.
-    \end{itemize}
+    \begin{algorithmic}[1]
+    \State Sample $k_i, \gamma_i \gets \Z_q^2$,
+                  $\rho_i, v_i \gets (\Z^*_{N_i})^2$
+    \State Set $G_i = \enc^\crt_{\sk_i}(\gamma_i; v_i)$,
+               $K_i = \enc^\crt_{\sk_i}(k_i; \rho_i)$. 
+    \State For $j \ne i$ compute $\psi^0_{j,i} = \proveni{enc}^{L}(\Encode(\sid, i), R_j, (N_i, K_i); k_i, \rho_i, \sk_i)$. 
+    \State Send $(K_i, G_i)$ to all parties, and for $j \neq i$ send $\psi^0_{j,i}$ to $P_j$
+    \end{algorithmic}
 
 
-    \item[\textbf{Round 2.}] Upon receiving $(K_j, G_j, \psi^0_{i,j})$ from all parties, do:
-    \begin{itemize}
-     \item {\bf (Reliability check.)} Optionally, if the reliability check is enabled:
-    \begin{itemize}
-        \item Compute $h_i = H(\Encode[echo](\sid, K_0, G_0, \cdots, K_{n-1}, G_{n-1}))$
-        and 
-        send $h_i$ to all parties.
-        
-        \item Upon receiving $h_j$ from all parties, abort if 
-        $h_i \neq h_j$ for some $j \in [n]$.
-    \end{itemize}
-        \item For $j \neq i$, assert $\verifyni{enc}^{L}(\Encode(\sid, j), R_i, (N_j, K_j), \psi^0_{i,j})$. 
-        
-        \item Compute $\Gamma_i = \gamma_i \cdot G$.
-        \item For $j \neq i$ do:
-        \begin{itemize}
-            \item Sample $r_{i,j}, \hat{r}_{i,j} \gets \Z_{N_i}^2$,
-                $s_{i,j}, \hat{s}_{i,j} \gets \Z_{N_j}^2$, and
-                $\beta_{i,j}, \hat{\beta}_{i,j} \gets (\pm 2^{\ell'})^2$.
-            \item Compute $D_{j,i} = (\gamma_i \odot K_j) \oplus \enci{j}(-\beta_{i,j}; s_{i,j})$
-                and $F_{j,i} = \enc^\crt_{\sk_i}(-\beta_{i,j}; r_{i,j})$.
-            \item Compute $\hat{D}_{j,i} = (x_i \odot K_j) \oplus \enci{j}(-\hat{\beta}_{i,j}; \hat{s}_{i,j})$
-                and $\hat{F}_{j,i} = \enc^\crt_{\sk_i}(-\hat{\beta}_{i,j}; \hat{r}_{i,j})$.
+    \item[\textbf{Round 2.}] \
+    \begin{algorithmic}[1]
+        \State Receive $(K_j, G_j, \psi^0_{i,j})$ from all parties
+        \If{$\var{echo\_enabled}$} \Comment{Reliability check}
+            \State Compute $h_i = H(\Encode[echo](\sid, K_0, G_0, \cdots, K_{n-1}, G_{n-1}))$
+                   and send $h_i$ to all parties
+            \State Upon receiving $h_j$ from all parties, abort if 
+                   $h_i \neq h_j$ for some $j \in [n]$
+        \EndIf
+        \State For $j \in [n] \setminus \{i\}$, assert $\verifyni{enc}^{L}(\Encode(\sid, j), R_i, (N_j, K_j), \psi^0_{i,j})$
+        \State Compute $\Gamma_i = \gamma_i \cdot G$
+        \For{$j \in [n] \setminus \{i\}$}
+            \State Sample $r_{i,j}, \hat{r}_{i,j} \gets \Z_{N_i}^2$,
+                          $s_{i,j}, \hat{s}_{i,j} \gets \Z_{N_j}^2$, and
+                          $\beta_{i,j}, \hat{\beta}_{i,j} \gets (\pm 2^{\ell'})^2$
+            \State Compute $D_{j,i} = (\gamma_i \odot K_j) \oplus \enci{j}(-\beta_{i,j}; s_{i,j})$
+                   and $F_{j,i} = \enc^\crt_{\sk_i}(-\beta_{i,j}; r_{i,j})$
+            \State Compute $\hat{D}_{j,i} = (x_i \odot K_j) \oplus \enci{j}(-\hat{\beta}_{i,j}; \hat{s}_{i,j})$
+                   and $\hat{F}_{j,i} = \enc^\crt_{\sk_i}(-\hat{\beta}_{i,j}; \hat{r}_{i,j})$
 
-            \item Compute $\psi_{j,i} = \proveni{aff\mbox{-}g}^L(\Encode(\sid, i), R_j, (N_j, N_i, K_j, D_{j,i}, F_{j,i}, \Gamma_i); (\gamma_i, -\beta_{i,j}, s_{i,j}, r_{i,j}))$ and
-            $\hat{\psi}_{j,i} = \proveni{aff\mbox{-}g}^L(\Encode(\sid, i), R_j, (N_j, N_i, K_j, \hat{D}_{j,i}, \hat{F}_{j,i}, X_i); (x_i, -\hat{\beta}_{i,j}, \hat{s}_{i,j}, \hat{r}_{i,j}))$. 
-            
+            \State Compute $\psi_{j,i} = \proveni{aff\mbox{-}g}^L(\Encode(\sid, i), R_j, (N_j, N_i, K_j, D_{j,i}, F_{j,i}, \Gamma_i); (\gamma_i, -\beta_{i,j}, s_{i,j}, r_{i,j}))$
+            \State Compute $\hat{\psi}_{j,i} = \proveni{aff\mbox{-}g}^L(\Encode(\sid, i), R_j, (N_j, N_i, K_j, \hat{D}_{j,i}, \hat{F}_{j,i}, X_i); (x_i, -\hat{\beta}_{i,j}, \hat{s}_{i,j}, \hat{r}_{i,j}))$
             %\jnote{To consider later: this and the previous could possibly be combined for better efficiency}
-            \item Compute $\psi'_{j,i} = \proveni{log*}^L(\Encode(\sid, i), R_j, (N_i, G_i, \Gamma_i, G); (\gamma_i, v_i), \sk_i)$.
-            \item Send $(\Gamma_i, D_{j,i}, F_{j,i}, \hat{D}_{j,i}, \hat{F}_{j,i}, \psi_{j,i}, \hat{\psi}_{j,i}, \psi'_{j,i})$
-        to $P_j$.
-        \end{itemize}
-        \end{itemize}
+            \State Compute $\psi'_{j,i} = \proveni{log*}^L(\Encode(\sid, i), R_j, (N_i, G_i, \Gamma_i, G); (\gamma_i, v_i), \sk_i)$
+            \State Send $(\Gamma_i, D_{j,i}, F_{j,i}, \hat{D}_{j,i}, \hat{F}_{j,i}, \psi_{j,i}, \hat{\psi}_{j,i}, \psi'_{j,i})$ to $P_j$
+        \EndFor
+    \end{algorithmic}
 
     \item[\textbf{Round 3.}] \ 
-    \begin{enumerate}
-        \item Upon receiving $(\Gamma_j, D_{i,j}, F_{i,j}, \hat{D}_{i,j}, \hat{F}_{i,j}, \psi_{i,j}, \hat{\psi}_{i,j}, \psi'_{i,j})$ from $P_j$, do:
+    \begin{algorithmic}[1]
+        \State Receive $(\Gamma_j, D_{i,j}, F_{i,j}, \hat{D}_{i,j}, \hat{F}_{i,j}, \psi_{i,j}, \hat{\psi}_{i,j}, \psi'_{i,j})$ from all parties
 
-        \begin{itemize}
-            \item Assert $\verifyni{aff\mbox{-}g}^L(\Encode(\sid, j), R_i, (N_i, N_j, K_i, D_{i,j}, F_{i,j}, \Gamma_j), \psi_{i,j}; \sk_i)$.
-            \item Assert $\verifyni{aff\mbox{-}g}^L(\Encode(\sid, j), R_i, (N_i, N_j, K_i, \hat{D}_{i,j}, \hat{F}_{i,j}, X_j), \hat{\psi}_{i,j}; \sk_i)$.
-            \item Assert $\verifyni{log*}^L(\Encode(\sid, j), R_i, (N_j, G_j, \Gamma_j, G), \psi'_{i,j})$.
-        \end{itemize}
+        \For{$j \in [n] \setminus \{i\}$}
+            \State Assert $\verifyni{aff\mbox{-}g}^L(\Encode(\sid, j), R_i, (N_i, N_j, K_i, D_{i,j}, F_{i,j}, \Gamma_j), \psi_{i,j}; \sk_i)$
+            \State Assert $\verifyni{aff\mbox{-}g}^L(\Encode(\sid, j), R_i, (N_i, N_j, K_i, \hat{D}_{i,j}, \hat{F}_{i,j}, X_j), \hat{\psi}_{i,j}; \sk_i)$
+            \State Assert $\verifyni{log*}^L(\Encode(\sid, j), R_i, (N_j, G_j, \Gamma_j, G), \psi'_{i,j})$
+        \EndFor
+        \Statex
 
-        \item Compute $\Gamma = \sum_{j\in [n]} \Gamma_j$ and $\Delta_i = k_i \cdot \Gamma$.
-
-        \item For $j \ne i$, do:
-        \begin{itemize}
-            \item Compute $\alpha_{i,j} = \dec_{\sk_i}(D_{i,j})$ and $\hat{\alpha}_{i,j} = \dec_{\sk_i}(\hat{D}_{i,j})$.
-            \item Compute $\psi''_{j,i} = \proveni{log*}^L(\Encode(\sid, i), R_j, (N_i, K_i, \Delta_i, \Gamma); (k_i, \rho_i), \sk_i)$.
-        \end{itemize}
-        \item  Compute $\delta_i = \gamma_i k_i + \sum_{j \ne i}(\alpha_{i,j} + \beta_{i,j}) \bmod q$ and
-            $\chi_i = x_i k_i + \sum_{j \ne i}(\hat{\alpha}_{i,j} + \hat{\beta}_{i,j}) \bmod q$. 
-
-        \item Send $(\delta_i, \Delta_i, \psi''_{j,i})$ to each $P_j$.
-    \end{enumerate}
+        \State Compute $\Gamma = \sum_{j\in [n]} \Gamma_j$ and $\Delta_i = k_i \cdot \Gamma$
+        \For{$j \in [n] \setminus \{i\}$}
+            \State Compute $\alpha_{i,j} = \dec_{\sk_i}(D_{i,j})$ and $\hat{\alpha}_{i,j} = \dec_{\sk_i}(\hat{D}_{i,j})$
+            \State Compute $\psi''_{j,i} = \proveni{log*}^L(\Encode(\sid, i), R_j, (N_i, K_i, \Delta_i, \Gamma); (k_i, \rho_i), \sk_i)$
+        \EndFor
+        \State  Compute $\delta_i = \gamma_i k_i + \sum_{j \ne i}(\alpha_{i,j} + \beta_{i,j}) \bmod q$
+        \State Compute $\chi_i = x_i k_i + \sum_{j \ne i}(\hat{\alpha}_{i,j} + \hat{\beta}_{i,j}) \bmod q$
+        \Statex
+        \State Send $(\delta_i, \Delta_i, \psi''_{j,i})$ to each $P_j$
+    \end{algorithmic}
 
     \item[\textbf{Output}] \
-    \begin{enumerate}
-        \item Upon receiving $(\delta_j, \Delta_j, \psi''_{i,j})$ from $P_j$, assert $\verifyni{log*}^L(\Encode(\sid, j), R_i, (N_j, K_j, \Delta_j, \Gamma), \psi''_{i,j})$.
-
-        \item Compute $\delta = \sum_j \delta_j$, and do:
-        \begin{itemize}
-            \item Assert $\delta \cdot G = \sum_j \Delta_j$. 
-            \item Set $R = \delta^{-1} \cdot \Gamma$ and output $(R, k_i, \chi_i)$.
-        \end{itemize}
-    \end{enumerate}
+    \begin{algorithmic}[1]
+        \State Receive $(\delta_j, \Delta_j, \psi''_{i,j})$ from all parties
+        \State Assert $\verifyni{log*}^L(\Encode(\sid, j), R_i, (N_j, K_j, \Delta_j, \Gamma), \psi''_{i,j})$
+            for all $j \in [n] \setminus \{i\}$
+        \State Compute $\delta = \sum_j \delta_j$
+        \State Assert $\delta \cdot G = \sum_j \Delta_j$
+        \State Set $R = \delta^{-1} \cdot \Gamma$ and \Return $(R, k_i, \chi_i)$
+    \end{algorithmic}
 \end{description}
 
 \subsubsection{Threshold ($t$-out-of-$n$) Presinging}
 
 \begin{description}
 
-\item[\bf Input.] 
-  Size of signing set $t$,
-  identities of parties in signing set,
-  index $i\in [t]$,
-  injective index map\footnote{$S(i)$ is the index that $P_i$ had at key-generation time.} $S : [t] \to [n]$,
-  key share $K_{S(i)}$,
-  context separation string $\sid$,
-  security level $L$, curve $\E$ with generator $G$.
+    \item[\bf Input.] \
+    \begin{itemize}[noitemsep,topsep=0pt]
+        \item size of signing set $t \ge 2$,
+        \item party index $i \in [t]$,
+        \item injective index map $S : [t] \to [n]$ that maps signers indicies at signing to their indicies at key generation, i.e. $S(i)$ is the index that $P_i$ had at key-generation time,
+        \item key share $K_{S(i)}$,
+        \item context separation string $\sid \in \Bit^*$,
+        \item additive shift $\var{shift} \in \Z_q$ for HD child derivation. $\var{shift} = 0$ disables HD derivation. Deriving additive shift is up to specific standard of HD-wallets, e.g. see \cite{bip32} or \cite{slip10} \label{deriving-shift-note}
+        \item security level $L$ (see Section~\ref{sec:security-params}),
+        \item flag $\var{echo\_enabled} \in \Bit$ indicating whether reliability check is enabled,
+        \item curve $\E$ with generator $G$ of prime order $q$
+    \end{itemize}
 
-  {\bf HD-wallets inputs:} additive $\text{shift} \in \Fq$ \footnote{Deriving additive shift is up to specific standard of HD-wallets, e.g. see \cite{bip32} or \cite{slip10} \label{deriving-shift-note}} ($\text{shift} = 0$ disables HD derivation)
+    \item[\bf Map threshold signing protocol to non-threshold by transforming the shares] \
+    \begin{algorithmic}[1]
+        \State Extract data from key share $K_{S(i)}$, which contains:
 
-    \item[\bf Setup.] The key share $K_{S(i)}$ contains $\threshold$, number of key holders~$n$, secret share $x'_{S(i)}$, parties' public shares $\vec X' = (X'_j)_{j \in [n]}$, an injective map $I : [n] \to \Fq \setminus \{0\}$, Paillier secret key $\sk_{S(i)}$, parties' Paillier keys $\vec N' = (N'_j)_{j \in [n]}$, and parties' auxiliary information $\vec R' = (s_j, t_j, \hat N)_{j \in [n]}$.
-
-    \item[\bf Step 1.] Set $\sk_i = \sk_{S(i)}$ and 
-                       $\vec R = (R'_{S(j)})_{j \in [n]}$. Then:
-    \begin{itemize}
-        \item If shares are additive\footnote{In this case we have $t=n$.} shares of the private key, 
-            set $x_{i} = x'_{S(i)}$, $\vec X = (X'_{S(j)})_{j \in [n]}$.
-        
-        \item If shares are Shamir secret shares of the private key: 
         \begin{itemize}
-            \item For $j \in [t]$, compute Lagrange coefficient $\lambda_j = \prod\limits_{m \in [t]\setminus\{j\}} \frac{I(S(m))}{I(S(m)) - I(S(j))} \bmod{q}$.
-            \item Compute $x_{i} = \lambda_i \cdot x'_{S(i)}$.
-            \item For $j \in [n]$, compute $X_j= \lambda_j \cdot X'_{S(j)}$; then set $\vec X = \{X_j\}_{j \in [t]}$.
+        \item threshold value $\threshold$,
+        \item number of key holders~$n$,
+        \item secret share $x'_{S(i)} \in \Z_q$,
+        \item parties' public shares $\vec X' = (X'_j)_{j \in [n]} \in \E^n$,
+        \item an injective map $I : [n] \to \Fq \setminus \{0\}$,
+        \item Paillier secret key $\sk'_{S(i)}$,
+        \item parties' Paillier keys $\vec N' = (N'_j)_{j \in [n]} \in \Z^n$,
+        \item parties' auxiliary information $\vec R' = (s_j, t_j, \hat N)_{j \in [n]} \in (\Z, \Z, \Z)^n$
         \end{itemize}
-    \end{itemize}
 
-    \item[\bf Step 2.] {\bf (HD-wallets)} If HD-wallets support enabled:
-    \begin{itemize}
-      \item Set $X_0 := X_0 + \text{shift} \cdot G$
-      \item If $i = 0$, set $x_0 := x_0 + \text{shift}$
-      \item Note: output signature will be valid for public key $Y + \text{shift} \cdot G$
-    \end{itemize}
+        \State Set $\sk_i = \sk'_{S(i)}$ and $\vec R = (R'_{S(j)})_{j \in [n]}$
+        \If{shares are additive\footnote{In this case we have $t=n$.} shares of the private key}
+            \State Set $x_{i} = x'_{S(i)}$, $\vec X = (X'_{S(j)})_{j \in [n]}$
+        \EndIf
+        \If{shares are Shamir secret shares of the private key}
+            \State For $j \in [t]$, compute Lagrange coefficient $\lambda_j = \prod\limits_{m \in [t]\setminus\{j\}} \frac{I(S(m))}{I(S(m)) - I(S(j))} \bmod{q}$.
+            \State Compute $x_{i} = \lambda_i \cdot x'_{S(i)}$.
+            \State For $j \in [n]$, compute $X_j= \lambda_j \cdot X'_{S(j)}$; then set $\vec X = \{X_j\}_{j \in [t]}$.
+        \EndIf
 
-    \item[\bf Step 3.] Call the non-threshold presigning protocol from the previous section using inputs $t, i, x_i, \vec X$, $\sk_i$, $\vec R, \sid, L, \E$.
+        \If{$\var{shift} \ne 0$} \Comment{i.e. if HD wallets are enabled}
+            \State Set $X_0 := X_0 + \text{shift} \cdot G$
+            \State If $i = 0$, set $x_0 := x_0 + \text{shift}$
+                \Comment{\parbox[t]{.5\linewidth}{output signature will be valid for public key $Y + \text{shift} \cdot G$}}
+        \EndIf
+
+        \State Call non-threshold signing protocol with inputs:
+        \begin{itemize}[noitemsep,topsep=0pt]
+        \item signer index $i$,
+        \item number of signers $n = t$,
+        \item (additive) secret share $x_i$,
+        \item list of signers' public key shares $\vec X$,
+        \item Paillier private key $\sk_i$,
+        \item list of signers' auxiliary data $\vec R$,
+        \item context separation string $\sid$,
+        \item security level $L$,
+        \item flag $\var{echo\_enabled}$,
+        \item curve $\E$ with generator $G$ of prime order $q$
+        \end{itemize}
+    \end{algorithmic}
+
 \end{description}
 
 
@@ -1938,30 +1963,47 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
 \label{sec:signing}
 The signing protocol has two parts: one that takes the output from the presignature protocol and a hashed message and produces a partial signature, and another that takes partial signatures and combines them to produce a signature. 
 %This separation is introduced so final signature reconstruction can be done on coordinator. Functions are defined below.
+
+\begin{description}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\fn{issue\_partial\_signature}((R, k_i, \chi_i), m, \var{shift}) \to (r, \sigma_i)$}
+\algoInputsList{
+    \item presignature $(R, k_i, \chi_i)$,
+    \item a hashed message $m \in \Z_q$,
+    \item if HD wallets support is enabled, additive $\var{shift} \in \Z_q$ ($\var{shift} = 0$ disables HD derivation)
+}
+\algoOutputs{partial signature $(r, \sigma_i) \in (\Z_q, \Z_q)$}
+\begin{algorithmic}[1]
+\If{HD-wallets support enabled}
+    \State Set $\chi_i := \chi_i + k_i \cdot \var{shift} \bmod q$
+\EndIf
+\State Set $r = \affineX{R}$ and $\sigma_i = k_i m + r \chi_i$
+\State \Return $(r, \sigma_i)$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\fn{combine\_partial\_signatures(Y, \{(r_i, \sigma_i)\}_{i=0}^{n-1}, m)} \to (r, \sigma)$}
+\algoInputsList{
+    \item public key $Y \in \E$,
+    \item partial signatures $\{(r_i, \sigma_i)\}_{i=0}^{n-1} \in (\Z_q, \Z_q)^n$,
+    \item a hashed message $m \in \Z_q$
+}
+\algoOutputs{signature $(r, \sigma) \in (\Z_q, \Z_q)$}
+\begin{algorithmic}[1]
+\State Assert $r_0 \? = r_0 \? = \dots \? = r_{n-1}$
+\State Set $r := r_0$
+\State Let $\sigma = \sum_j \sigma_j \bmod q$
+\State Verify that $(r, \sigma)$ is a valid ECDSA signature on hashed message $m$ with respect to public key $Y$, abort if it's not
+\State \Return $(r, \sigma)$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\end{description}
     
-\medskip\noindent{\bf Local signing.} The input is a presignature 
-  $S_i = (R, k_i, \chi_i)$,
-  a hashed message~$m$,
-  and, if HD wallets support is enabled, additive $\text{shift} \in \Fq$ \footref{deriving-shift-note} ($\text{shift} = 0$ disables HD derivation).
-  Do:
-        \begin{itemize}
-            \item If {\bf HD-wallets} support enabled: \\
-              Set $\chi := \chi + k \cdot \text{shift}$
-            \item Set $r = \affineX{R}$ and $\sigma_i = k m + r \chi$.
-            \item Output $(r, \sigma_i)$.
-        \end{itemize}
-        
-
-    \medskip\noindent{\bf Combining presignatures.} The input is the public key~$Y$, partial signatures $\{(r_i, \sigma_i)\}_{i=0}^{n-1}$, and hashed message~$m$.
-The function does:
-        \begin{itemize}
-            \item Assert $r_0 = r_1 = \dots = r_{n-1}$.
-            \item Let $\sigma = \sum_j \sigma_j$.
-            \item If $(r, \sigma)$ is not a valid signature on hashed message~$m$ with respect to public key~$Y$, then abort. Otherwise, 
-            output $(r, \sigma)$.
-        \end{itemize}
-
-
 \ignore{
 \section{Further Optimizations}
 
