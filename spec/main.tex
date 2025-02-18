@@ -102,6 +102,7 @@
 \newcommand{\?}[1]{\stackrel{?}{#1}}
 
 \newcommand{\Bit}{\ensuremath{\{0{,}1\}}}
+\newcommand{\Byte}{\ensuremath{\mathbb{B}}}
 
 \newcommand{\todo}[1]{\textbf{\color{Red}{TBD: #1}}}
 
@@ -128,6 +129,7 @@ For integers $a, b, \ell$, we set
 $[a; b)=\{a, \ldots, b-1\}$
 and
 $\pm \ell=\{-\ell, \dots, 0, \dots, \ell\}$. 
+Let $\Byte = [256] = \{0, 1, \dots, 255\}$, i.e. $\Byte$ is all possible values of a byte, so $\Byte^*$ denotes a space of all bytestrings of any size, and $\Byte^n$ denotes a space of all bytestrings of length $n$. 
 We write $x \gets X$ to denote sampling a uniform element $x$ from a set~$X$.
 %, and $x \stackrel{s}{\gets} X$ to denote the process of deterministically mapping a seed $s$ to an element of $X$ that is computationally indistinguishable from uniform (assuming $s$ is uniform and unknown).
 
@@ -368,7 +370,7 @@ If we assume $t-1$ malicious parties and $n-t+1$ honest parties, the overall pri
 \subsection{Unambiguous encoding}
 We require unambiguous encode function 
 
-$$\Encode[tag] : X_1 \times X_2 \times \dots \times X_n \to \Bit^*$$
+$$\Encode[tag] : X_1 \times X_2 \times \dots \times X_n \to \Byte^*$$
 
 which takes arguments $x_1 \in X_1, \dots, x_n \in X_n$ and produces their unambiguous bytes encoding.
 $X_i$ can be any domain that has bytes representation. E.g. if we encode an integer, then $X_i$ is set
@@ -538,7 +540,7 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 \algoName{$\proveni{enc}^L(\state, R_j, (N_i, K); k, \rho[, \sk_i]) \to ((S, A, C); (z_1, z_2, z_3))$}
 \algoInputsList{
     \item security level $L = (Q, \dots)$,
-    \item shared state $\state \in \Bit^*$,
+    \item shared state $\state \in \Byte^*$,
     \item auxilary data $R_j$,
     \item public encryption key $N_i \in \Z$ and, if known, corresponding secret key $\sk_i$,
     \item public ciphertext $K \in \Z$,
@@ -563,7 +565,7 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 \algoName{$\verifyni{enc}^L(\state, R_j, (N_i, K), ((S, A, C), (z_1, z_2, z_3)))$}
 \algoInputsList{
     \item security level $L = (Q, \dots)$,
-    \item shared state $\state \in \Bit^*$,
+    \item shared state $\state \in \Byte^*$,
     \item auxilary data $R_j$,
     \item public data:
         \begin{itemize}
@@ -734,7 +736,7 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 )$}
 \algoInputsList{
     \item security level $L = (Q, \dots) \in (\Z, \dots)$,
-    \item shared state $\state \in \Bit^*$,
+    \item shared state $\state \in \Byte^*$,
     \item auxiliary data $R_j$,
     \item public data $(N_j, N_i, C, D, Y, X) \in (\Z, \Z, \Z, \Z, \Z, \E)$,
     \item secret data $(x, y, \rho, \rho_y) \in \Z^4$
@@ -962,7 +964,7 @@ the output is undefined.
 \algoName{$\proveni{mod}^L(\state, N; (p, q)) \to (w, \{(x_i, a_i, b_i, z_i)\}_{i\in[m]})$}
 \algoInputsList{
     \item security level $L = (m, \dots)$,
-    \item shared $\state \in \Bit^*$,
+    \item shared $\state \in \Byte^*$,
     \item public data $N \in \Z$,
     \item secret data: primes $p,q \in \Z,\Z$ that are congruent 3 modulo 4 such that $N = p \cdot q$
 
@@ -985,7 +987,7 @@ the output is undefined.
 \algoName{$\verifyni{mod}^L(\state, N, (w, \{(x_i, a_i, b_i, z_i)\}_{i\in[m]}))$}
 \algoInputsList{
     \item security level $L = (m, \dots)$,
-    \item shared $\state \in \Bit^*$,
+    \item shared $\state \in \Byte^*$,
     \item public data: $N \in \Z$,
     \item non-interactive proof:
         \begin{itemize}
@@ -1074,7 +1076,7 @@ For this proof, the prover and verifier have common input $(N, s, t)$ with $s, t
 \algoName{$\proveni{prm}^L(\state, N, s, t; \phi(N), \lambda) \to (\vec A, \vec z)$}
 \algoInputsList{
     \item security level $L = (m, \dots)$,
-    \item shared state $\state \in \Bit^*$
+    \item shared state $\state \in \Byte^*$
     \item public data $N, s, t \in \Z, \Z, \Z$,
     \item secret data $\phi(N), \lambda \in \Z, \Z$,
 }
@@ -1092,7 +1094,7 @@ For this proof, the prover and verifier have common input $(N, s, t)$ with $s, t
 \algoName{$\verifyni{prm}^L(\state, N, s, t, (\vec A, \vec z))$}
 \algoInputsList{
     \item security level $L = (m, \dots)$,
-    \item shared state $\state \in \Bit^*$
+    \item shared state $\state \in \Byte^*$
     \item public data $N, s, t \in \Z, \Z, \Z$,
     \item commitment $\vec A \in \Z^m$, proof $\vec z \in \Z^m$
 }
@@ -1230,7 +1232,7 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 )$}
 \algoInputsList{
     \item security level $L = (Q, \dots)$,
-    \item shared $\state \in \Bit^*$,
+    \item shared $\state \in \Byte^*$,
     \item auxiliary data $R_j$,
     \item public data $(N_i, C, X, B) \in (\Z, \Z, \E, \E)$,
     \item secret data $(x, \rho) \in \Z^2$,
@@ -1270,7 +1272,7 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 )$}
 \algoInputsList{
     \item security level $L = (Q, \dots)$,
-    \item shared $\state \in \Bit^*$,
+    \item shared $\state \in \Byte^*$,
     \item auxiliary data $R_j$,
     \item public data $(N_i, C, X, B) \in (\Z, \Z, \E, \E)$,
     \item non-interactive proof consisting of:
@@ -1410,7 +1412,7 @@ In all the cases where this proof is used in the protocol, the verifier knows th
     \to ((P, Q, A, B, T, \sigma); (z_1, z_2, w_1, w_2, v))$}
 \algoInputsList{
     \item security level $L = (Q, \dots)$,
-    \item shared $\state \in \Bit^*$,
+    \item shared $\state \in \Byte^*$,
     \item auxiliary data $R_j$,
     \item public data $N_i \in \Z$,
     \item secret data: primes $p, q \in \Z^2$
@@ -1437,7 +1439,7 @@ In all the cases where this proof is used in the protocol, the verifier knows th
 \algoName{$\verifyni{fac}^L(\state, R_j, N_i, ((P, Q, A, B, T, \sigma), (z_1, z_2, w_1, w_2, v)))$}
 \algoInputsList{
     \item security level $L = (Q, \dots)$,
-    \item shared $\state \in \Bit^*$,
+    \item shared $\state \in \Byte^*$,
     \item auxiliary data $R_j$,
     \item public data $N_i \in \Z$,
     \item non-interactive proof, consisting of:
@@ -1553,7 +1555,7 @@ This protocol is run to generate auxiliary information for each signer in a clus
     \begin{itemize}[noitemsep,topsep=0pt]
     \item party index $i$, $0 \le i < n$,
     \item amount of parties in the protocol $n \ge 2$,
-    \item context separation string $\sid \in \Bit^*$,
+    \item context separation string $\sid \in \Byte^*$,
     \item security level $L$ (see Section~\ref{sec:security-params}),
     \item flag $\var{echo\_enabled} \in \Bit$ indicating whether reliability check is enabled
     \end{itemize}
@@ -1637,7 +1639,7 @@ This protocol is based on~\cite[Figure~5]{cggmp21}, but we have added the option
     \begin{itemize}[noitemsep,topsep=0pt]
     \item party index $i$, $0 \le i < n$,
     \item number of signers $n \ge 2$,
-    \item context separation string $\sid \in \Bit^*$,
+    \item context separation string $\sid \in \Byte^*$,
     \item security level $L$ (see Section~\ref{sec:security-params}),
     \item flag $\var{echo\_enabled} \in \Bit$ indicating whether reliability check is enabled,
     \item flag $\var{hd\_enabled} \in \Bit$ indicating whether HD-wallets support is enabled,
@@ -1651,7 +1653,7 @@ This protocol is based on~\cite[Figure~5]{cggmp21}, but we have added the option
         \State Sample $\rid_i \gets \Bit^\kappa$
         \State Compute $(A_i; \tau_i) = \commit{sch}()$
         \If{\var{hd\_wallets}}
-            \State Sample local chain code contribution $c_i \gets \Bit^{256}$ (32-bytes string)
+            \State Sample local chain code contribution $c_i \gets \Byte^{32}$
         \Else
             \State Set $c_i = \bot$
         \EndIf
@@ -1680,7 +1682,7 @@ This protocol is based on~\cite[Figure~5]{cggmp21}, but we have added the option
                for some $j \in [n]$
         \State Set $\rid = \bigoplus_j \rid_j$
         \If{$\var{hd\_wallets}$}
-            \State Check that $c_j \? \in \Bit^{256}$ for all $j \in [n]$
+            \State Check that $c_j \? \in \Byte^{32}$ for all $j \in [n]$
             \State Set chain code $c = \bigoplus_j c_j$
         \EndIf
         \State Set $e_i \in \Z_q = \challengeni{sch}(\sid, i, \rid, X_i, A_i)$
@@ -1713,7 +1715,7 @@ This protocol is based on~\cite[Figure~5]{cggmp21}, but we have added the option
     \item party index $i$, $0 \le i < n$,
     \item threshold parameter $t$, $2 \le t \le n$,
     \item number of signers $n \ge 2$,
-    \item context separation string $\sid \in \Bit^*$,
+    \item context separation string $\sid \in \Byte^*$,
     \item security level $L$ (see Section~\ref{sec:security-params}),
     \item flag $\var{echo\_enabled} \in \Bit$ indicating whether reliability check is enabled,
     \item flag $\var{hd\_enabled} \in \Bit$ indicating whether HD-wallets support is enabled,
@@ -1729,7 +1731,7 @@ This protocol is based on~\cite[Figure~5]{cggmp21}, but we have added the option
         \State Sample $\rid_i \gets \Bit^\kappa$
         \State Compute $(A_i; \tau_i) \gets \commit{sch}()$
         \If{$\var{hd\_wallets}$} 
-            \State Sample local chain code contribution $c_i \gets \Bit^{256}$ (32-bytes string)
+            \State Sample local chain code contribution $c_i \gets \Byte^{32}$
         \Else
             \State Set $c_i = \bot$
         \EndIf
@@ -1763,7 +1765,7 @@ This protocol is based on~\cite[Figure~5]{cggmp21}, but we have added the option
         \EndFor
         \State Compute $\rid = \bigoplus_{j \in [n]} \rid_j$
         \If{$\var{hd\_wallet}$}
-            \State Check that $c_j \? \in \Bit^{256}$ for all $j \in [n]$
+            \State Check that $c_j \? \in \Byte^{32}$ for all $j \in [n]$
             \State Set chain code $c = \bigoplus_{j \in [n]} c_j$
         \EndIf
         \State Let $F(x) = \sum_{k \in [t]} x^k \cdot \left(\sum_{j\in [n]} S_{j,k}\right) = \sum_{j \in [n]} F_j(x)$
@@ -1815,7 +1817,7 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
     \item list of signers' public key shares $\vec X = \{X_j\}_{j\in[n]} \in \E^n$,
     \item Paillier private key $\sk_i$,
     \item list of signers' auxiliary data $\vec R = \{(s_j, t_j, N_j)\}_{j\in[n]} \in \{\Z^3\}^n$,
-    \item context separation string $\sid \in \Bit^*$,
+    \item context separation string $\sid \in \Byte^*$,
     \item security level $L$ (see Section~\ref{sec:security-params}),
     \item flag $\var{echo\_enabled} \in \Bit$ indicating whether reliability check is enabled,
     \item curve $\E$ with generator $G$ of prime order $q$
@@ -1903,7 +1905,7 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
         \item party index $i \in [t]$,
         \item injective index map $S : [t] \to [n]$ that maps signers indicies at signing to their indicies at key generation, i.e. $S(i)$ is the index that $P_i$ had at key-generation time,
         \item key share $K_{S(i)}$,
-        \item context separation string $\sid \in \Bit^*$,
+        \item context separation string $\sid \in \Byte^*$,
         \item additive shift $\var{shift} \in \Z_q$ for HD child derivation. $\var{shift} = 0$ disables HD derivation. Deriving additive shift is up to specific standard of HD-wallets, e.g. see \cite{bip32} or \cite{slip10} \label{deriving-shift-note}
         \item security level $L$ (see Section~\ref{sec:security-params}),
         \item flag $\var{echo\_enabled} \in \Bit$ indicating whether reliability check is enabled,
