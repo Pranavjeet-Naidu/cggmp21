@@ -1600,7 +1600,6 @@ This protocol is run to generate auxiliary information for each signer in a clus
                 H(\Encode[hash\_com](\sid, j, N_j, s_j, t_j, \hat{\psi}_j, \rho_j, u_j))$
             \State Assert $N_j$ is at least $8 \cdot \kappa - 1$ bits in length
             \State Assert $\verifyni{prm}^L(\Encode(\sid, j), N_j, s_j, t_j, \hat{\psi}_j)$
-            \State Construct Paillier encryption key from~$N_j$
         \EndFor
         \State Compute $\rho=\bigoplus_j \rho_j$
         \State Compute $\psi_i = \proveni{mod}^L(\Encode(\sid, i, \rho), N_i; (p_i, q_i))$
@@ -1829,14 +1828,17 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
                   $\rho_i, v_i \gets (\Z^*_{N_i})^2$
     \State Set $G_i = \enc^\crt_{\sk_i}(\gamma_i; v_i)$,
                $K_i = \enc^\crt_{\sk_i}(k_i; \rho_i)$. 
-    \State For $j \ne i$ compute $\psi^0_{j,i} = \proveni{enc}^{L}(\Encode(\sid, i), R_j, (N_i, K_i); k_i, \rho_i, \sk_i)$. 
+    \For{$j \in [n] \setminus \{i\}$}
+        \State Compute $\psi^0_{j,i} = \proveni{enc}^{L}(\Encode(\sid, i), R_j, (N_i, K_i); k_i, \rho_i, \sk_i)$. 
+    \EndFor
     \State Send $(K_i, G_i)$ to all parties, and for $j \neq i$ send $\psi^0_{j,i}$ to $P_j$
     \end{algorithmic}
 
 
     \item[\textbf{Round 2.}] \
     \begin{algorithmic}[1]
-        \State Receive $(K_j, G_j, \psi^0_{i,j})$ from all parties
+        \State Receive $(K_j, G_j, \psi^0_{i,j}) \in (\Z, \Z, *)$ from all parties
+            \Comment{\parbox[t]{.4\linewidth}{domain of $\psi^0_{i,j}$ is specified within ZK proof verify function}}
         \If{$\var{echo\_enabled}$} \Comment{Reliability check}
             \State Compute $h_i = H(\Encode[echo](\sid, K_0, G_0, \cdots, K_{n-1}, G_{n-1}))$
                    and send $h_i$ to all parties
@@ -1864,7 +1866,10 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
 
     \item[\textbf{Round 3.}] \ 
     \begin{algorithmic}[1]
-        \State Receive $(\Gamma_j, D_{i,j}, F_{i,j}, \hat{D}_{i,j}, \hat{F}_{i,j}, \psi_{i,j}, \hat{\psi}_{i,j}, \psi'_{i,j})$ from all parties
+        \State Receive $(\Gamma_j, D_{i,j}, F_{i,j}, \hat{D}_{i,j}, \hat{F}_{i,j}, \psi_{i,j}, \hat{\psi}_{i,j}, \psi'_{i,j})
+            \in (\E, \Z, \Z, \Z, \Z, *, *, *)$ from all parties
+
+            \Comment{domains of the proofs are specified within ZK proofs verify functions}
 
         \For{$j \in [n] \setminus \{i\}$}
             \State Assert $\verifyni{aff\mbox{-}g}^L(\Encode(\sid, j), R_i, (N_i, N_j, K_i, D_{i,j}, F_{i,j}, \Gamma_j), \psi_{i,j}; \sk_i)$
@@ -1886,7 +1891,8 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
 
     \item[\textbf{Output}] \
     \begin{algorithmic}[1]
-        \State Receive $(\delta_j, \Delta_j, \psi''_{i,j})$ from all parties
+        \State Receive $(\delta_j, \Delta_j, \psi''_{i,j}) \in (\Z_q, \E, *)$ from all parties
+            \Comment{\parbox[t]{.4\linewidth}{domain of $\psi''_{i,j}$ is specified within ZK proof verify function}}
         \State Assert $\verifyni{log*}^L(\Encode(\sid, j), R_i, (N_j, K_j, \Delta_j, \Gamma), \psi''_{i,j})$
             for all $j \in [n] \setminus \{i\}$
         \State Compute $\delta = \sum_j \delta_j$
@@ -1927,14 +1933,14 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
         \item parties' auxiliary information $\vec R' = (s_j, t_j, \hat N)_{j \in [n]} \in (\Z, \Z, \Z)^n$
         \end{itemize}
 
-        \State Set $\sk_i = \sk'_{S(i)}$ and $\vec R = (R'_{S(j)})_{j \in [n]}$
+        \State Set $\sk_i = \sk'_{S(i)}$ and $\vec R = (R'_{S(j)})_{j \in [t]}$
         \If{shares are additive\footnote{In this case we have $t=n$.} shares of the private key}
-            \State Set $x_{i} = x'_{S(i)}$, $\vec X = (X'_{S(j)})_{j \in [n]}$
+            \State Set $x_{i} = x'_{S(i)}$, $\vec X = (X'_{S(j)})_{j \in [t]}$
         \EndIf
         \If{shares are Shamir secret shares of the private key}
             \State For $j \in [t]$, compute Lagrange coefficient $\lambda_j = \prod\limits_{m \in [t]\setminus\{j\}} \frac{I(S(m))}{I(S(m)) - I(S(j))} \bmod{q}$.
             \State Compute $x_{i} = \lambda_i \cdot x'_{S(i)}$.
-            \State For $j \in [n]$, compute $X_j= \lambda_j \cdot X'_{S(j)}$; then set $\vec X = \{X_j\}_{j \in [t]}$.
+            \State For $j \in [t]$, compute $X_j= \lambda_j \cdot X'_{S(j)}$; then set $\vec X = \{X_j\}_{j \in [t]}$.
         \EndIf
 
         \If{$\var{shift} \ne 0$} \Comment{i.e. if HD wallets are enabled}
@@ -1999,7 +2005,7 @@ The signing protocol has two parts: one that takes the output from the presignat
 \State Assert $r_0 \? = r_0 \? = \dots \? = r_{n-1}$
 \State Set $r := r_0$
 \State Let $\sigma = \sum_j \sigma_j \bmod q$
-\State Verify that $(r, \sigma)$ is a valid ECDSA signature on hashed message $m$ with respect to public key $Y$, abort if it's not
+\State Assert that $(r, \sigma)$ is a valid ECDSA signature on hashed message $m$ with respect to public key $Y$
 \State \Return $(r, \sigma)$
 \end{algorithmic}
 \end{inlineAlgorithm}
