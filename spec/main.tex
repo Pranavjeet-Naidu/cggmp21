@@ -1912,7 +1912,7 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
         \item injective index map $S : [t] \to [n]$ that maps signers indicies at signing to their indicies at key generation, i.e. $S(i)$ is the index that $P_i$ had at key-generation time,
         \item key share $K_{S(i)}$,
         \item context separation string $\sid \in \Byte^*$,
-        \item additive shift $\var{shift} \in \Z_q$ for HD child derivation. $\var{shift} = 0$ disables HD derivation. Deriving additive shift is up to specific standard of HD-wallets, e.g. see \cite{bip32} or \cite{slip10} \label{deriving-shift-note}
+        \item additive shift $\var{shift} \in \Z_q$ for HD child derivation. $\var{shift} = 0$ disables HD derivation. The procedure for deriving the shift is out of scope for this algorithm; for specific standards for shift derivation see, for instance, \cite{bip32} or \cite{slip10} \label{deriving-shift-note}
         \item security level $L$ (see Section~\ref{sec:security-params}),
         \item flag $\var{echo\_enabled} \in \Bit$ indicating whether reliability check is enabled,
         \item curve $\E$ with generator $G$ of prime order $q$
