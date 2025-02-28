@@ -30,8 +30,8 @@
 //!
 //! let aux: p::Aux = pregenerated::verifier_aux();
 //! let security = p::SecurityParams {
-//!     l: 4,
-//!     epsilon: 128,
+//!     l: 256,
+//!     epsilon: 230,
 //!     q: (Integer::ONE << 128_u32).complete(),
 //! };
 //!
