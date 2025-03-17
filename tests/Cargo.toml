@@ -27,6 +27,7 @@ include_dir = "0.7"
 ciborium = "0.2"
 
 futures = "0.3"
+pin-project = "1"
 
 lazy_static = "1.4"
 

@@ -1,26 +1,17 @@
-let # Rust
-  pkgs = import <nixpkgs> { overlays = [ rustOverlay ]; };
-  lib = pkgs.lib;
-  isDarwin = pkgs.hostPlatform.isDarwin;
+# shell for compiling latex spec
 
-  rustVersion = "1.75.0";
-  rustOverlay = import (builtins.fetchTarball "https://github.com/oxalica/rust-overlay/archive/master.tar.gz");
+let
+  pkgs = import <nixpkgs> {};
 
-  rust = pkgs.rust-bin.stable.${rustVersion}.default.override {
-    extensions = [
-      "rust-src" # for rust-analyzer
-    ];
-  };
   # Latex
   tex = (pkgs.texlive.combine {
     inherit (pkgs.texlive) scheme-small
-      collection-mathscience preprint amsmath;
+      collection-mathscience preprint amsmath enumitem placeins;
   });
 
 in pkgs.stdenv.mkDerivation {
   name = "signers-env";
   nativeBuildInputs = [
-    rust pkgs.rust-analyzer tex pkgs.gnum4
+    tex
   ];
-  buildInputs = lib.optionals isDarwin [pkgs.darwin.apple_sdk.frameworks.Security];
 }
