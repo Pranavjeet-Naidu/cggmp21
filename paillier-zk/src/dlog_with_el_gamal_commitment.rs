@@ -1,24 +1,14 @@
 //! ZK-proof of discrete log with El-Gamal commitment.
 //! Called Пelog or Relog in the CGGMP21/CGGMP24 papers.
 //!
-//! //! ## Description
+//! ## Description
 //!
-//! A party P has `L = g ^ lambda`, `M = (g ^ y) * (X ^ lambda)`, and `Y = h ^ y`,
-//! with g being a generator of curve `E`, h is a point on the curve
-//! and X is a public key (and a point on the curve).
-//! P shares L, M, Y, X, and h with V and wants to prove that the
-//! logarithm base h of Y is the discrete logarithm base g of the El-Gamal
-//! plaintext associated with the ciphertext (L,M) and public key X.
+//! Common inputs:
+//! - Curve `E` with generator $G$ of prime subgroup of size $q$
+//! - $L, M, X, Y, H$ are points on curve `E`
 //!
-//! Given:
-//! - Curve `E`
-//! - `X` - public key, point on the curve
-//! - `L = g * lambda`, `M = (g ^ y) * (X ^ lambda)`, and `Y = h ^ y` - data to obtain proof about
-//!
-//! Prove:
-//! - `logarithm base h of Y= y`
-//!
-//! Disclosing only: `g`, `L`, `M`, `X`, `Y`, `h`
+//! Prover has secret inputs $y, \lambda$ (scalars modulo $q$) such that $L = \lambda G,
+//! M = \lambda X + y G, Y = y H$
 //!
 //! ## Example
 //!

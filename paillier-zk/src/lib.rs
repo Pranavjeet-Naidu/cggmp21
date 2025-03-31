@@ -23,6 +23,7 @@ mod curve;
 compile_error!("doctest require that `__internal_doctest` feature is turned on");
 
 #[cfg(feature = "__internal_doctest")]
+#[doc(hidden)]
 pub mod _doctest;
 
 use common::InvalidProofReason;
