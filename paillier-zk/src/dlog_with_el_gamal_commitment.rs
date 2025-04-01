@@ -13,15 +13,8 @@
 //! ## Example
 //!
 //! ```rust
-//! use paillier_zk::{dlog_with_el_gamal_commitment as p, IntegerExt};
-//! use rug::{Integer, Complete};
-//! use generic_ec::{Point, curves::Secp256k1 as E, Scalar};
-//! # mod pregenerated {
-//! #     use super::*;
-//! #     paillier_zk::load_pregenerated_data!(
-//! #         verifier_aux: p::Aux,
-//! #     );
-//! # }
+//! use paillier_zk::{dlog_with_el_gamal_commitment as p};
+//! use generic_ec::{Point, Scalar, curves::Secp256k1 as E};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Prover and verifier have a shared protocol state
@@ -30,77 +23,49 @@
 //! let mut rng = rand_core::OsRng;
 //! # let mut rng = rand_dev::DevRng::new();
 //!
-//! // 0. Setup: prover and verifier share common Ring-Pedersen parameters:
+//! // Prover knows lambda, y
 //!
-//! let aux: p::Aux = pregenerated::verifier_aux();
-//! let security = p::SecurityParams {
-//!     q: (Integer::ONE << 128_u32).complete(),
+//! let pdata = p::PrivateData {
+//!     lambda: &Scalar::random(&mut rng),
+//!     y: &Scalar::random(&mut rng),
 //! };
 //!
-//! // 1. Setup: prover prepares the public key X
+//! // Common data known by both prover and verifier:
 //!
-//! // X in paper is a point on the Curve E
-//! let x = Point::<E>::generator() * Scalar::random(&mut rng);
-//!
-//! // h in paper is a point on the Curve E
-//! let h = Point::<E>::generator() * Scalar::random(&mut rng);
-//!
-//! // 2. Setup: prover prepares all plaintexts
-//!
-//! // y in paper
-//! let plaintext_y = Integer::from_rng_pm(&Integer::curve_order::<E>(), &mut rng);
-//! // lambda in paper
-//! let plaintext_lambda = Integer::from_rng_pm(&Integer::curve_order::<E>(), &mut rng);
-//!
-//! // 3. Setup: prover encrypts everything on correct keys
-//!
-//! // L in paper
-//! let ciphertext_l = Point::<E>::generator() * plaintext_lambda.to_scalar();
-//! // M in paper
-//! let ciphertext_m = Point::<E>::generator() * plaintext_y.to_scalar() + x * plaintext_lambda.to_scalar();
-//! // Y in paper
-//! let ciphertext_h_to_y = h * plaintext_y.to_scalar();
-//!
-//! // 4. Prover computes a non-interactive proof that logarithm base h of Y
-//! //    and lambda are the same
+//! let x = Point::generator() * Scalar::random(&mut rng);
+//! let h = Point::generator() * Scalar::random(&mut rng);
 //!
 //! let data = p::Data {
-//!     l: &ciphertext_l,
-//!     m: &ciphertext_m,
+//!     l: &(Point::generator() * pdata.lambda),
+//!     m: &(Point::generator() * pdata.y + x * pdata.lambda),
 //!     x: &x,
-//!     h_to_y: &ciphertext_h_to_y,
+//!     y: &(h * pdata.y),
 //!     h: &h,
 //! };
-//! let pdata = p::PrivateData {
-//!     y: &plaintext_y,
-//!     lambda: &plaintext_lambda,
-//! };
+//!
+//! // Generate non-interactive proof
 //! let (commitment, proof) =
 //!     p::non_interactive::prove::<E, sha2::Sha256>(
 //!         &shared_state,
-//!         &aux,
 //!         data,
 //!         pdata,
-//!         &security,
 //!         &mut rng,
 //!     )?;
 //!
-//! // 5. Prover sends this data to verifier
+//! // Proof and the data are sent to the verifier
 //!
 //! # use generic_ec::Curve;
-//! # fn send<E: Curve>(_: &p::Data<E>, _: &p::Commitment<E>, _: &p::Proof) {  }
+//! # fn send<E: Curve>(_: &p::Data<E>, _: &p::Commitment<E>, _: &p::Proof<E>) {  }
 //! send(&data, &commitment, &proof);
 //!
-//! // 6. Verifier receives the data and the proof and verifies it
+//! // Verifier receives the data and the proof and verifies them
 //!
 //! # let recv = || (data, commitment, proof);
 //! let (data, commitment, proof) = recv();
 //! let r = p::non_interactive::verify::<E, sha2::Sha256>(
 //!     &shared_state,
-//!     &aux,
 //!     data,
 //!     &commitment,
-//!     &security,
 //!     &proof,
 //! )?;
 //! #
@@ -109,144 +74,130 @@
 //!
 //! If the verification succeeded, verifier can continue communication with prover
 
-use generic_ec::{Curve, Point};
-use rug::Integer;
+use generic_ec::{Curve, Point, Scalar};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 pub use crate::common::{Aux, InvalidProof};
 
-/// Security parameters for proof. Choosing the values is a tradeoff between
-/// speed and chance of rejecting a valid proof or accepting an invalid proof
-#[derive(Debug, Clone, udigest::Digestable)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct SecurityParams {
-    /// q in paper. Security parameter for challenge
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub q: Integer,
-}
-
 /// Public data that both parties know
 #[derive(Debug, Clone, Copy, udigest::Digestable)]
 #[udigest(bound = "")]
-pub struct Data<'a, C: Curve> {
+pub struct Data<'a, E: Curve> {
     /// L in paper, obtained as g^\lambda
-    pub l: &'a Point<C>,
+    pub l: &'a Point<E>,
     /// M in paper, obtained as g^y X^\lambda
-    pub m: &'a Point<C>,
+    pub m: &'a Point<E>,
     /// X in paper
-    pub x: &'a Point<C>,
+    pub x: &'a Point<E>,
     /// Y in paper, obtained as h^y
-    pub h_to_y: &'a Point<C>,
+    pub y: &'a Point<E>,
     /// h in paper
-    pub h: &'a Point<C>,
+    pub h: &'a Point<E>,
 }
 
 /// Private data of prover
 #[derive(Clone, Copy)]
-pub struct PrivateData<'a> {
+pub struct PrivateData<'a, E: Curve> {
     /// y or epsilon in paper, log of Y base h
-    pub y: &'a Integer,
+    pub y: &'a Scalar<E>,
     /// lambda in paper, preimage of L
-    pub lambda: &'a Integer,
+    pub lambda: &'a Scalar<E>,
 }
 
-// As described in cggmp24 at page 57
 /// Prover's first message, obtained by [`interactive::commit`]
 #[derive(Debug, Clone, udigest::Digestable)]
 #[udigest(bound = "")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
-pub struct Commitment<C: Curve> {
-    pub a: Point<C>,
-    pub cap_n: Point<C>,
-    pub b: Point<C>,
+pub struct Commitment<E: Curve> {
+    pub a: Point<E>,
+    pub n: Point<E>,
+    pub b: Point<E>,
 }
 
 /// Prover's data accompanying the commitment. Kept as state between rounds in
 /// the interactive protocol.
 #[derive(Clone)]
-pub struct PrivateCommitment {
-    pub alpha: Integer,
-    pub m: Integer,
+pub struct PrivateCommitment<E: Curve> {
+    pub alpha: Scalar<E>,
+    pub m: Scalar<E>,
 }
 
 /// Verifier's challenge to prover. Can be obtained deterministically by
 /// [`non_interactive::challenge`] or randomly by [`interactive::challenge`]
-pub type Challenge = Integer;
+pub type Challenge<E> = Scalar<E>;
 
 /// The ZK proof. Computed by [`interactive::prove`] or
 /// [`non_interactive::prove`]
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Proof {
-    pub z: Integer,
-    pub u: Integer,
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
+pub struct Proof<E: Curve> {
+    pub z: Scalar<E>,
+    pub u: Scalar<E>,
 }
 
 /// The interactive version of the ZK proof. Should be completed in 3 rounds:
 /// prover commits to data, verifier responds with a random challenge, and
 /// prover gives proof with commitment and challenge.
 pub mod interactive {
-    use generic_ec::{Curve, Point};
+    use generic_ec::{Curve, Point, Scalar};
     use rand_core::RngCore;
-    use rug::{Complete, Integer};
 
-    use crate::common::{fail_if_ne, IntegerExt, InvalidProof, InvalidProofReason};
+    use crate::common::{fail_if_ne, InvalidProof, InvalidProofReason};
     use crate::Error;
 
     use super::*;
 
     /// Create random commitment
-    pub fn commit<C: Curve, R: RngCore>(
-        data: Data<C>,
-        mut rng: R,
-    ) -> Result<(Commitment<C>, PrivateCommitment), Error> {
-        let alpha = Integer::gen_invertible(&Integer::curve_order::<C>(), &mut rng);
-        let m = Integer::gen_invertible(&Integer::curve_order::<C>(), &mut rng);
+    pub fn commit<E: Curve>(
+        data: Data<E>,
+        rng: &mut impl RngCore,
+    ) -> Result<(Commitment<E>, PrivateCommitment<E>), Error> {
+        let alpha = Scalar::random(rng);
+        let m = Scalar::random(rng);
 
-        let a = Point::<C>::generator() * alpha.to_scalar();
-        let enne = Point::<C>::generator() * m.to_scalar() + data.x * alpha.to_scalar();
-        let b = data.h * m.to_scalar();
+        let a = Point::<E>::generator() * alpha;
+        let n = Point::<E>::generator() * m + data.x * alpha;
+        let b = data.h * m;
 
-        let commitment = Commitment { a, cap_n: enne, b };
+        let commitment = Commitment { a, n, b };
         let private_commitment = PrivateCommitment { alpha, m };
         Ok((commitment, private_commitment))
     }
 
     /// Compute proof for given data and prior protocol values
-    pub fn prove<C: Curve>(
-        pdata: PrivateData,
-        pcomm: &PrivateCommitment,
-        challenge: &Challenge,
-    ) -> Result<Proof, Error> {
-        let z = ((&pcomm.alpha + challenge * pdata.lambda).complete())
-            .modulo(&Integer::curve_order::<C>());
-        let u = ((&pcomm.m + challenge * pdata.y).complete()).modulo(&Integer::curve_order::<C>());
+    pub fn prove<E: Curve>(
+        pdata: PrivateData<E>,
+        pcomm: &PrivateCommitment<E>,
+        challenge: &Challenge<E>,
+    ) -> Result<Proof<E>, Error> {
+        let z = pcomm.alpha + challenge * pdata.lambda;
+        let u = pcomm.m + challenge * pdata.y;
         Ok(Proof { z, u })
     }
 
     /// Verify the proof
-    pub fn verify<C: Curve>(
-        data: Data<C>,
-        commitment: &Commitment<C>,
-        challenge: &Challenge,
-        proof: &Proof,
+    pub fn verify<E: Curve>(
+        data: Data<E>,
+        commitment: &Commitment<E>,
+        challenge: &Challenge<E>,
+        proof: &Proof<E>,
     ) -> Result<(), InvalidProof> {
         // Three equality checks
         {
-            let lhs = Point::<C>::generator() * proof.z.to_scalar();
-            let rhs = commitment.a + data.l * challenge.to_scalar();
+            let lhs = Point::<E>::generator() * proof.z;
+            let rhs = commitment.a + data.l * challenge;
             fail_if_ne(InvalidProofReason::EqualityCheck(1), lhs, rhs)?;
         }
         {
-            let lhs = Point::<C>::generator() * proof.u.to_scalar() + data.x * proof.z.to_scalar();
-            let rhs = commitment.cap_n + data.m * challenge.to_scalar();
+            let lhs = Point::<E>::generator() * proof.u + data.x * proof.z;
+            let rhs = commitment.n + data.m * challenge;
             fail_if_ne(InvalidProofReason::EqualityCheck(2), lhs, rhs)?;
         }
         {
-            let lhs = data.h * proof.u.to_scalar();
-            let rhs = commitment.b + data.h_to_y * challenge.to_scalar();
+            let lhs = data.h * proof.u;
+            let rhs = commitment.b + data.y * challenge;
             fail_if_ne(InvalidProofReason::EqualityCheck(3), lhs, rhs)?;
         }
 
@@ -254,11 +205,8 @@ pub mod interactive {
     }
 
     /// Generate random challenge
-    pub fn challenge<R>(security: &SecurityParams, rng: &mut R) -> Integer
-    where
-        R: RngCore,
-    {
-        Integer::from_rng_pm(&security.q, rng)
+    pub fn challenge<E: Curve>(rng: &mut impl RngCore) -> Challenge<E> {
+        Scalar::random(rng)
     }
 }
 
@@ -270,184 +218,148 @@ pub mod non_interactive {
 
     use crate::{Error, InvalidProof};
 
-    use super::{Aux, Challenge, Commitment, Data, PrivateData, Proof, SecurityParams};
+    use super::{Challenge, Commitment, Data, PrivateData, Proof};
 
     /// Compute proof for the given data, producing random commitment and
-    /// deriving determenistic challenge.
+    /// deriving deterministic challenge.
     ///
     /// Obtained from the above interactive proof via Fiat-Shamir heuristic.
-    pub fn prove<C: Curve, D: Digest>(
+    pub fn prove<E: Curve, D: Digest>(
         shared_state: &impl udigest::Digestable,
-        aux: &Aux,
-        data: Data<C>,
-        pdata: PrivateData,
-        security: &SecurityParams,
+        data: Data<E>,
+        pdata: PrivateData<E>,
         rng: &mut impl rand_core::RngCore,
-    ) -> Result<(Commitment<C>, Proof), Error> {
+    ) -> Result<(Commitment<E>, Proof<E>), Error> {
         let (comm, pcomm) = super::interactive::commit(data, rng)?;
-        let challenge = challenge::<C, D>(shared_state, aux, data, &comm, security);
-        let proof = super::interactive::prove::<C>(pdata, &pcomm, &challenge)?;
+        let challenge = challenge::<E, D>(shared_state, data, &comm);
+        let proof = super::interactive::prove::<E>(pdata, &pcomm, &challenge)?;
         Ok((comm, proof))
     }
 
     /// Verify the proof, deriving challenge independently from same data
-    pub fn verify<C: Curve, D: Digest>(
+    pub fn verify<E: Curve, D: Digest>(
         shared_state: &impl udigest::Digestable,
-        aux: &Aux,
-        data: Data<C>,
-        commitment: &Commitment<C>,
-        security: &SecurityParams,
-        proof: &Proof,
+        data: Data<E>,
+        commitment: &Commitment<E>,
+        proof: &Proof<E>,
     ) -> Result<(), InvalidProof> {
-        let challenge = challenge::<C, D>(shared_state, aux, data, commitment, security);
-        super::interactive::verify::<C>(data, commitment, &challenge, proof)
+        let challenge = challenge::<E, D>(shared_state, data, commitment);
+        super::interactive::verify::<E>(data, commitment, &challenge, proof)
     }
 
     /// Deterministically compute challenge based on prior known values in protocol
-    pub fn challenge<C: Curve, D: Digest>(
+    pub fn challenge<E: Curve, D: Digest>(
         shared_state: &impl udigest::Digestable,
-        aux: &Aux,
-        data: Data<C>,
-        commitment: &Commitment<C>,
-        security: &SecurityParams,
-    ) -> Challenge {
+        data: Data<E>,
+        commitment: &Commitment<E>,
+    ) -> Challenge<E> {
         let tag = "paillier_zk.dlog_with_el_gamal.ni_challenge";
-        let aux = aux.digest_public_data();
         let seed = udigest::inline_struct!(tag {
             shared_state,
-            aux,
-            security,
             data,
             commitment,
         });
         let mut rng = rand_hash::HashRng::<D, _>::from_seed(seed);
-        super::interactive::challenge(security, &mut rng)
+        super::interactive::challenge(&mut rng)
     }
 }
 
 #[cfg(test)]
 mod test {
     use generic_ec::{Curve, Point, Scalar};
-    use rug::Integer;
     use sha2::Digest;
 
-    use crate::common::{IntegerExt, InvalidProofReason};
+    use crate::common::InvalidProofReason;
 
-    fn run<R: rand_core::RngCore + rand_core::CryptoRng, C: Curve, D: Digest>(
-        rng: &mut R,
-        security: super::SecurityParams,
-        data: super::Data<C>,
-        pdata: super::PrivateData,
+    fn run<E: Curve, D: Digest>(
+        rng: &mut impl rand_core::CryptoRngCore,
+        data: super::Data<E>,
+        pdata: super::PrivateData<E>,
     ) -> Result<(), crate::common::InvalidProof> {
-        let aux = crate::common::test::aux(rng);
-
         let shared_state = "shared state";
 
         let (commitment, proof) =
-            super::non_interactive::prove::<C, D>(&shared_state, &aux, data, pdata, &security, rng)
-                .unwrap();
-        super::non_interactive::verify::<C, D>(
-            &shared_state,
-            &aux,
-            data,
-            &commitment,
-            &security,
-            &proof,
-        )
+            super::non_interactive::prove::<E, D>(&shared_state, data, pdata, rng).unwrap();
+        super::non_interactive::verify::<E, D>(&shared_state, data, &commitment, &proof)
     }
 
-    fn passing_test<C: Curve, D: Digest>() {
+    fn passing_test<E: Curve, D: Digest>() {
         let mut rng = rand_dev::DevRng::new();
-        let security = super::SecurityParams {
-            q: (Integer::ONE << 128_u32).into(),
-        };
-        let y = Integer::from_rng_pm(&Integer::curve_order::<C>(), &mut rng);
-        let lambda = Integer::from_rng_pm(&Integer::curve_order::<C>(), &mut rng);
-        let x = Point::<C>::generator() * Scalar::random(&mut rng);
-        let h = Point::<C>::generator() * Scalar::random(&mut rng);
 
-        let l = Point::<C>::generator() * lambda.to_scalar();
-        let m = Point::<C>::generator() * y.to_scalar() + x * lambda.to_scalar();
-        let h_to_y = h * y.to_scalar();
+        let pdata = super::PrivateData {
+            y: &Scalar::random(&mut rng),
+            lambda: &Scalar::random(&mut rng),
+        };
+
+        let h = Point::<E>::generator() * Scalar::random(&mut rng);
+        let x = Point::<E>::generator() * Scalar::random(&mut rng);
 
         let data = super::Data {
-            l: &l,
-            m: &m,
+            l: &(Point::<E>::generator() * pdata.lambda),
+            m: &(Point::<E>::generator() * pdata.y + x * pdata.lambda),
             x: &x,
-            h_to_y: &h_to_y,
+            y: &(h * pdata.y),
             h: &h,
         };
-        let pdata = super::PrivateData {
-            y: &y,
-            lambda: &lambda,
-        };
-        run::<_, C, D>(&mut rng, security, data, pdata).expect("proof failed");
+        run::<E, D>(&mut rng, data, pdata).expect("proof failed");
     }
 
-    fn failing_check_lambda_<C: Curve, D: Digest>() {
+    fn failing_check_lambda_<E: Curve, D: Digest>() {
         // Scenario where the prover P does not know lambda
         let mut rng = rand_dev::DevRng::new();
-        let security = super::SecurityParams {
-            q: (Integer::ONE << 128_u32).into(),
+
+        let mut pdata = super::PrivateData {
+            y: &Scalar::random(&mut rng),
+            lambda: &Scalar::random(&mut rng),
         };
-        let y = Integer::from_rng_pm(&Integer::curve_order::<C>(), &mut rng);
-        let lambda = Integer::from_rng_pm(&Integer::curve_order::<C>(), &mut rng);
-        let false_lambda = Integer::from_rng_pm(&Integer::curve_order::<C>(), &mut rng);
 
-        let x = Point::<C>::generator() * Scalar::random(&mut rng);
-        let h = Point::<C>::generator() * Scalar::random(&mut rng);
-
-        let l = Point::<C>::generator() * lambda.to_scalar();
-        let m = Point::<C>::generator() * y.to_scalar() + x * lambda.to_scalar();
-        let h_to_y = h * y.to_scalar();
+        let h = Point::<E>::generator() * Scalar::random(&mut rng);
+        let x = Point::<E>::generator() * Scalar::random(&mut rng);
 
         let data = super::Data {
-            l: &l,
-            m: &m,
+            l: &(Point::<E>::generator() * pdata.lambda),
+            m: &(Point::<E>::generator() * pdata.y + x * pdata.lambda),
             x: &x,
-            h_to_y: &h_to_y,
+            y: &(h * pdata.y),
             h: &h,
         };
-        let pdata = super::PrivateData {
-            y: &y,
-            lambda: &false_lambda,
-        };
-        let r = run::<_, C, D>(&mut rng, security, data, pdata).expect_err("proof should not pass");
-        match r.reason() {
+
+        // Replace lambda with another value
+        let fake_lambda = Scalar::random(&mut rng);
+        pdata.lambda = &fake_lambda;
+
+        let err = run::<E, D>(&mut rng, data, pdata).expect_err("proof should not pass");
+        match err.reason() {
             InvalidProofReason::EqualityCheck(1) => (),
             e => panic!("proof should not fail with {e:?}"),
         }
     }
 
-    fn failing_check_y_<C: Curve, D: Digest>() {
+    fn failing_check_y_<E: Curve, D: Digest>() {
         // Scenario where the prover P does not know y
         let mut rng = rand_dev::DevRng::new();
-        let security = super::SecurityParams {
-            q: (Integer::ONE << 128_u32).into(),
+
+        let mut pdata = super::PrivateData {
+            y: &Scalar::random(&mut rng),
+            lambda: &Scalar::random(&mut rng),
         };
-        let y = Integer::from_rng_pm(&Integer::curve_order::<C>(), &mut rng);
-        let lambda = Integer::from_rng_pm(&Integer::curve_order::<C>(), &mut rng);
-        let false_y = Integer::from_rng_pm(&Integer::curve_order::<C>(), &mut rng);
 
-        let x = Point::<C>::generator() * Scalar::random(&mut rng);
-        let h = Point::<C>::generator() * Scalar::random(&mut rng);
-
-        let l = Point::<C>::generator() * lambda.to_scalar();
-        let m = Point::<C>::generator() * y.to_scalar() + x * lambda.to_scalar();
-        let h_to_y = h * y.to_scalar();
+        let h = Point::<E>::generator() * Scalar::random(&mut rng);
+        let x = Point::<E>::generator() * Scalar::random(&mut rng);
 
         let data = super::Data {
-            l: &l,
-            m: &m,
+            l: &(Point::<E>::generator() * pdata.lambda),
+            m: &(Point::<E>::generator() * pdata.y + x * pdata.lambda),
             x: &x,
-            h_to_y: &h_to_y,
+            y: &(h * pdata.y),
             h: &h,
         };
-        let pdata = super::PrivateData {
-            y: &false_y,
-            lambda: &lambda,
-        };
-        let r = run::<_, C, D>(&mut rng, security, data, pdata).expect_err("proof should not pass");
+
+        // Replace y with another value
+        let fake_y = Scalar::random(&mut rng);
+        pdata.y = &fake_y;
+
+        let r = run::<E, D>(&mut rng, data, pdata).expect_err("proof should not pass");
         match r.reason() {
             InvalidProofReason::EqualityCheck(2) => (),
             e => panic!("proof should not fail with {e:?}"),
