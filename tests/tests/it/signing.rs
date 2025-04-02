@@ -68,6 +68,7 @@ where
     let participants_shares = participants.iter().map(|i| &shares[usize::from(*i)]);
 
     let sig = round_based::sim::run_with_setup(participants_shares, |i, party, share| {
+        let party = cggmp21_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
 
         let signing = cggmp21::signing(eid, i, participants, share)
@@ -147,6 +148,7 @@ where
     let participants_shares = participants.iter().map(|i| &shares[usize::from(*i)]);
 
     let presigs = round_based::sim::run_with_setup(participants_shares, |i, party, share| {
+        let party = cggmp21_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
 
         async move {
