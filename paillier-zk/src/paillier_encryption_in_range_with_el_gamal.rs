@@ -143,7 +143,7 @@ pub struct PrivateData<'a, E: Curve> {
     pub plaintext: &'a Plaintext,
     /// $\rho$ in paper
     pub nonce: &'a Nonce,
-
+    /// $b$ in paper
     pub b: &'a Scalar<E>,
 }
 
