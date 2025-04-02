@@ -262,7 +262,7 @@ pub mod interactive {
             (&private_commitment.r * nonce_to_challenge_mod_n).modulo(data.key.n())
         };
         let z3 = (&private_commitment.gamma + (challenge * &private_commitment.mu)).complete();
-        let w = &private_commitment.beta + (challenge.to_scalar() * pdata.b);
+        let w = private_commitment.beta + (challenge.to_scalar() * pdata.b);
         Ok(Proof { z1, z2, z3, w })
     }
 
