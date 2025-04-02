@@ -1591,12 +1591,12 @@ Proof guarantees that $x \in \pm 2^{\ell + \varepsilon}$
 
 \item
 \begin{inlineAlgorithm}
-\algoName{$\prove{enc\mbox{-}elg}(N_0, e; (x, \rho), (\alpha, \mu, r, \beta, \gamma))
+\algoName{$\prove{enc\mbox{-}elg}(N_0, e; (x, \rho, b), (\alpha, \mu, r, \beta, \gamma))
     \to (z_1, z_2, z_3, w)$}
 \algoInputsList{
     \item (subset of) public inputs: $N_0 \in \Z$,
     \item challenge $e \in \Z_q$,
-    \item (subset of) secret data: $(x, \rho) \in (\Z, \Z)$,
+    \item (subset of) secret data: $(x, \rho, b) \in (\Z, \Z, \Z_q)$,
     \item secret commitment nonce: $(\alpha, \mu, r, \beta, \gamma) \in (\Z, \Z, \Z, \Z_q, \Z)$
 }
 \algoOutputs{proof $(z_1, z_2, z_3, w) \in (\Z, \Z_{N_0}, \Z, \Z_q)$}
@@ -1638,7 +1638,7 @@ Proof guarantees that $x \in \pm 2^{\ell + \varepsilon}$
 
 \item
 \begin{inlineAlgorithm}
-\algoName{$\proveni{enc\mbox{-}elg}^L(\state, R_j, (N_0, C, A, B, X); (x, \rho)) \to (
+\algoName{$\proveni{enc\mbox{-}elg}^L(\state, R_j, (N_0, C, A, B, X); (x, \rho, b)) \to (
     (S, T, D, Y, Z),
     (z_1, z_2, z_3, w)
 )$}
@@ -1647,7 +1647,7 @@ Proof guarantees that $x \in \pm 2^{\ell + \varepsilon}$
     \item shared $\state \in \Byte^*$,
     \item verifier's auxiliary data $R_j$,
     \item public data $(N_0, C, A, B, X) \in (\Z, \Z, \E, \E, \E)$,
-    \item (subset of) secret data $(x, \rho) \in \Z^2$,
+    \item (subset of) secret data $(x, \rho, b) \in (\Z, \Z, \Z_q)$,
 }
 \algoOutputsList{
     \item commitment $(S, T, D, Y, Z) \in (\Z^*_{N_j}, \Z^*_{N_j}, \Z^*_{N^2_0}, \E, \E)$,
@@ -1658,7 +1658,7 @@ Proof guarantees that $x \in \pm 2^{\ell + \varepsilon}$
     \gets \commit{enc\mbox{-}elg}^L(R_j, (N_0, A); x)$
 \State $e \in \pm q = \challengeni{enc\mbox{-}elg}^L(\state, (N_0, C, A, B, X), (S, T, D, Y, Z))$
 \State $(z_1, z_2, z_3, w)
-    = \prove{enc\mbox{-}elg}(N_0, e; (x, \rho), (\alpha, \mu, r, \beta, \gamma))$
+    = \prove{enc\mbox{-}elg}(N_0, e; (x, \rho, b), (\alpha, \mu, r, \beta, \gamma))$
 \State \Return $(
     (S, T, D, Y, Z),
     (z_1, z_2, z_3, w)
