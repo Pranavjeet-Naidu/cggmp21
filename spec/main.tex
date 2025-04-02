@@ -1523,6 +1523,175 @@ We describe the standard Schnorr proof of knowledge, and also set up notation th
 
 \end{description}
 
+\subsection{$\proof{enc\mbox{-}elg}$: Range Proof with El-Gamal Commitment}
+
+Common (public) input:
+    security level $L = (\ell, \varepsilon, \dots)$,
+    verifier's auxilary data $R_j = (N_j, s_j, t_j) \in (\Z, \Z^*_{N_j}, \Z^*_{N_j})$,
+    curve $\E$ with generator $G$ of prime order $q$,
+    Paillier public key $N_0 \in \Z$,
+    Paillier ciphertext $C \in \Z^*_{N_0^2}$,
+    and commitments $(A, B, X) \in \E^3$.
+
+
+Prover secret input: $(x, \rho, a, b) \in (\pm 2^\ell, \Z^*_{N_0}, \Z_q, \Z_q)$ such that
+    $x \in \pm 2^\ell,
+    C = \enc_{N_0}(x, \rho),
+    A = a \cdot G,
+    B = b \cdot G,
+    X = (ab + x) \cdot G$.
+
+Proof guarantees that $x \in \pm 2^{\ell + \varepsilon}$
+
+\subsubsection{Interactive Version of the Proof}
+
+\begin{description}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\commit{enc\mbox{-}elg}^L(R_j, (N_0, A); x) \to ((S, T, D, Y, Z); (\alpha, \mu, r, \beta, \gamma))$}
+\algoInputsList{
+    \item security level $L = (\ell, \varepsilon, \dots)$,
+    \item verifier's auxiliary data $R_j = (N_j, s_j, t_j) \in \Z^3$,
+    \item (subset of) public data $(N_0, A) \in (\Z, \E)$
+    \item (subset of) secret data $x \in \Z$
+}
+\algoOutputsList{
+    \item public commitment $(S, T, D, Y, Z) \in (\Z^*_{N_j}, \Z^*_{N_j}, \Z^*_{N^2_0}, \E, \E)$,
+    \item secret nonce $(\alpha, \mu, r, \beta, \gamma) \in (\Z, \Z, \Z, \Z_q, \Z)$
+}
+\begin{algorithmic}[1]
+\State $\alpha \gets \pm 2^{\ell + \varepsilon}$
+\State $\mu \gets \pm 2^\ell \cdot N_j$
+\State $r \gets \Z^*_{N_0}$
+\State $\beta \gets \Z_q$
+\State $\gamma \gets \pm 2^{\ell + \varepsilon} \cdot N_j$
+\Statex
+\State $S = s_j^x t_j^\mu \bmod N_j$
+\State $T = s_j^\alpha t_j^\gamma \bmod N_j$
+    \Comment{$S,T$ are computed via fixed-base multiexp algorithm}
+\State $D = \enc_{N_0}(\alpha, r)$
+\State $Y = \beta \cdot A + \alpha G$
+\State $Z = \beta \cdot G$
+\Statex
+\State \Return $(S, T, D, Y, Z); (\alpha, \mu, r, \beta, \gamma)$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\challenge{enc\mbox{-}elg}() \to e$}
+\algoInputs{none}
+\algoOutputs{challenge $e \in \pm q$}
+\begin{algorithmic}[1]
+\State $e \gets \pm q$
+\State \Return $e$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\prove{enc\mbox{-}elg}(N_0, e; (x, \rho), (\alpha, \mu, r, \beta, \gamma))
+    \to (z_1, z_2, z_3, w)$}
+\algoInputsList{
+    \item (subset of) public inputs: $N_0 \in \Z$,
+    \item challenge $e \in \Z_q$,
+    \item (subset of) secret data: $(x, \rho) \in (\Z, \Z)$,
+    \item secret commitment nonce: $(\alpha, \mu, r, \beta, \gamma) \in (\Z, \Z, \Z, \Z_q, \Z)$
+}
+\algoOutputs{proof $(z_1, z_2, z_3, w) \in (\Z, \Z_{N_0}, \Z, \Z_q)$}
+\begin{algorithmic}[1]
+\State $z_1 = \alpha + e x$
+\State $z_2 = r \cdot \rho^e \bmod N_0$
+\State $z_3 = \gamma + e \mu$
+\State $w = \beta + e b \bmod q$
+\State \Return $(z_1, z_2, z_3, w)$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\verify{enc\mbox{-}elg}^L(R_j, (N_0, C, A, B, X), (S, T, D, Y, Z), e, (z_1, z_2, z_3, w))$}
+\algoInputsList{
+    \item security level $L = (\ell, \varepsilon, \dots)$,
+    \item prover's auxiliary data $R_j = (N_j, s_j, t_j) \in \Z^3$,
+    \item public data $(N_0, C, A, B, X) \in (\Z, \Z, \E, \E, \E)$,
+    \item commitment $(S, T, D, Y, Z) \in (\Z, \Z, \Z, \E, \E)$,
+    \item proof $(z_1, z_2, z_3, w) \in (\Z, \Z, \Z, \Z_q)$
+}
+\algoOutputs{aborts if proof is invalid}
+\begin{algorithmic}[1]
+\State $\enc_{N_0}(z_1, z_2) \? = D \oplus e \odot C$
+\State $w \cdot A + z_1 \cdot G \? = Y + e \cdot X$
+\State $w \cdot G \? = Z + e \cdot B$
+\State $s^{z_1} t^{z_3} \? = T \cdot S^e \bmod N_j$
+    \Comment{left part is computed via fixed-base multiexp}
+\State $z_1 \? \in \pm 2^{\ell + \varepsilon}$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\end{description}
+
+\subsubsection{Non-Interactive Version of the Proof}
+
+\begin{description}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\proveni{enc\mbox{-}elg}^L(\state, R_j, (N_0, C, A, B, X); (x, \rho)) \to (
+    (S, T, D, Y, Z),
+    (z_1, z_2, z_3, w)
+)$}
+\algoInputsList{
+    \item security level $L$,
+    \item shared $\state \in \Byte^*$,
+    \item verifier's auxiliary data $R_j$,
+    \item public data $(N_0, C, A, B, X) \in (\Z, \Z, \E, \E, \E)$,
+    \item (subset of) secret data $(x, \rho) \in \Z^2$,
+}
+\algoOutputsList{
+    \item commitment $(S, T, D, Y, Z) \in (\Z^*_{N_j}, \Z^*_{N_j}, \Z^*_{N^2_0}, \E, \E)$,
+    \item proof $(z_1, z_2, z_3, w) \in (\Z, \Z_{N_0}, \Z, \Z_q)$
+}
+\begin{algorithmic}[1]
+\State $((S, T, D, Y, Z); (\alpha, \mu, r, \beta, \gamma))
+    \gets \commit{enc\mbox{-}elg}^L(R_j, (N_0, A); x)$
+\State $e \in \pm q = \challengeni{enc\mbox{-}elg}^L(\state, (N_0, C, A, B, X), (S, T, D, Y, Z))$
+\State $(z_1, z_2, z_3, w)
+    = \prove{enc\mbox{-}elg}(N_0, e; (x, \rho), (\alpha, \mu, r, \beta, \gamma))$
+\State \Return $(
+    (S, T, D, Y, Z),
+    (z_1, z_2, z_3, w)
+)$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\verifyni{enc\mbox{-}elg}^L(\state, R_j, (N_0, C, A, B, X), (
+    (S, T, D, Y, Z),
+    (z_1, z_2, z_3, w)
+))$}
+\algoInputsList{
+    \item security level $L$,
+    \item shared $\state \in \Byte^*$,
+    \item verifier's auxiliary data $R_j$,
+    \item public data $(N_0, C, A, B, X) \in (\Z, \Z, \E, \E, \E)$,
+    \item non-interactive proof consisting of:
+        \begin{itemize}
+        \item commitment $(S, T, D, Y, Z) \in (\Z, \Z, \Z, \E, \E)$,
+        \item proof $(z_1, z_2, z_3, w) \in (\Z, \Z, \Z, \Z_q)$
+        \end{itemize}
+}
+\algoOutputs{aborts if proof is invalid}
+\begin{algorithmic}[1]
+\State $e \in \pm q = \challengeni{enc\mbox{-}elg}^L(R_j, (N_0, C, A, B, X), (S, T, D, Y, Z))$
+\State Assert $\verify{enc\mbox{-}elg}(R_j, (N_0, C, A, B, X), (S, T, D, Y, Z), e, (z_1, z_2, z_3, w))$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\end{description}
+
 \section{Threshold Protocols}
 
 In this section we describe the various threshold protocols we have implemented. 
