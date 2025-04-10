@@ -1311,22 +1311,21 @@ In all the cases where this proof is used in the protocol, the verifier knows th
 
 \item
 \begin{inlineAlgorithm}
-\algoName{$\commit{fac}^L(R_j, N_i) \to ((P, Q, A, B, T, \sigma), (\alpha, \beta, \mu, \nu, r, x, y))$}
+\algoName{$\commit{fac}^L(R_j, N_i) \to ((P, Q, A, B, T), (\alpha, \beta, \mu, \nu, r, x, y))$}
 \algoInputsList{
     \item security level $L = (\ell, \varepsilon, \dots)$,
     \item auxiliary data $R_j = (N_j, s_j, t_j) \in \Z^3$,
     \item public data $N_i \in \Z$
 }
 \algoOutputsList{
-    \item public commitment $(P, Q, A, B, T, \sigma) \in \Z^6$,
+    \item public commitment $(P, Q, A, B, T) \in \Z^5$,
     \item secret nonce $(\alpha, \beta, \mu, \nu, r, x, y) \in \Z^7$
 }
 \begin{algorithmic}[1]
-\State $\alpha, \beta \gets \pm \left(2^{\ell + \varepsilon} \sqrt{N_i}\right)$
-\State $\mu, \nu \gets \pm \left(2^{\ell} N_j\right)$
-\State $\sigma \gets \pm \left(2^{\ell} N_i N_j\right)$
-\State $r \gets \pm \left(2^{\ell + \varepsilon} N_i N_j\right)$
-\State $x, y \gets \pm \left(2^{\ell + \varepsilon} N_j\right)$
+\State $\alpha, \beta \gets (\pm 2^{\ell + \varepsilon} \cdot \sqrt{N_i})^2$
+\State $\mu, \nu \gets (\pm 2^{\ell} \cdot N_j)^2$
+\State $r \gets \pm 2^{\ell + \varepsilon} \cdot N_i N_j$
+\State $x, y \gets (\pm 2^{\ell + \varepsilon} \cdot N_j)^2$
 \Statex
 \State $P = s_j^{p} t_j^\mu \bmod N_j$ 
 \State $Q = s_j^{q} t_j^\nu \bmod N_j$ 
@@ -1335,17 +1334,17 @@ In all the cases where this proof is used in the protocol, the verifier knows th
     \Comment{$P,Q,A,B$ are computed using fixed-base multiexp}
 \State $T = Q^\alpha t_j^r \bmod N_j$
 \Statex
-\State \Return $((P, Q, A, B, T, \sigma), (\alpha, \beta, \mu, \nu, r, x, y))$
+\State \Return $((P, Q, A, B, T), (\alpha, \beta, \mu, \nu, r, x, y))$
 \end{algorithmic}
 \end{inlineAlgorithm}
 
 \item
 \begin{inlineAlgorithm}
 \algoName{$\challenge{fac}^L() \to e$}
-\algoInputs{security level $L \in (Q, \dots)$}
-\algoOutputs{challenge $e \in \pm Q$}
+\algoInputs{security level $L \in (\ell, \dots)$}
+\algoOutputs{challenge $e \in \pm 2^\ell$}
 \begin{algorithmic}[1]
-\State $e \gets \pm Q$
+\State $e \gets \pm 2^\ell$
 \State \Return $e$
 \end{algorithmic}
 \end{inlineAlgorithm}
@@ -1368,7 +1367,7 @@ In all the cases where this proof is used in the protocol, the verifier knows th
 \State $z_2 = \beta + eq$
 \State $w_1 = x + e\mu$
 \State $w_2 = y + e\nu$
-\State $v = r + e \cdot (\sigma - \nu p)$
+\State $v = r - e \nu p$
 \State \Return $(z_1, z_2, w_1, w_2, v)$
 \end{algorithmic}
 \end{inlineAlgorithm}
@@ -1378,25 +1377,26 @@ In all the cases where this proof is used in the protocol, the verifier knows th
 \algoName{$\verify{fac}^L(
     R_j,
     N_i,
-    (P, Q, A, B, T, \sigma),
+    (P, Q, A, B, T),
     e,
     (z_1, z_2, w_1, w_2, v)
 )$}
 \algoInputsList{
+    \item security level $L = (\ell, \varepsilon, \dots)$,
     \item auxiliary data $R_j = (N_j, s_j, t_j) \in \Z^3$,
     \item public data $N_i \in \Z$,
-    \item commitment $(P, Q, A, B, T, \sigma) \in \Z^6$,
+    \item commitment $(P, Q, A, B, T) \in \Z^5$,
     \item challenge $e \in \Z$,
     \item proof $(z_1, z_2, w_1, w_2, v) \in \Z^5$
 }
 \algoOutputs{aborts if proof is invalid}
 \begin{algorithmic}[1]
-\State $s_j^{z_1} t_j^{w_1} \? = A \cdot P^e \bmod N_j$ 
-\State $s_j^{z_2} t_j^{w_2} \? = B \cdot Q^e \bmod N_j$
-    \Comment{This and previous expressions involve fixed-base multiexp}
-\State $Q^{z_1} t_j^{v} \? = T \cdot (s_j^{N_i} t_j^\sigma)^e \bmod N_j$ 
-\State $z_1 \? \in \pm \left(2^{\ell + \varepsilon} \sqrt{N_i}\right)$ 
-\State $z_2 \? \in \pm \left(2^{\ell + \varepsilon} \sqrt{N_i}\right)$
+\State $s_j^{z_1} t_j^{w_1} \? = A \cdot P^e \bmod N_j \? \in \Z^*_{N_j}$ 
+\State $s_j^{z_2} t_j^{w_2} \? = B \cdot Q^e \bmod N_j \? \in \Z^*_{N_j}$
+    \Comment{\parbox[t]{.5\linewidth}{This and previous expressions involve fixed-base multiexp}}
+\State $Q^{z_1} t_j^{v} \? = T \cdot s_j^{N_i \cdot e} \bmod N_j \? \in \Z^*_{N_j}$ 
+\State $z_1 \? \in \pm \; 2^{\ell + \varepsilon} \cdot \sqrt{N_i}$ 
+\State $z_2 \? \in \pm \; 2^{\ell + \varepsilon} \cdot \sqrt{N_i}$
 \end{algorithmic}
 \end{inlineAlgorithm}
 
@@ -1409,52 +1409,52 @@ In all the cases where this proof is used in the protocol, the verifier knows th
 \item
 \begin{inlineAlgorithm}
 \algoName{$\proveni{fac}^L(\state, R_j, N_i; (p, q))
-    \to ((P, Q, A, B, T, \sigma); (z_1, z_2, w_1, w_2, v))$}
+    \to ((P, Q, A, B, T); (z_1, z_2, w_1, w_2, v))$}
 \algoInputsList{
-    \item security level $L = (Q, \dots)$,
+    \item security level $L = (\ell, \dots)$,
     \item shared $\state \in \Byte^*$,
     \item auxiliary data $R_j$,
     \item public data $N_i \in \Z$,
     \item secret data: primes $p, q \in \Z^2$
 }
 \algoOutputsList{
-    \item commitment $(P, Q, A, B, T, \sigma) \in \Z^6$,
+    \item commitment $(P, Q, A, B, T) \in \Z^5$,
     \item proof $(z_1, z_2, w_1, w_2, v) \in \Z^5$
 }
 \begin{algorithmic}[1]
-\State $((P, Q, A, B, T, \sigma), (\alpha, \beta, \mu, \nu, r, x, y))
+\State $((P, Q, A, B, T), (\alpha, \beta, \mu, \nu, r, x, y))
     \gets \commit{fac}^L(R_j, N_i)$
-\State $e \in \pm Q = \challengeni{fac}^L(\state, R_j, N_i, (P, Q, A, B, T, \sigma))$
+\State $e \in \pm 2^\ell = \challengeni{fac}^L(\state, R_j, N_i, (P, Q, A, B, T))$
 \State $(z_1, z_2, w_1, w_2, v) = \prove{fac}(
     e;
     (p, q),
     (\alpha, \beta, \mu, \nu, r, x, y)
 )$
-\State \Return $((P, Q, A, B, T, \sigma), (z_1, z_2, w_1, w_2, v))$
+\State \Return $((P, Q, A, B, T), (z_1, z_2, w_1, w_2, v))$
 \end{algorithmic}
 \end{inlineAlgorithm}
 
 \item
 \begin{inlineAlgorithm}
-\algoName{$\verifyni{fac}^L(\state, R_j, N_i, ((P, Q, A, B, T, \sigma), (z_1, z_2, w_1, w_2, v)))$}
+\algoName{$\verifyni{fac}^L(\state, R_j, N_i, ((P, Q, A, B, T), (z_1, z_2, w_1, w_2, v)))$}
 \algoInputsList{
-    \item security level $L = (Q, \dots)$,
+    \item security level $L = (\ell, \dots)$,
     \item shared $\state \in \Byte^*$,
     \item auxiliary data $R_j$,
     \item public data $N_i \in \Z$,
     \item non-interactive proof, consisting of:
         \begin{itemize}
-        \item commitment $(P, Q, A, B, T, \sigma) \in \Z^6$,
+        \item commitment $(P, Q, A, B, T) \in \Z^5$,
         \item proof $(z_1, z_2, w_1, w_2, v) \in \Z^5$
         \end{itemize}
 }
 \algoOutputs{aborts if proof is invalid}
 \begin{algorithmic}[1]
-\State $e \in \pm Q = \challengeni{fac}^L(\state, R_j, N_i, (P, Q, A, B, T, \sigma))$
+\State $e \in \pm 2^\ell = \challengeni{fac}^L(\state, R_j, N_i, (P, Q, A, B, T))$
 \State Assert $\verify{fac}^L(
     R_j,
     N_i,
-    (P, Q, A, B, T, \sigma),
+    (P, Q, A, B, T),
     e,
     (z_1, z_2, w_1, w_2, v)
 )$
