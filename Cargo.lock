@@ -328,6 +328,7 @@ version = "0.5.0"
 dependencies = [
  "digest",
  "displaydoc",
+ "futures-util",
  "generic-ec",
  "generic-ec-zkp",
  "hd-wallet",
@@ -356,6 +357,7 @@ dependencies = [
  "hex",
  "include_dir",
  "lazy_static",
+ "pin-project",
  "rand",
  "rand_dev",
  "round-based",
@@ -1723,6 +1725,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "pin-project"
+version = "1.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e2ec53ad785f4d35dac0adea7f7dc6f1bb277ad84a680c7afefeae05d1f5916"
+dependencies = [
+ "pin-project-internal",
+]
+
+[[package]]
+name = "pin-project-internal"
+version = "1.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d56a66c0c55993aa927429d0f8a0abfd74f084e4d9c192cffed01e418d83eefb"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.90",
+]
+
+[[package]]
 name = "pin-project-lite"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2031,9 +2053,9 @@ dependencies = [
 
 [[package]]
 name = "round-based"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "079e623c882b5ec9c1a4140cb077179ea89f5352f85a7ebd879428c33ce66399"
+checksum = "da76edf50de0a9d6911fc79261bb04cc9f3f3a375e0201799f5edf58499af341"
 dependencies = [
  "futures-util",
  "phantom-type 0.3.1",

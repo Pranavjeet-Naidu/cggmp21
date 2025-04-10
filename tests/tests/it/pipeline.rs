@@ -40,6 +40,7 @@ where
     let eid = ExecutionId::new(&eid);
 
     round_based::sim::run(n, |i, party| {
+        let party = cggmp21_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
 
         async move {
@@ -67,6 +68,7 @@ where
     let eid = ExecutionId::new(&eid);
 
     let aux_infos = round_based::sim::run(n, |i, party| {
+        let party = cggmp21_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
         let pregenerated_data = primes.next().expect("Can't fetch primes");
         async move {
@@ -121,6 +123,7 @@ where
     let participants_shares = participants.iter().map(|i| &shares[usize::from(*i)]);
 
     let sig = round_based::sim::run_with_setup(participants_shares, |i, party, share| {
+        let party = cggmp21_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
 
         #[cfg(feature = "hd-wallet")]

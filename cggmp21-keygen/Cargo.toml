@@ -28,6 +28,8 @@ serde = { workspace = true, features = ["derive"] }
 serde_with = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 
+futures-util = { workspace = true }
+
 displaydoc = { workspace = true }
 thiserror = { workspace = true, optional = true }
 

@@ -53,7 +53,7 @@ Our implementation has been audited by Kudelski. Report can be found [here][repo
 
 > About notion of threshold and non-threshold keys: originally, CGGMP21 paper does not have support of
 arbitrary `t` and only works with non-threshold n-out-of-n keys. We have added support of arbitrary
-threshold $2 \le t \le n$, however, we made it possible to opt out therhsoldness so original CGGMP21
+threshold $2 \le t \le n$, however, we made it possible to opt out thresholdness so original CGGMP21
 protocol can be carried out if needed.
 
 ## Running the protocol
@@ -70,7 +70,7 @@ let outgoing: impl Sink<Outgoing<Msg>>;
 
 where:
 * `Msg` is a protocol message (e.g., `signing::msg::Msg`)
-* `round_based::Incoming` and `round_based::Outgoing` wrap `Msg` and provide additional data (e.g., sender/recepient)
+* `round_based::Incoming` and `round_based::Outgoing` wrap `Msg` and provide additional data (e.g., sender/recipient)
 * `futures::Stream` and `futures::Sink` are well-known async primitives.
 
 Once you have that, you can construct an `MpcParty`:
@@ -256,7 +256,7 @@ they are all documented in [the spec].
 ## Timing attacks
 Timing attacks are type of side-channel attacks that leak sensitive information through duration of
 execution. We consider timing attacks out of scope as they are nearly impossible to perform for such
-complicated protcol as CGGMP21 and impossible to do in our specific deployment. Thus, we intentionally
+complicated protocol as CGGMP21 and impossible to do in our specific deployment. Thus, we intentionally
 don't do constant-time operations which gives us a significant performance boost.
 
 ## Join us in Discord!

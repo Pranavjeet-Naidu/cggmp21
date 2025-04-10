@@ -103,11 +103,13 @@ mod unambiguous {
     #[derive(udigest::Digestable)]
     #[udigest(tag = prefixed!("schnorr_pok"))]
     #[udigest(bound = "")]
-    pub struct SchnorrPok<'a> {
+    pub struct SchnorrPok<'a, E: Curve> {
         pub sid: ExecutionId<'a>,
         pub prover: u16,
         #[udigest(as_bytes)]
         pub rid: &'a [u8],
+        pub X: &'a generic_ec::NonZero<generic_ec::Point<E>>,
+        pub sch_commit: &'a generic_ec_zkp::schnorr_pok::Commit<E>,
     }
 
     #[derive(udigest::Digestable)]
@@ -175,7 +177,7 @@ where
     let my_decommitment = MsgRound2 {
         rid,
         X: X_i,
-        sch_commit,
+        sch_commit: sch_commit.clone(),
         #[cfg(feature = "hd-wallet")]
         chain_code: chain_code_local,
         decommit: {
@@ -307,6 +309,8 @@ where
         sid,
         prover: i,
         rid: rid.as_ref(),
+        X: &X_i,
+        sch_commit: &sch_commit,
     });
     let challenge = schnorr_pok::Challenge { nonce: challenge };
 
@@ -337,6 +341,8 @@ where
             sid,
             prover: j,
             rid: rid.as_ref(),
+            X: &decom.X,
+            sch_commit: &decom.sch_commit,
         });
         let challenge = schnorr_pok::Challenge { nonce: challenge };
         sch_proof
