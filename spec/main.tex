@@ -1298,8 +1298,9 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 
 \subsection{$\proof{fac}$: No Small Factor Proof}
 The prover and verifier agree on shared state $\state$, auxiliary data $R_j=(N_j, s_j, t_j)$ with $s_j, t_j \in {\mathbb Z}_{N_j}^*$, and a security level~$L$. 
-For this proof, the prover and verifier have common input~$N_i$, and the prover additionally has primes $2^\ell < p, q < 2^\ell \cdot \sqrt{N_i}$ with $N_i=pq$. 
-In all the cases where this proof is used in the protocol, the verifier knows the factorization of $N_j$ (and hence knows~$\sk_j$).
+For this proof, the prover and verifier have common input~$N_i > 2^{4 \ell}$, and the prover additionally has primes $p, q < 2^\ell \sqrt{N_i}$ with $N_i=pq$.
+
+Proof guarantees that each $p, q > 2^\ell$ (assuming $2^{2 \ell + \varepsilon} \approx \sqrt{N_i}$).
 
 %  \item Proof guarantees: $p_0, q_0 > 2^\ell$
 %  \item Implicit constraints:   $2^{2\ell + \varepsilon} \approx \sqrt{N_0}$ \jnote{Would be good to formalize exactly what this means} \nnote{I aped it from the paper. It seems they mention it to reconcile the fact that sometimes they mention this proof with $2^l$ as the lower limit, and sometimes with $2^l \sqrt{N_0}$ as the upper - this way they are the same (not taking $\epsilon$ into account)}
@@ -1391,6 +1392,7 @@ In all the cases where this proof is used in the protocol, the verifier knows th
 }
 \algoOutputs{aborts if proof is invalid}
 \begin{algorithmic}[1]
+\State $N_i \? > 2^{4 \ell}$
 \State $s_j^{z_1} t_j^{w_1} \? = A \cdot P^e \bmod N_j \? \in \Z^*_{N_j}$ 
 \State $s_j^{z_2} t_j^{w_2} \? = B \cdot Q^e \bmod N_j \? \in \Z^*_{N_j}$
     \Comment{\parbox[t]{.5\linewidth}{This and previous expressions involve fixed-base multiexp}}

@@ -3,10 +3,10 @@
 //!
 //! ## Description
 //!
-//! A party P has a modulus `N = pq`. P wants to prove to a verifier V that p
-//! and q are sufficiently large without disclosing p or q, with p and q each no
-//! larger than `sqrt(N) * 2^l`, or equivalently no smaller than `sqrt(N) /
-//! 2^l`
+//! Both parties agree on verifier [aux data](Aux) and [security level](SecurityParams). Common input is
+//! `n > 4*security.l`. Prover additionally knows primes `p, q < pow(2, security.l) * sqrt(n)`.
+//!
+//! Proof guarantees that each `p, q > pow(2, security.l)`.
 //!
 //! ## Example
 //!
@@ -17,6 +17,7 @@
 //! #     use super::*;
 //! #     paillier_zk::load_pregenerated_data!(
 //! #         verifier_aux: p::Aux,
+//! #         primes_1536bits: [rug::Integer; 4],
 //! #     );
 //! # }
 //!
@@ -31,14 +32,12 @@
 //! let aux: p::Aux = pregenerated::verifier_aux();
 //! let security = p::SecurityParams {
 //!     l: 256,
-//!     epsilon: 230,
-//!     q: (Integer::ONE << 128_u32).complete(),
+//!     epsilon: 512,
 //! };
 //!
 //! // 1. Prover prepares the data to obtain proof about
 //!
-//! let p = fast_paillier::utils::generate_safe_prime(&mut rng, 256);
-//! let q = fast_paillier::utils::generate_safe_prime(&mut rng, 256);
+//! let [p, q, ..] = pregenerated::primes_1536bits();
 //! let n = (&p * &q).complete();
 //! let n_root = n.sqrt_ref().complete();
 //! let data = p::Data {
@@ -94,15 +93,12 @@ pub struct SecurityParams {
     pub l: usize,
     /// Epsilon in paper, slackness parameter
     pub epsilon: usize,
-    /// q in paper. Security parameter for challenge
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub q: Integer,
 }
 
 /// Public data that both parties know
 #[derive(Debug, Clone, Copy, udigest::Digestable)]
 pub struct Data<'a> {
-    /// N0 - rsa modulus
+    /// N_i in the spec
     #[udigest(as = &crate::common::encoding::Integer)]
     pub n: &'a Integer,
     /// A number close to square root of n
@@ -187,18 +183,18 @@ pub mod interactive {
     ) -> Result<(Commitment, PrivateCommitment), Error> {
         let two_to_l = (Integer::ONE << security.l).complete();
         let two_to_l_plus_e = (Integer::ONE << (security.l + security.epsilon)).complete();
-        let n_root_modulo = (&two_to_l_plus_e * data.n_root).complete();
-        let l_n_circ_modulo = (&two_to_l * &aux.rsa_modulo).complete();
-        let l_e_n_circ_modulo = (&two_to_l_plus_e * &aux.rsa_modulo).complete();
-        let n_n_circ = (&aux.rsa_modulo * data.n).complete();
+        let n_root_at_two_to_l_plus_e = (&two_to_l_plus_e * data.n_root).complete();
+        let aux_n_at_two_to_l = (&two_to_l * &aux.rsa_modulo).complete();
+        let aux_n_at_two_to_l_plus_e = (&two_to_l_plus_e * &aux.rsa_modulo).complete();
+        let n_at_aux_n = (&aux.rsa_modulo * data.n).complete();
 
-        let alpha = Integer::from_rng_pm(&n_root_modulo, &mut rng);
-        let beta = Integer::from_rng_pm(&n_root_modulo, &mut rng);
-        let mu = Integer::from_rng_pm(&l_n_circ_modulo, &mut rng);
-        let nu = Integer::from_rng_pm(&l_n_circ_modulo, &mut rng);
-        let r = Integer::from_rng_pm(&(&two_to_l_plus_e * &n_n_circ).complete(), &mut rng);
-        let x = Integer::from_rng_pm(&l_e_n_circ_modulo, &mut rng);
-        let y = Integer::from_rng_pm(&l_e_n_circ_modulo, &mut rng);
+        let alpha = Integer::from_rng_pm(&n_root_at_two_to_l_plus_e, &mut rng);
+        let beta = Integer::from_rng_pm(&n_root_at_two_to_l_plus_e, &mut rng);
+        let mu = Integer::from_rng_pm(&aux_n_at_two_to_l, &mut rng);
+        let nu = Integer::from_rng_pm(&aux_n_at_two_to_l, &mut rng);
+        let r = Integer::from_rng_pm(&(&two_to_l_plus_e * &n_at_aux_n).complete(), &mut rng);
+        let x = Integer::from_rng_pm(&aux_n_at_two_to_l_plus_e, &mut rng);
+        let y = Integer::from_rng_pm(&aux_n_at_two_to_l_plus_e, &mut rng);
 
         let p = aux.combine(pdata.p, &mu)?;
         let q = aux.combine(pdata.q, &nu)?;
@@ -223,7 +219,7 @@ pub mod interactive {
     ///
     /// `security` parameter is used to generate challenge in correct range
     pub fn challenge<R: RngCore>(security: &SecurityParams, rng: &mut R) -> Challenge {
-        Integer::from_rng_pm(&security.q, rng)
+        Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), rng)
     }
 
     /// Compute proof for given data and prior protocol values
@@ -232,14 +228,12 @@ pub mod interactive {
         pcomm: &PrivateCommitment,
         challenge: &Challenge,
     ) -> Result<Proof, Error> {
-        let nu_p = (&pcomm.nu * pdata.p).complete();
-
         Ok(Proof {
             z1: (&pcomm.alpha + challenge * pdata.p).complete(),
             z2: (&pcomm.beta + challenge * pdata.q).complete(),
             w1: (&pcomm.x + challenge * &pcomm.mu).complete(),
             w2: (&pcomm.y + challenge * &pcomm.nu).complete(),
-            v: &pcomm.r - challenge * nu_p,
+            v: &pcomm.r - challenge * (&pcomm.nu * pdata.p).complete(),
         })
     }
 
@@ -252,19 +246,36 @@ pub mod interactive {
         challenge: &Challenge,
         proof: &Proof,
     ) -> Result<(), InvalidProof> {
+        // range check for N_i
+        {
+            let n_bits: usize = data
+                .n
+                .significant_bits()
+                .try_into()
+                .map_err(|_| InvalidProofReason::Conversion)?;
+            fail_if(InvalidProofReason::RangeCheck(0), n_bits >= 4 * security.l)?;
+        }
         // check 1
         {
             let lhs = aux.combine(&proof.z1, &proof.w1)?;
             let p_to_e = aux.pow_mod(&commitment.p, challenge)?;
             let rhs = (&commitment.a * p_to_e).modulo(&aux.rsa_modulo);
-            fail_if_ne(InvalidProofReason::EqualityCheck(1), lhs, rhs)?;
+            fail_if_ne(InvalidProofReason::EqualityCheck(1), &lhs, &rhs)?;
+            fail_if(
+                InvalidProofReason::MultGroupCheck(1),
+                aux.is_in_mult_group(&lhs),
+            )?;
         }
         // check 2
         {
             let lhs = aux.combine(&proof.z2, &proof.w2)?;
             let q_to_e = aux.pow_mod(&commitment.q, challenge)?;
             let rhs = (&commitment.b * q_to_e).modulo(&aux.rsa_modulo);
-            fail_if_ne(InvalidProofReason::EqualityCheck(2), lhs, rhs)?;
+            fail_if_ne(InvalidProofReason::EqualityCheck(2), &lhs, &rhs)?;
+            fail_if(
+                InvalidProofReason::MultGroupCheck(2),
+                aux.is_in_mult_group(&lhs),
+            )?;
         }
         // check 3
         {
@@ -275,7 +286,11 @@ pub mod interactive {
             let rhs = aux
                 .rsa_modulo
                 .combine(&commitment.t, Integer::ONE, &r, challenge)?;
-            fail_if_ne(InvalidProofReason::EqualityCheck(3), lhs, rhs)?;
+            fail_if_ne(InvalidProofReason::EqualityCheck(3), &lhs, &rhs)?;
+            fail_if(
+                InvalidProofReason::MultGroupCheck(3),
+                aux.is_in_mult_group(&lhs),
+            )?;
         }
         let range = (Integer::from(1) << (security.l + security.epsilon)) * data.n_root;
         // range check for z1
@@ -368,27 +383,28 @@ mod test {
     use crate::common::test::generate_blum_prime;
     use crate::common::InvalidProofReason;
 
-    // If q > 2^epsilon, the proof will never pass. We can make l however small
-    // we wish though, provided the statement we want to prove holds
-
     #[test]
     fn passing() {
         type D = sha2::Sha256;
 
+        let n_bitlen = 3072;
+        let security = super::SecurityParams {
+            l: 256,
+            epsilon: 512,
+        };
+
         let mut rng = rand_dev::DevRng::new();
-        let p = generate_blum_prime(&mut rng, 256);
-        let q = generate_blum_prime(&mut rng, 256);
+        let p = generate_blum_prime(&mut rng, n_bitlen / 2);
+        let q = generate_blum_prime(&mut rng, n_bitlen / 2);
         let n = (&p * &q).complete();
         let n_root = n.sqrt_ref().complete();
         let data = super::Data {
             n: &n,
             n_root: &n_root,
         };
-        let security = super::SecurityParams {
-            l: 64,
-            epsilon: 128,
-            q: (Integer::ONE << 128_u32).complete(),
-        };
+
+        assert!(n.significant_bits() >= n_bitlen - 1);
+
         let aux = crate::common::test::aux(&mut rng);
         let shared_state = "shared state";
         let proof = super::non_interactive::prove::<D>(
@@ -411,20 +427,24 @@ mod test {
     fn failing() {
         type D = sha2::Sha256;
 
+        let n_bitlen = 3072;
+        let security = super::SecurityParams {
+            l: 256,
+            epsilon: 512,
+        };
+
         let mut rng = rand_dev::DevRng::new();
-        let p = generate_blum_prime(&mut rng, 128);
-        let q = generate_blum_prime(&mut rng, 384);
+        let p = generate_blum_prime(&mut rng, n_bitlen - (security.l as u32) / 2);
+        let q = generate_blum_prime(&mut rng, security.l as u32 / 2);
         let n = (&p * &q).complete();
         let n_root = n.sqrt_ref().complete();
         let data = super::Data {
             n: &n,
             n_root: &n_root,
         };
-        let security = super::SecurityParams {
-            l: 4,
-            epsilon: 128,
-            q: (Integer::ONE << 128_u32).complete(),
-        };
+
+        assert!(n.significant_bits() >= n_bitlen - 1);
+
         let aux = crate::common::test::aux(&mut rng);
         let shared_state = "shared state";
         let proof = super::non_interactive::prove::<D>(
@@ -439,7 +459,7 @@ mod test {
         let r = super::non_interactive::verify::<D>(&shared_state, &aux, data, &security, &proof)
             .expect_err("proof should not pass");
         match r.reason() {
-            InvalidProofReason::RangeCheck(2) => (),
+            InvalidProofReason::RangeCheck(1) => (),
             e => panic!("Proof should not fail with {e:?}"),
         }
     }
