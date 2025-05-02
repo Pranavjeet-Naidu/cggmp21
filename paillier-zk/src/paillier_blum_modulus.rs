@@ -123,9 +123,12 @@ pub mod interactive {
     use rand_core::RngCore;
     use rug::{Complete, Integer};
 
-    use crate::common::{
-        fail_if_ne,
-        sqrt::{blum_sqrt, find_residue, sample_neg_jacobi},
+    use crate::{
+        common::{
+            fail_if_ne,
+            sqrt::{blum_sqrt, find_residue, sample_neg_jacobi},
+        },
+        IntegerExt,
     };
     use crate::{BadExponent, Error, ErrorReason, InvalidProof, InvalidProofReason};
 
@@ -182,14 +185,18 @@ pub mod interactive {
         if data.n.is_even() {
             return Err(InvalidProofReason::ModulusIsEven.into());
         }
-        {
+        fail_if_ne(
+            InvalidProofReason::EqualityCheck(1),
+            &data.n.gcd_ref(&commitment.w).complete(),
+            Integer::ONE,
+        )?;
+
+        for (point, y) in proof.points.iter().zip(challenge.ys.iter()) {
             fail_if_ne(
-                InvalidProofReason::EqualityCheck(1),
-                &(data.n.clone()).gcd_ref(&commitment.w).complete(),
+                InvalidProofReason::EqualityCheck(2),
+                &y.gcd_ref(&data.n).complete(),
                 Integer::ONE,
             )?;
-        }
-        for (point, y) in proof.points.iter().zip(challenge.ys.iter()) {
             if Integer::from(
                 point
                     .z
@@ -226,10 +233,7 @@ pub mod interactive {
         Data { ref n }: &Data,
         rng: &mut R,
     ) -> Challenge<M> {
-        let ys = [(); M].map(|()| {
-            n.random_below_ref(&mut fast_paillier::utils::external_rand(rng))
-                .into()
-        });
+        let ys = [(); M].map(|()| Integer::gen_invertible(n, rng));
         Challenge { ys }
     }
 }
@@ -283,14 +287,8 @@ pub mod non_interactive {
             commitment,
         });
         let mut rng = rand_hash::HashRng::<D, _>::from_seed(seed);
-        // since we can't use Default and Integer isn't copy, we initialize
-        // like this
-        let ys = [(); M].map(|()| {
-            data.n
-                .random_below_ref(&mut fast_paillier::utils::external_rand(&mut rng))
-                .into()
-        });
-        Challenge { ys }
+
+        super::interactive::challenge(data, &mut rng)
     }
 }
 
