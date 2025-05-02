@@ -884,10 +884,10 @@ the output is undefined.
 \begin{inlineAlgorithm}
 \algoName{$\commit{mod}(N) \to w$}
 \algoInputs{public key $N \in \Z$}
-\algoOutputs{$w \in \Z_N$}
+\algoOutputs{$w \in \Z^*_N$}
 \begin{algorithmic}[1]
-\State Sample $w \gets \Z_N$ with Jacobi symbol $\left( \frac{w}{N} \right) = -1$
-\Comment{\parbox[t]{.4\linewidth}{can be done with rejection sampling: sample $w \gets \Z_N$, output $w$ if $\left( \frac{w}{N} \right) = -1$, repeat otherwise}}
+\State Sample $w \gets \Z^*_N$ with Jacobi symbol $\left( \frac{w}{N} \right) = -1$
+\Comment{\parbox[t]{.4\linewidth}{can be done with rejection sampling: sample $w \gets \Z^*_N$, output $w$ if $\left( \frac{w}{N} \right) = -1$, repeat otherwise}}
 \State \Return $w$
 \end{algorithmic}
 \end{inlineAlgorithm}
@@ -900,10 +900,10 @@ the output is undefined.
     \item public key $N \in \Z$
 }
 \algoOutputs{
-    $\vec y \in \Z_N^m$
+    $\vec y \in (\Z^*_N)^m$
 }
 \begin{algorithmic}[1]
-\State Sample $y_i \gets \Z_N$ for $i \in [m]$
+\State Sample $y_i \gets \Z^*_N$ for $i \in [m]$
 \State \Return $\vec y = \{y_i\}_{i\in[m]}$
 \end{algorithmic}
 \end{inlineAlgorithm}
@@ -920,14 +920,14 @@ the output is undefined.
 
     {\bf Note:} $p, q$ are assumed to be valid, so the implementation does not need to verify their correctness. In the protocol, it's the prover who generates the primes using appropriate procedure. If invalid $p, q$ are given, then resulting proof is invalid.
 }
-\algoOutputs{$\{(x_i, a_i, b_i, z_i)\}_{i\in[m]} \in \{(\Z, \Z, \Z, \Z)\}^m$}
+\algoOutputs{$\{(x_i, a_i, b_i, z_i)\}_{i\in[m]} \in \{(\Z, \Bit, \Bit, \Z)\}^m$}
 \begin{algorithmic}[1]
 \State $N' = N^{-1} \bmod \phi(N)$
 \For{$i \in [m]$}
     \State $(a_i, b_i, y'_i) = \fn{find\_residue}(y_i, w, p, q, N)$
     \State $x_i = \fn{blum\_sqrt}(\fn{blum\_sqrt}(y'_i, p, q, N), p, q, N)$
         \Comment{\parbox[t]{.3\linewidth}{$x_i$ is principal 4th root of $y'_i$ modulo $N$}}
-    \State $z_i = y_i^{N_i} \bmod N$
+    \State $z_i = y_i^{N'} \bmod N$
 \EndFor
 \State \Return $\{(x_i, a_i, b_i, z_i)\}_{i \in [m]}$
 \end{algorithmic}
@@ -939,15 +939,20 @@ the output is undefined.
 \algoInputsList{
     \item security level $L = (m, \dots)$,
     \item public data $N \in \Z$,
-    \item commitment $w \in \Z$,
-    \item challenge $\{y_i\}_{i\in[m]} \in \Z^m$,
-    \item proof $\{(x_i, a_i, b_i, z_i)\}_{i\in[m]} \in \{(\Z, \Z, \Z, \Z)\}^m$
+    \item commitment $w \in \Z^*_N$,
+    \item challenge $\{y_i\}_{i\in[m]} \in (\Z^*_N)^m$,
+    \item proof $\{(x_i, a_i, b_i, z_i)\}_{i\in[m]} \in \{(\Z, \Bit, \Bit, \Z)\}^m$
 }
 \algoOutputs{aborts if proof is invalid}
 \begin{algorithmic}[1]
-\State Assert that $N$ is odd non-prime
+\State $N \? = 1 \bmod 2$
+\State $\isprime(N) \? = \mathtt{false}$
+\State $\gcd(w, N) \? = 1$
+\Statex
 \For{$i \in [m]$}
+    \State $y_i \? \in \Z^*_N$
     \State $z_i^N \? = y_i \bmod N$
+    \State $(a_i, b_i) \? \in \Bit^2$
     \State $x_i^4 \? = (-1)^{a_i}w^{b_i}y_i \bmod N$
 \EndFor
 \end{algorithmic}
@@ -971,14 +976,14 @@ the output is undefined.
     {\bf Note:} $p, q$ are assumed to be valid, so the implementation does not need to verify their correctness. In the protocol, it's the prover who generates the primes using appropriate procedure. If invalid $p, q$ are given, then resulting proof is invalid.
 }
 \algoOutputsList{
-    \item challenge $w \in \Z$,
-    \item proof $\{(x_i, a_i, b_i, z_i)\}_{i\in[m]} \in \{(\Z, \Z, \Z, \Z)\}^m$
+    \item challenge $w \in \Z^*_N$,
+    \item proof $\{(x_i, a_i, b_i, z_i)\}_{i\in[m]} \in \{(\Z, \Bit, \Bit, \Z)\}^m$
 }
 \begin{algorithmic}[1]
 \State $w \gets \commit{mod}(N)$
 \State $\{y_i\}_{i\in[m]} = \challengeni{mod}^L(\state, N, w)$
 \State $\{(x_i, a_i, b_i, z_i)\}_{i\in[m]} = \prove{mod}^L(N, \{y_i\}_{i\in[m]}, w; (p, q))$
-\State \Return $\{(x_i, a_i, b_i, z_i)\}_{i\in[m]}$
+\State \Return $(w, \{(x_i, a_i, b_i, z_i)\}_{i\in[m]})$
 \end{algorithmic}
 \end{inlineAlgorithm}
 
@@ -991,8 +996,8 @@ the output is undefined.
     \item public data: $N \in \Z$,
     \item non-interactive proof:
         \begin{itemize}
-        \item challenge $w \in \Z$,
-        \item proof $\{(x_i, a_i, b_i, z_i)\}_{i\in[m]} \in \{(\Z, \Z, \Z, \Z)\}^m$
+        \item challenge $w \in \Z^*_N$,
+        \item proof $\{(x_i, a_i, b_i, z_i)\}_{i\in[m]} \in \{(\Z, \Bit, \Bit, \Z)\}^m$
         \end{itemize}
 }
 \algoOutputs{aborts if proof is invalid}
