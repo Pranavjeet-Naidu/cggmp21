@@ -523,11 +523,15 @@ where
             C,
         };
         outgoings
-            .send(Outgoing::p2p(j, Msg::Round3(msg)))
+            .feed(Outgoing::p2p(j, Msg::Round3(msg)))
             .await
             .map_err(IoError::send_message)?;
         tracer.msg_sent();
     }
+
+    tracer.send_msg();
+    outgoings.flush().await.map_err(IoError::send_message)?;
+    tracer.msg_sent();
 
     // Output
     tracer.round_begins();
