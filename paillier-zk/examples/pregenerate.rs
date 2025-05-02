@@ -10,10 +10,18 @@ use paillier_zk::IntegerExt;
 fn main() -> Result<()> {
     let mut rng = rand_core::OsRng;
 
+    // Generate primes
+    {
+        let primes = [(); 4].map(|_| generate_blum_prime(&mut rng, 1536));
+
+        let primes_json = serde_json::to_vec_pretty(&primes).unwrap();
+        std::fs::write("./test-data/primes_1536bits.json", primes_json).unwrap();
+    }
+
     // Generate Verifier's aux data
     {
-        let p = generate_blum_prime(&mut rng, 1024);
-        let q = generate_blum_prime(&mut rng, 1024);
+        let p = generate_blum_prime(&mut rng, 1536);
+        let q = generate_blum_prime(&mut rng, 1536);
         let n = (&p * &q).complete();
 
         let (s, t) = {

@@ -64,6 +64,11 @@ impl Aux {
         }
     }
 
+    /// Checks if `x` is in multiplicative group Z<super>*</super><sub>N</sub> where `N = ` [`rsa_modulo`](Self::rsa_modulo)
+    pub fn is_in_mult_group(&self, x: &Integer) -> bool {
+        x.is_in_mult_group(&self.rsa_modulo)
+    }
+
     /// Returns a stripped version of `Aux` that contains only public data which can be digested
     /// via [`udigest::Digestable`]
     pub fn digest_public_data(&self) -> impl udigest::Digestable {
@@ -85,13 +90,17 @@ pub struct InvalidProof(
     InvalidProofReason,
 );
 
-/// Reason for failure. If the proof failes, you should only be interested in a
+/// Reason for failure. If the proof fails, you should only be interested in a
 /// reason for debugging purposes
+#[non_exhaustive]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, thiserror::Error)]
 pub enum InvalidProofReason {
     /// One equality doesn't hold. Parameterized by equality index
     #[error("equality check failed {0}")]
     EqualityCheck(usize),
+    /// Check that integer belongs to multiplicative group failed. Parameterized by equality index
+    #[error("mult group check failed {0}")]
+    MultGroupCheck(usize),
     /// One range check doesn't hold. Parameterized by check index
     #[error("range check failed {0}")]
     RangeCheck(usize),
@@ -117,6 +126,9 @@ pub enum InvalidProofReason {
     /// Proof's x value in 4-th power does not equal commitment value
     #[error("incorrect 4th root")]
     IncorrectFourthRoot,
+    /// Conversion failed (e.g. from u32 to usize)
+    #[error("conversion failed")]
+    Conversion,
 }
 
 impl InvalidProof {
@@ -147,6 +159,9 @@ pub trait IntegerExt: Sized {
     /// Generate element in Zm*. Does so by trial.
     fn gen_invertible<R: rand_core::RngCore>(modulo: &Self, rng: &mut R) -> Self;
 
+    /// Checks if `self` is in Z<super>*</super><sub>N</sub> group
+    fn is_in_mult_group(&self, n: &Self) -> bool;
+
     /// Compute l^le * r^re modulo self
     fn combine(&self, l: &Self, le: &Self, r: &Self, re: &Self) -> Result<Self, BadExponent>;
 
@@ -172,6 +187,10 @@ pub trait IntegerExt: Sized {
 impl IntegerExt for Integer {
     fn gen_invertible<R: rand_core::RngCore>(modulo: &Integer, rng: &mut R) -> Self {
         fast_paillier::utils::sample_in_mult_group(rng, modulo)
+    }
+
+    fn is_in_mult_group(&self, n: &Self) -> bool {
+        fast_paillier::utils::in_mult_group(self, n)
     }
 
     fn combine(&self, l: &Self, le: &Self, r: &Self, re: &Self) -> Result<Self, BadExponent> {

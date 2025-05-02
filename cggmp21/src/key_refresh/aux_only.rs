@@ -380,7 +380,6 @@ where
     let π_fac_security = π_fac::SecurityParams {
         l: L::ELL,
         epsilon: L::EPSILON,
-        q: L::q(),
     };
     let n_sqrt = utils::sqrt(&N);
 
