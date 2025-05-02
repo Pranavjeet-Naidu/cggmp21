@@ -251,9 +251,6 @@ pub mod interactive {
     ) -> Result<Proof<E>, Error> {
         let z1 = (&private_commitment.alpha + (challenge * pdata.plaintext)).complete();
         let z2 = {
-            // TODO: exp mod N can be faster if N=pq is known, but `dyn AnyEncryptionKey` doesn't provide
-            // a method for this. However, it's not yet clear to me if in the protocol at the time of proving,
-            // prover knows N=pq
             let nonce_to_challenge_mod_n: Integer = pdata
                 .nonce
                 .pow_mod_ref(challenge, data.key.n())
