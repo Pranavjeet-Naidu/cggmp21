@@ -1523,6 +1523,124 @@ We describe the standard Schnorr proof of knowledge, and also set up notation th
 
 \end{description}
 
+\subsection{\proof{elog}: Dlog with El-Gamal Commitment}
+
+\subsubsection{Interactive Version of the Proof}
+
+\begin{description}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\commit{elog}(X, H) \to ((A, N, B); (\alpha, m))$}
+\algoInputsList{
+    \item (subset of) public data $(X, H) \in \E^2$,
+}
+\algoOutputsList{
+    \item pubilc commitment $(A, N, B) \in \E^3$,
+    \item secret nonce $(\alpha, m) \in \Z_q^2$,
+}
+\begin{algorithmic}[1]
+\State $\alpha, m \gets \Z_q^2$
+\State $A = \alpha \cdot G$
+\State $N = m \cdot G + \alpha \cdot X$
+\State $B = m \cdot H$
+\State \Return $((A, N, B); (\alpha, m))$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\challenge{elog}() \to e$}
+\algoOutputs{challenge $q \in \Z_q$}
+\begin{algorithmic}[1]
+\State $e \gets \Z_q$
+\State \Return $e$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\prove{elog}(e; (y, \lambda), (\alpha, m)) \to (z, u)$}
+\algoInputsList{
+    \item challenge $e \in \Z_q$
+    \item secret data $(y, \lambda) \in \Z_q^2$,
+    \item secret commitment nonce $(\alpha, m) \in \Z_q^2$
+}
+\algoOutputs{proof $(z, u) \in \Z_q^2$}
+\begin{algorithmic}[1]
+\State $z = \alpha + e \lambda \bmod q$
+\State $u = m + e y \bmod q$
+\State \Return $(z, u)$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\verify{elog}((L, M, X, Y, H), (A, N, B), e, (z, u))$}
+\algoInputsList{
+    \item public data $(L, M, X, Y, H) \in \E^5$,
+    \item public commitment $(A, N, B) \in \E^3$,
+    \item challenge $e \in \Z_q$,
+    \item proof $(z, u) \in \Z_q^2$
+}
+\algoOutputs{aborts if proof is invalid}
+\begin{algorithmic}[1]
+\State $z \cdot G \? = A + e \cdot L$
+\State $u \cdot G + z \cdot X \? = N + e \cdot M$
+\State $u \cdot H \? = B + e \cdot Y$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\end{description}
+
+\subsubsection{Non-Interactive Version of the Proof}
+
+\begin{description}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\proveni{elog}(\state, (L, M, X, Y, H); (y, \lambda)) \to (
+    (A, N, B),
+    (z, u)
+)$}
+\algoInputsList{
+    \item shared $\state \in \Byte^*$,
+    \item public data $(L, M, X, Y, H) \in \E^5$,
+    \item secret data $(y, \lambda) \in \Z_q^2$
+}
+\algoOutputsList{
+    \item commitment $(A, N, B) \in \E^3$,
+    \item proof $(z, u) \in \Z_q^2$
+}
+\begin{algorithmic}[1]
+\State $((A, N, B); (\alpha, m)) \gets \commit{elog}(X, H)$
+\State $e \in \Z_q = \challengeni{elog}(\state, (L, M, X, Y, H), (A, N, B))$
+\State $(z, u) = \prove{elog}(e; (y, \lambda), (\alpha, m))$
+\State \Return $((A, N, B), (z, u))$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\verifyni{elog}(\state, (L, M, X, Y, H), ((A, N, B), (z, u)))$}
+\algoInputsList{
+    \item shared $\state \in \Byte^*$,
+    \item public data $(L, M, X, Y, H)$,
+    \item non-interactive proof, consisting of:
+        \begin{itemize}
+        \item commitment $(A, N, B) \in \E^3$,
+        \item proof $(z, u) \in \Z_q^2$
+        \end{itemize}
+}
+\algoOutputs{aborts if proof is invalid}
+\begin{algorithmic}[1]
+\State $e \in \Z_q = \challengeni{elog}(\state, (L, M, X, Y, H), (A, N, B))$
+\State Assert $\verify{elog}((L, M, X, Y, H), (A, N, B), e, (z, u))$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\end{description}
+
 \subsection{$\proof{enc\mbox{-}elg}$: Range Proof with El-Gamal Commitment}
 
 Common (public) input:
