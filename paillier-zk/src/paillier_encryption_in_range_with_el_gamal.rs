@@ -215,8 +215,7 @@ pub mod interactive {
     ) -> Result<(Commitment<E>, PrivateCommitment<E>), Error> {
         let two_to_l_plus_e = (Integer::ONE << (security.l + security.epsilon)).complete();
         let n_j_at_two_to_l = (Integer::ONE << security.l).complete() * &aux.rsa_modulo;
-        let n_j_at_two_to_l_plus_e =
-            (Integer::ONE << (security.l + security.epsilon)).complete() * &aux.rsa_modulo;
+        let n_j_at_two_to_l_plus_e = (&two_to_l_plus_e * &aux.rsa_modulo).complete();
 
         let alpha = Integer::from_rng_pm(&two_to_l_plus_e, rng);
         let mu = Integer::from_rng_pm(&n_j_at_two_to_l, rng);
