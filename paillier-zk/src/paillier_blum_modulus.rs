@@ -126,7 +126,7 @@ pub mod interactive {
     use crate::{
         common::{
             fail_if_ne,
-            sqrt::{blum_sqrt, find_residue, sample_neg_jacobi},
+            sqrt::{blum_sqrt, find_residue, sample_invertible_with_neg_jacobi},
         },
         IntegerExt,
     };
@@ -137,7 +137,7 @@ pub mod interactive {
     /// Create random commitment
     pub fn commit<R: RngCore>(Data { ref n }: &Data, rng: &mut R) -> Commitment {
         Commitment {
-            w: sample_neg_jacobi(n, rng),
+            w: sample_invertible_with_neg_jacobi(n, rng),
         }
     }
 
