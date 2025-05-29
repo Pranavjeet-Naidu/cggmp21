@@ -1,6 +1,8 @@
 use rand_core::RngCore;
 use rug::{Complete, Integer};
 
+use super::IntegerExt;
+
 /// Find principal square root in a Blum modulus quotient ring.
 ///
 /// Pre-requisites:
@@ -56,12 +58,10 @@ pub fn find_residue(
     }
 }
 
-/// Finds a element in Zn that has jacobi symbol of -1
-pub fn sample_neg_jacobi<R: RngCore>(n: &Integer, rng: &mut R) -> Integer {
+/// Finds a element in Z*n that has jacobi symbol of -1
+pub fn sample_invertible_with_neg_jacobi<R: RngCore>(n: &Integer, rng: &mut R) -> Integer {
     loop {
-        let w = n
-            .clone()
-            .random_below(&mut fast_paillier::utils::external_rand(rng));
+        let w = Integer::gen_invertible(n, rng);
         if w.jacobi(n) == -1 {
             break w;
         }
