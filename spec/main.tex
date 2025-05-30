@@ -72,6 +72,7 @@
 \newcommand{\sid}{\ensuremath{\mathtt{sid}}}
 \newcommand{\fn}[1]{\ensuremath{\mathtt{#1}}}
 \newcommand{\var}[1]{\ensuremath{\mathtt{#1}}}
+\newcommand{\rsa}{\ensuremath{\mathtt{rsa}}}
 \newcommand{\proof}[1]{\ensuremath{\Pi^{\mathtt{#1}}}}
 \newcommand{\commit}[1]{\ensuremath{\mathtt{Commit}_{\mathtt{#1}}}}
 \newcommand{\challenge}[1]{\ensuremath{\mathtt{Challenge}_{\mathtt{#1}}}}
@@ -324,14 +325,15 @@ We let $\lambda$ denote the bit length of the curve order (so $2^\lambda \leq q 
 The security parameters of the protocol are denoted collectively by $L = (\kappa, \varepsilon, \ell, \ell', m, Q)$. 
 These parameters are used in the following ways:
 \begin{itemize}
-    \item $\kappa$ determines the length of the primes used for Paillier private keys. Specifically, the primes are chosen to be of length~$4\kappa$ and so the Paillier modulus has length~$8\kappa$.
+    \item $\kappa$ determines the target security bits of the protocol, it should match the security level of the used elliptic curve.
+
+    \item $\kappa_\rsa$ is a bit-length of the primes used for Paillier private keys. It's chosen to match $\kappa$ bits of security.
+    \item $n_\rsa$ is minimal length of the Paillier public key, private key of which has $\kappa_\rsa$ bits.
 
     \item $\ell, \ell'$ correspond to bounds on the ranges of certain plaintexts that are encrypted, while %Parameters should be set so that $2^\ell \leq 2^{8\kappa-1}$.
     $\eps$ is a slack parameter. (Honest parties choose plaintexts in a range determined by $\ell$ or $\ell'$; the zero-knowledge proofs, however, only prove that a party chose plaintexts in a range determined by $\ell+\eps$ or $\ell'+\eps$.)
 
     \item $m$ denotes the number of iterations of some underlying zero-knowledge protocol to run; the soundness error will be~$2^{-m}$.
-
-    \item $Q$ determines the challenge space for some of the zero-knowledge proofs.
 \end{itemize}
 For correctness, we require
 $\ell \geq \lambda$,
@@ -1850,13 +1852,13 @@ This protocol is run to generate auxiliary information for each signer in a clus
     \item party index $i$, $0 \le i < n$,
     \item amount of parties in the protocol $n \ge 2$,
     \item context separation string $\sid \in \Byte^*$,
-    \item security level $L$ (see Section~\ref{sec:security-params}),
+    \item security level $L = (\kappa, \kappa_\rsa, n_\rsa, \dots)$ (see Section~\ref{sec:security-params}),
     \item flag $\var{echo\_enabled} \in \Bit$ indicating whether reliability check is enabled
     \end{itemize}
 
     \item[\textbf{Round 1.}] \
     \begin{algorithmic}[1]
-        \State Generate $4\kappa$-bit safe primes $p_i, q_i$ using the algorithm from Section~\ref{sec:safe-prime}.
+        \State Generate $\kappa_\rsa$-bit safe primes $p_i, q_i$ using the algorithm from Section~\ref{sec:safe-prime}.
         \State Compute $N_i = p_iq_i$ and $\phi = (p_i - 1)(q_i - 1)$, and create a Paillier decryption key $\sk_i$ using those values.
         \State Sample  $r \gets \Z_{N_i}^{*}$ and $\lambda \gets \Z_\phi$,
         and compute $t_i = r_i^2 \bmod N_i$ and $s_i = t_i^\lambda \bmod N_i$.
