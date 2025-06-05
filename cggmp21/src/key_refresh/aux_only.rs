@@ -4,7 +4,6 @@ use paillier_zk::{
     no_small_factor::non_interactive as π_fac,
     paillier_blum_modulus as π_mod,
     rug::{Complete, Integer},
-    IntegerExt,
 };
 use rand_core::{CryptoRng, RngCore};
 use round_based::{
@@ -15,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     errors::IoError,
-    key_share::{AuxInfo, DirtyAuxInfo, PartyAux, Validate},
+    key_share::{AuxInfo, DirtyAuxInfo, PedersenParams, Validate},
     progress::Tracer,
     security_level::SecurityLevel,
     utils,
@@ -67,6 +66,9 @@ pub struct MsgRound2<L: SecurityLevel> {
     /// $N_i$
     #[udigest(as = utils::encoding::Integer)]
     pub N: Integer,
+    /// $\hat N_i$
+    #[udigest(as = utils::encoding::Integer)]
+    pub hat_N: Integer,
     /// $s_i$
     #[udigest(as = utils::encoding::Integer)]
     pub s: Integer,
@@ -163,7 +165,6 @@ pub async fn run_aux_gen<R, M, L, D>(
     mut tracer: Option<&mut dyn Tracer>,
     reliable_broadcast_enforced: bool,
     compute_multiexp_table: bool,
-    compute_crt: bool,
 ) -> Result<AuxInfo<L>, KeyRefreshError>
 where
     R: RngCore + CryptoRng,
@@ -189,30 +190,24 @@ where
     // Round 1
     tracer.round_begins();
 
-    tracer.stage("Retrieve primes (p and q)");
-    let PregeneratedPrimes { p, q, .. } = pregenerated;
-    tracer.stage("Compute paillier decryption key (N)");
-    let N = (&p * &q).complete();
-    let phi_N = (&p - 1u8).complete() * (&q - 1u8).complete();
+    let [p, q, hat_p, hat_q] = pregenerated.into_primes();
 
-    tracer.stage("Generate auxiliary params r, λ, t, s");
-    let r = Integer::gen_invertible(&N, rng);
-    let lambda = phi_N
-        .random_below_ref(&mut utils::external_rand(rng))
-        .into();
-    let t = r.square().modulo(&N);
-    let s = t.pow_mod_ref(&lambda, &N).ok_or(Bug::PowMod)?.into();
+    tracer.stage("Build Paillier key");
+    let N = (&p * &q).complete();
+
+    tracer.stage("Build Pedersen params");
+    let (pedersen_params, phi_hat_N, lambda) = utils::generate_pedersen_params(rng, hat_p, hat_q)?;
 
     tracer.stage("Prove Πprm (ψˆ_i)");
     let hat_psi = π_prm::prove::<{ crate::security_level::M }, D>(
         &unambiguous::ProofPrm { sid, prover: i },
         &mut rng,
         π_prm::Data {
-            N: &N,
-            s: &s,
-            t: &t,
+            N: &pedersen_params.hat_N,
+            s: &pedersen_params.s,
+            t: &pedersen_params.t,
         },
-        &phi_N,
+        &phi_hat_N,
         &lambda,
     )
     .map_err(Bug::PiPrm)?;
@@ -226,8 +221,9 @@ where
     // V_i and u_i in paper
     let decommitment = MsgRound2 {
         N: N.clone(),
-        s: s.clone(),
-        t: t.clone(),
+        hat_N: pedersen_params.hat_N.clone(),
+        s: pedersen_params.s.clone(),
+        t: pedersen_params.t.clone(),
         params_proof: hat_psi,
         rho_bytes: rho_bytes.clone(),
         decommit: {
@@ -331,13 +327,16 @@ where
         return Err(ProtocolAborted::invalid_decommitment(blame).into());
     }
     // validate parameters and param_proofs
-    tracer.stage("Validate П_prm (ψ_i)");
+    tracer.stage("Validate bit length and П_prm (ψˆ_i)");
     let blame = collect_blame(&decommitments, &decommitments, |j, d, _| {
-        if !crate::security_level::validate_public_paillier_key_size::<L>(&d.N) {
+        if [&d.N, &d.hat_N]
+            .iter()
+            .any(|biprime| !crate::security_level::validate_public_paillier_key_size::<L>(biprime))
+        {
             true
         } else {
             let data = π_prm::Data {
-                N: &d.N,
+                N: &d.hat_N,
                 s: &d.s,
                 t: &d.t,
             };
@@ -376,7 +375,7 @@ where
         &mut rng,
     )
     .map_err(Bug::PiMod)?;
-    tracer.stage("Assemble security params for П_fac (ф_i)");
+    tracer.stage("Assemble security params for П_fac (ψ_i)");
     let π_fac_security = π_fac::SecurityParams {
         l: L::ELL,
         epsilon: L::EPSILON,
@@ -387,8 +386,8 @@ where
     for (j, _, d) in decommitments.iter_indexed() {
         tracer.send_msg();
 
-        tracer.stage("Compute П_fac (ф_i^j)");
-        let phi = π_fac::prove::<D>(
+        tracer.stage("Compute П_fac (ψ'_i,j)");
+        let psi_prime = π_fac::prove::<D>(
             &unambiguous::ProofFac {
                 sid,
                 rho: rho_bytes.as_ref(),
@@ -397,7 +396,7 @@ where
             &π_fac::Aux {
                 s: d.s.clone(),
                 t: d.t.clone(),
-                rsa_modulo: d.N.clone(),
+                rsa_modulo: d.hat_N.clone(),
                 multiexp: None,
                 crt: None,
             },
@@ -414,7 +413,7 @@ where
         tracer.send_msg();
         let msg = MsgRound3 {
             mod_proof: psi.clone(),
-            fac_proof: phi.clone(),
+            fac_proof: psi_prime.clone(),
         };
         outgoings
             .feed(Outgoing::p2p(j, Msg::Round3(msg)))
@@ -464,21 +463,15 @@ where
         return Err(ProtocolAborted::invalid_mod_proof(blame).into());
     }
 
-    tracer.stage("Validate ф_j (П_fac)");
+    tracer.stage("Validate ψ'_j,i (П_fac)");
     // verify fac proofs
 
-    let crt = if compute_crt {
-        // note: `crt` contains private information
-        Some(paillier_zk::fast_paillier::utils::CrtExp::build_n(&p, &q).ok_or(Bug::BuildCrt)?)
-    } else {
-        None
-    };
     let phi_common_aux = π_fac::Aux {
-        s: s.clone(),
-        t: t.clone(),
-        rsa_modulo: N.clone(),
+        s: pedersen_params.s.clone(),
+        t: pedersen_params.t.clone(),
+        rsa_modulo: pedersen_params.hat_N.clone(),
         multiexp: None,
-        crt: crt.clone(),
+        crt: pedersen_params.crt.clone(),
     };
     let blame = collect_blame(
         &decommitments,
@@ -508,21 +501,27 @@ where
     // verifications passed, compute final key shares
 
     tracer.stage("Assemble auxiliary info");
-    let mut party_auxes = decommitments
-        .iter_including_me(&decommitment)
-        .map(|d| PartyAux {
-            N: d.N.clone(),
+    let mut parties_pedersen = decommitments
+        .iter()
+        .map(|d| PedersenParams {
+            hat_N: d.hat_N.clone(),
             s: d.s.clone(),
             t: d.t.clone(),
             multiexp: None,
             crt: None,
         })
         .collect::<Vec<_>>();
-    party_auxes[usize::from(i)].crt = crt;
+    parties_pedersen.insert(i.into(), pedersen_params);
+
+    let N = decommitments
+        .into_iter_including_me(decommitment)
+        .map(|d| d.N)
+        .collect::<Vec<_>>();
     let mut aux = DirtyAuxInfo {
         p,
         q,
-        parties: party_auxes,
+        N,
+        pedersen_params: parties_pedersen,
         security_level: std::marker::PhantomData,
     };
 

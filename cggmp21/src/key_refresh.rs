@@ -2,198 +2,99 @@
 
 /// Auxiliary info (re)generation protocol specific types
 mod aux_only;
-/// Non-threshold key refresh specific types
-mod non_threshold;
 
 use digest::Digest;
-use generic_ec::Curve;
 use rand_core::{CryptoRng, RngCore};
 use round_based::Mpc;
 use thiserror::Error;
 
+use crate::utils;
 use crate::{
-    errors::IoError,
-    key_share::{AnyKeyShare, AuxInfo, DirtyIncompleteKeyShare, KeyShare},
-    progress::Tracer,
-    security_level::SecurityLevel,
-    utils::AbortBlame,
-    ExecutionId,
+    errors::IoError, key_share::AuxInfo, progress::Tracer, security_level::SecurityLevel,
+    utils::AbortBlame, ExecutionId,
 };
 use crate::{fast_paillier, rug::Integer};
 
 #[doc(no_inline)]
-pub use self::msg::{aux_only::Msg as AuxOnlyMsg, non_threshold::Msg as NonThresholdMsg};
+pub use self::msg::Msg;
 
 #[doc = include_str!("../docs/mpc_message.md")]
 pub mod msg {
-    /// Messages types related to aux information generation protocol
-    pub mod aux_only {
-        pub use crate::key_refresh::aux_only::{
-            Msg, MsgReliabilityCheck, MsgRound1, MsgRound2, MsgRound3,
-        };
-    }
-    /// Messages types related to non threshold key refresh protocol
-    pub mod non_threshold {
-        pub use crate::key_refresh::non_threshold::{
-            Msg, MsgReliabilityCheck, MsgRound1, MsgRound2, MsgRound3,
-        };
-    }
+    pub use crate::key_refresh::aux_only::{
+        Msg, MsgReliabilityCheck, MsgRound1, MsgRound2, MsgRound3,
+    };
 }
 
 /// To speed up computations, it's possible to supply data to the algorithm
 /// generated ahead of time
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PregeneratedPrimes<L = crate::default_choice::SecurityLevel> {
-    p: Integer,
-    q: Integer,
+    primes: [Integer; 4],
     _phantom: std::marker::PhantomData<L>,
 }
 
-impl<L: SecurityLevel> PregeneratedPrimes<L> {
-    /// Constructs pregenerated primes from two big numbers
+impl<L: SecurityLevel> TryFrom<[Integer; 4]> for PregeneratedPrimes<L> {
+    type Error = [Integer; 4];
+
+    /// Constructs pregenerated primes from 4 big numbers
     ///
-    /// Returns `None` if big numbers are smaller than 4 * [L::SECURITY_BITS](crate::security_level::KeygenSecurityLevel::SECURITY_BITS)
+    /// Returns `None` if big numbers are smaller than required by security level
     ///
     /// Function doesn't validate that provided numbers are primes. If they're not,
     /// key refresh protocol should fail with some ZK proof error.
-    pub fn new(p: Integer, q: Integer) -> Option<Self> {
-        if !crate::security_level::validate_secret_paillier_key_size::<L>(&p, &q) {
-            None
+    fn try_from(primes: [Integer; 4]) -> Result<Self, Self::Error> {
+        if primes
+            .iter()
+            .any(|p| !crate::security_level::validate_secret_paillier_prime_size::<L>(p))
+        {
+            Err(primes)
         } else {
-            Some(Self {
-                p,
-                q,
+            Ok(Self {
+                primes,
                 _phantom: std::marker::PhantomData,
             })
         }
     }
+}
 
-    /// Returns `p, q`
-    pub fn split(self) -> (Integer, Integer) {
-        (self.p, self.q)
+impl<L: SecurityLevel> PregeneratedPrimes<L> {
+    /// Returns stored primes
+    pub fn into_primes(self) -> [Integer; 4] {
+        self.primes
+    }
+
+    /// Returns a reference to stored primes
+    pub fn primes_ref(&self) -> &[Integer; 4] {
+        &self.primes
     }
 
     /// Generates primes. Takes some time.
     pub fn generate<R: RngCore>(rng: &mut R) -> Self {
         Self {
-            p: fast_paillier::utils::generate_safe_prime(rng, 4 * L::SECURITY_BITS),
-            q: fast_paillier::utils::generate_safe_prime(rng, 4 * L::SECURITY_BITS),
+            primes: [(); 4]
+                .map(|_| fast_paillier::utils::generate_safe_prime(rng, 4 * L::SECURITY_BITS)),
             _phantom: std::marker::PhantomData,
         }
     }
 }
 
-/// A variant of [`GenericKeyRefreshBuilder`] that performs key refresh
-pub type KeyRefreshBuilder<
-    'a,
-    E,
-    L = crate::default_choice::SecurityLevel,
-    D = crate::default_choice::Digest,
-> = GenericKeyRefreshBuilder<'a, RefreshShare<'a, E>, L, D>;
-
-/// A variant of [`GenericKeyRefreshBuilder`] that only generates auxiliary info
-/// and doesn't require key shares
-pub type AuxInfoGenerationBuilder<
-    'a,
-    L = crate::default_choice::SecurityLevel,
-    D = crate::default_choice::Digest,
-> = GenericKeyRefreshBuilder<'a, AuxOnly, L, D>;
-
 /// Entry point for key refresh and auxiliary info generation.
-pub struct GenericKeyRefreshBuilder<'a, M, L, D>
+pub struct AuxInfoBuilder<'a, L, D = crate::default_choice::Digest>
 where
     L: SecurityLevel,
     D: Digest,
 {
-    target: M,
+    i: u16,
+    n: u16,
     execution_id: ExecutionId<'a>,
     pregenerated: PregeneratedPrimes<L>,
     tracer: Option<&'a mut dyn Tracer>,
     enforce_reliable_broadcast: bool,
     precompute_multiexp_tables: bool,
-    precompute_crt: bool,
     _digest: std::marker::PhantomData<D>,
 }
 
-/// A marker for [`KeyRefreshBuilder`]
-pub struct RefreshShare<'a, E: Curve>(&'a DirtyIncompleteKeyShare<E>);
-/// A marker for [`AuxInfoGenerationBuilder`]
-pub struct AuxOnly {
-    i: u16,
-    n: u16,
-}
-
-impl<'a, E, L, D> KeyRefreshBuilder<'a, E, L, D>
-where
-    E: Curve,
-    L: SecurityLevel,
-    D: Digest,
-{
-    /// Build key refresh operation. Start it with [`start`](Self::start).
-    ///
-    /// PregeneratedPrimes can be obtained with [`PregeneratedPrimes::generate`]
-    pub fn new(
-        eid: ExecutionId<'a>,
-        key_share: &'a impl AnyKeyShare<E>,
-        pregenerated: PregeneratedPrimes<L>,
-    ) -> Self {
-        Self {
-            target: RefreshShare(key_share.as_ref()),
-            execution_id: eid,
-            pregenerated,
-            tracer: None,
-            enforce_reliable_broadcast: true,
-            precompute_multiexp_tables: false,
-            precompute_crt: false,
-            _digest: std::marker::PhantomData,
-        }
-    }
-
-    /// Carry out the refresh procedure. Takes a lot of time
-    pub async fn start<R, M>(self, rng: &mut R, party: M) -> Result<KeyShare<E, L>, KeyRefreshError>
-    where
-        R: RngCore + CryptoRng,
-        M: Mpc<ProtocolMessage = NonThresholdMsg<E, D, L>>,
-        E: Curve,
-        L: SecurityLevel,
-        D: Digest<OutputSize = digest::typenum::U32> + Clone + 'static,
-    {
-        non_threshold::run_refresh(
-            rng,
-            party,
-            self.execution_id,
-            self.pregenerated,
-            self.tracer,
-            self.enforce_reliable_broadcast,
-            self.precompute_multiexp_tables,
-            self.precompute_crt,
-            self.target.0,
-        )
-        .await
-    }
-
-    /// Returns a state machine that can be used to carry out the key refresh protocol
-    ///
-    /// See [`round_based::state_machine`] for details on how that can be done.
-    #[cfg(feature = "state-machine")]
-    pub fn into_state_machine<R>(
-        self,
-        rng: &'a mut R,
-    ) -> impl round_based::state_machine::StateMachine<
-        Output = Result<KeyShare<E, L>, KeyRefreshError>,
-        Msg = NonThresholdMsg<E, D, L>,
-    > + 'a
-    where
-        R: RngCore + CryptoRng,
-        E: Curve,
-        L: SecurityLevel,
-        D: Digest<OutputSize = digest::typenum::U32> + Clone + 'static,
-    {
-        round_based::state_machine::wrap_protocol(|party| self.start(rng, party))
-    }
-}
-
-impl<'a, L, D> AuxInfoGenerationBuilder<'a, L, D>
+impl<'a, L, D> AuxInfoBuilder<'a, L, D>
 where
     L: SecurityLevel,
     D: Digest,
@@ -208,13 +109,13 @@ where
         pregenerated: PregeneratedPrimes<L>,
     ) -> Self {
         Self {
-            target: AuxOnly { i, n },
+            i,
+            n,
             execution_id: eid,
             pregenerated,
             tracer: None,
             enforce_reliable_broadcast: true,
             precompute_multiexp_tables: false,
-            precompute_crt: false,
             _digest: std::marker::PhantomData,
         }
     }
@@ -228,8 +129,8 @@ where
         D: Digest<OutputSize = digest::typenum::U32> + Clone + 'static,
     {
         aux_only::run_aux_gen(
-            self.target.i,
-            self.target.n,
+            self.i,
+            self.n,
             rng,
             party,
             self.execution_id,
@@ -237,7 +138,6 @@ where
             self.tracer,
             self.enforce_reliable_broadcast,
             self.precompute_multiexp_tables,
-            self.precompute_crt,
         )
         .await
     }
@@ -262,21 +162,21 @@ where
     }
 }
 
-impl<'a, L, D, T> GenericKeyRefreshBuilder<'a, T, L, D>
+impl<'a, L, D> AuxInfoBuilder<'a, L, D>
 where
     L: SecurityLevel,
     D: Digest,
 {
     /// Specifies another hash function to use
-    pub fn set_digest<D2: Digest>(self) -> GenericKeyRefreshBuilder<'a, T, L, D2> {
-        GenericKeyRefreshBuilder {
-            target: self.target,
+    pub fn set_digest<D2: Digest>(self) -> AuxInfoBuilder<'a, L, D2> {
+        AuxInfoBuilder {
+            i: self.i,
+            n: self.n,
             execution_id: self.execution_id,
             pregenerated: self.pregenerated,
             tracer: self.tracer,
             enforce_reliable_broadcast: self.enforce_reliable_broadcast,
             precompute_multiexp_tables: self.precompute_multiexp_tables,
-            precompute_crt: self.precompute_crt,
             _digest: std::marker::PhantomData,
         }
     }
@@ -304,18 +204,6 @@ where
         self.precompute_multiexp_tables = v;
         self
     }
-
-    /// Precomputes CRT parameters
-    ///
-    /// Enables optimization of modular exponentiation in Zero-Knowledge proofs validation. Precomputation
-    /// should be relatively fast. It increases size of key share in RAM and on disk, but not noticeably.
-    ///
-    /// Note: CRT parameters contain secret information. Leaking them exposes secret Paillier key. Keep
-    /// [`AuxInfo::parties`](crate::key_share::DirtyAuxInfo::parties) secret (as well as rest of the key share).
-    pub fn precompute_crt(mut self, v: bool) -> Self {
-        self.precompute_crt = v;
-        self
-    }
 }
 
 /// Error of key refresh and aux info generation protocols
@@ -328,6 +216,7 @@ crate::errors::impl_from! {
         err: ProtocolAborted => KeyRefreshError(Reason::Aborted(err)),
         err: IoError => KeyRefreshError(Reason::IoError(err)),
         err: Bug => KeyRefreshError(Reason::InternalError(err)),
+        err: utils::GenPedersenError => Bug::GenPedersen(err).into(),
     }
 }
 
@@ -345,28 +234,18 @@ enum Reason {
 /// Unexpected error in operation not caused by other parties
 #[derive(Debug, Error)]
 enum Bug {
-    #[error("Unexpected error when creating paillier decryption key")]
-    PaillierKeyError,
-    #[error("paillier enctyption failed")]
-    PaillierEnc,
-    #[error("Attempting to run protocol with too many parties")]
-    TooManyParties,
     #[error("Invalid key share geenrated")]
     InvalidShareGenerated(#[source] crate::key_share::InvalidKeyShare),
     #[error("couldn't prove a pi mod statement")]
     PiMod(#[source] paillier_zk::Error),
     #[error("couldn't prove a pi fac statement")]
     PiFac(#[source] paillier_zk::Error),
-    #[error("powmod not defined")]
-    PowMod,
     #[error("couldn't prove prm statement")]
     PiPrm(#[source] crate::zk::ring_pedersen_parameters::ZkError),
     #[error("couldn't build multiexp tables")]
     BuildMultiexpTables(#[source] crate::key_share::InvalidKeyShare),
-    #[error("couldn't build CRT")]
-    BuildCrt,
-    #[error("updated share is zero - probability of that is negligible")]
-    ZeroShare,
+    #[error("generate pedersen params")]
+    GenPedersen(#[source] utils::GenPedersenError),
 }
 
 /// Error indicating that protocol was aborted by malicious party
@@ -384,22 +263,12 @@ struct ProtocolAborted {
 enum ProtocolAbortReason {
     #[error("decommitment doesn't match commitment")]
     InvalidDecommitment,
-    #[error("provided invalid schnorr proof")]
-    InvalidSchnorrProof,
     #[error("provided invalid proof for Rmod")]
     InvalidModProof,
     #[error("provided invalid proof for Rfac")]
     InvalidFacProof,
     #[error("N, s and t parameters are invalid")]
     InvalidRingPedersenParameters,
-    #[error("X is malformed")]
-    InvalidX,
-    #[error("x doesn't correspond to X")]
-    InvalidXShare,
-    #[error("party sent a message with missing data")]
-    InvalidDataSize,
-    #[error("party message could not be decrypted")]
-    PaillierDec,
     #[error("round 1 was not reliable")]
     Round1NotReliable,
 }
@@ -416,16 +285,11 @@ macro_rules! make_factory {
 }
 impl ProtocolAborted {
     make_factory!(invalid_decommitment, InvalidDecommitment);
-    make_factory!(invalid_schnorr_proof, InvalidSchnorrProof);
     make_factory!(invalid_mod_proof, InvalidModProof);
     make_factory!(invalid_fac_proof, InvalidFacProof);
     make_factory!(
         invalid_ring_pedersen_parameters,
         InvalidRingPedersenParameters
     );
-    make_factory!(invalid_x, InvalidX);
-    make_factory!(invalid_x_share, InvalidXShare);
-    make_factory!(invalid_data_size, InvalidDataSize);
-    make_factory!(paillier_dec, PaillierDec);
     make_factory!(round1_not_reliable, Round1NotReliable);
 }

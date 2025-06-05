@@ -312,7 +312,6 @@ pub use {
 pub use cggmp21_keygen::{keygen, progress, ExecutionId};
 
 use generic_ec::{coords::HasAffineX, Curve, Point};
-use key_share::AnyKeyShare;
 use round_based::PartyIndex;
 use security_level::SecurityLevel;
 use signing::SigningBuilder;
@@ -372,29 +371,11 @@ pub fn aux_info_gen<L>(
     i: u16,
     n: u16,
     pregenerated: key_refresh::PregeneratedPrimes<L>,
-) -> key_refresh::AuxInfoGenerationBuilder<L>
+) -> key_refresh::AuxInfoBuilder<L>
 where
     L: SecurityLevel,
 {
-    key_refresh::GenericKeyRefreshBuilder::new_aux_gen(eid, i, n, pregenerated)
-}
-
-/// Protocol for performing key refresh. Can be used to perform initial refresh
-/// with aux info generation, or for a refresh of a complete key share.
-///
-/// Doesn't work with general-threshold key shares at this point.
-///
-/// PregeneratedPrimes can be obtained with [`key_refresh::PregeneratedPrimes::generate`]
-pub fn key_refresh<'a, E, L>(
-    eid: ExecutionId<'a>,
-    key_share: &'a impl AnyKeyShare<E>,
-    pregenerated: key_refresh::PregeneratedPrimes<L>,
-) -> key_refresh::KeyRefreshBuilder<'a, E, L>
-where
-    E: Curve,
-    L: SecurityLevel,
-{
-    key_refresh::KeyRefreshBuilder::new(eid, key_share, pregenerated)
+    key_refresh::AuxInfoBuilder::new_aux_gen(eid, i, n, pregenerated)
 }
 
 /// Protocol for generating a signature or presignature
@@ -443,8 +424,7 @@ mod tests {
         crate::keygen::msg::non_threshold::Msg<E, L, D>,
         crate::keygen::msg::threshold::Msg<E, L, D>,
 
-        crate::key_refresh::msg::aux_only::Msg<D, L>,
-        crate::key_refresh::msg::non_threshold::Msg<E, D, L>,
+        crate::key_refresh::msg::Msg<D, L>,
 
         crate::signing::msg::Msg<E, D>,
         crate::signing::Presignature<E>,

@@ -1895,7 +1895,7 @@ This protocol is run to generate auxiliary information for each signer in a clus
     \item[\textbf{Round 1.}] \
     \begin{algorithmic}[1]
         \State Generate Paillier key $(N_i; p_i, q_i) \gets \fn{generate\_paillier\_key}^L()$
-        \State Generate Perdersen parameters $(\hat N_i, s_i, t_i; \hat \phi_i, \lambda_i) \gets \fn{generate\_pedersen\_params}^L()$
+        \State Generate Pedersen parameters $(\hat N_i, s_i, t_i; \hat \phi_i, \lambda_i) \gets \fn{generate\_pedersen\_params}^L()$
         \State Compute $\hat{\psi}_i = \proveni{prm}^L(\Encode(\sid, i), \hat N_i, s_i, t_i; \hat \phi_i, \lambda_i)$.
         \State Sample $\rho_i, u_i \leftarrow \Bit^\kappa$, 
         and compute $V_i =

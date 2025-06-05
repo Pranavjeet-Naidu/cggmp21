@@ -181,10 +181,14 @@ impl PregeneratedPrimes {
         if self.bitsize != 4 * L::SECURITY_BITS {
             panic!("Attempting to use generated primes while expecting wrong bit size");
         }
-        self.primes.chunks(2).map(|s| {
-            let p = &s[0];
-            let q = &s[1];
-            cggmp21::key_refresh::PregeneratedPrimes::new(p.clone(), q.clone())
+        self.primes.chunks(4).map(|primes| {
+            let primes = [
+                primes[0].clone(),
+                primes[1].clone(),
+                primes[2].clone(),
+                primes[3].clone(),
+            ];
+            cggmp21::key_refresh::PregeneratedPrimes::try_from(primes)
                 .expect("primes have wrong bit size")
         })
     }

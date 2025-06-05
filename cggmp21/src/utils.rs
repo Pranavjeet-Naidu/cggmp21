@@ -215,6 +215,47 @@ pub fn generate_blum_prime(rng: &mut impl rand_core::RngCore, bits_size: u32) ->
     }
 }
 
+/// Takes safe primes p, q, generates and outputs [`PedersenParams`], `phi`, `lambda`
+pub fn generate_pedersen_params(
+    rng: &mut impl rand_core::CryptoRngCore,
+    p: Integer,
+    q: Integer,
+) -> Result<(crate::key_share::PedersenParams, Integer, Integer), GenPedersenError> {
+    use paillier_zk::IntegerExt;
+    use rug::Complete;
+
+    let crt = paillier_zk::fast_paillier::utils::CrtExp::build_n(&p, &q)
+        .ok_or(GenPedersenError::BuildCrt)?;
+    let N = (&p * &q).complete();
+    let phi_N = (&p - 1u8).complete() * (&q - 1u8).complete();
+
+    let r = Integer::gen_invertible(&N, rng);
+    let lambda = Integer::random_below(phi_N.clone() >> 2, &mut external_rand(rng));
+
+    let t = r.square().modulo(&N);
+    let s = crt
+        .exp(&t, &crt.prepare_exponent(&lambda))
+        .ok_or(GenPedersenError::PowMod)?;
+
+    let params = crate::key_share::PedersenParams {
+        hat_N: N,
+        s,
+        t,
+        multiexp: None,
+        crt: Some(crt),
+    };
+
+    Ok((params, phi_N, lambda))
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum GenPedersenError {
+    #[error("build crt")]
+    BuildCrt,
+    #[error("pow mod")]
+    PowMod,
+}
+
 /// Unambiguous encoding for different types for which it was not defined
 pub mod encoding {
     use paillier_zk::rug;

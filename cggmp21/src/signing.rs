@@ -21,9 +21,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::errors::IoError;
-use crate::key_share::{KeyShare, PartyAux, VssSetup};
+use crate::key_share::{InvalidKeyShare, KeyShare, PedersenParams, VssSetup};
 use crate::progress::Tracer;
-use crate::{key_share::InvalidKeyShare, security_level::SecurityLevel, utils, ExecutionId};
+use crate::{security_level::SecurityLevel, utils, ExecutionId};
 
 use self::msg::*;
 
@@ -530,7 +530,7 @@ where
     // Validate arguments
     let n: u16 = key_share
         .aux
-        .parties
+        .pedersen_params
         .len()
         .try_into()
         .map_err(|_| Bug::PartiesNumberExceedsU16)?;
@@ -591,7 +591,7 @@ where
 
     // Assemble rest of the data
     let (p_i, q_i) = (&key_share.aux.p, &key_share.aux.q);
-    let R = utils::subset(S, &key_share.aux.parties).ok_or(Bug::Subset)?;
+    let R = utils::subset(S, &key_share.aux.pedersen_params).ok_or(Bug::Subset)?;
 
     // t-out-of-t signing
     signing_n_out_of_n::<_, _, L, _, _>(
@@ -629,7 +629,7 @@ async fn signing_n_out_of_n<M, E, L, D, R>(
     pk: Point<E>,
     p_i: &Integer,
     q_i: &Integer,
-    R: &[PartyAux],
+    R: &[PedersenParams],
     message_to_sign: Option<DataToSign<E>>,
     enforce_reliable_broadcast: bool,
 ) -> Result<ProtocolOutput<E>, SigningError>
@@ -648,7 +648,7 @@ where
 
     tracer.stage("Retrieve auxiliary data");
     let R_i = &R[usize::from(i)];
-    let N_i = &R_i.N;
+    let N_i = &R_i.hat_N;
     let dec_i: fast_paillier::DecryptionKey =
         fast_paillier::DecryptionKey::from_primes(p_i.clone(), q_i.clone())
             .map_err(|_| Bug::InvalidOwnPaillierKey)?;
@@ -793,7 +793,7 @@ where
                 &unambiguous::ProofEnc { sid, prover: j },
                 &R_i.into(),
                 pi_enc::Data {
-                    key: &fast_paillier::EncryptionKey::from_n(R_j.N.clone()),
+                    key: &fast_paillier::EncryptionKey::from_n(R_j.hat_N.clone()),
                     ciphertext: &ciphertext.K,
                 },
                 &proof.psi0.0,
@@ -821,7 +821,7 @@ where
     for (j, _, ciphertext_j) in ciphertexts.iter_indexed() {
         tracer.stage("Sample random r, hat_r, s, hat_s, beta, hat_beta");
         let R_j = &R[usize::from(j)];
-        let N_j = &R_j.N;
+        let N_j = &R_j.hat_N;
         let enc_j = fast_paillier::EncryptionKey::from_n(N_j.clone());
 
         let r_ij = N_i.random_below_ref(&mut utils::external_rand(rng)).into();
@@ -994,7 +994,7 @@ where
         tracer.stage("Retrieve auxiliary data");
         let X_j = X[usize::from(j)];
         let R_j = &R[usize::from(j)];
-        let enc_j = fast_paillier::EncryptionKey::from_n(R_j.N.clone());
+        let enc_j = fast_paillier::EncryptionKey::from_n(R_j.hat_N.clone());
 
         tracer.stage("Validate psi");
         let psi_invalid = pi_aff::non_interactive::verify::<E, D>(
@@ -1165,7 +1165,7 @@ where
         round3_msgs.iter_indexed().zip(ciphertexts.iter_indexed())
     {
         let R_j = &R[usize::from(j)];
-        let enc_j = fast_paillier::EncryptionKey::from_n(R_j.N.clone());
+        let enc_j = fast_paillier::EncryptionKey::from_n(R_j.hat_N.clone());
 
         let data = pi_log::Data {
             key0: &enc_j,

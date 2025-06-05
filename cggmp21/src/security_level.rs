@@ -207,10 +207,7 @@ pub(crate) fn validate_public_paillier_key_size<L: SecurityLevel>(N: &Integer) -
     N.significant_bits() >= 8 * L::SECURITY_BITS - 1
 }
 
-/// Checks that secret paillier key meets security level constraints
-pub(crate) fn validate_secret_paillier_key_size<L: SecurityLevel>(
-    p: &Integer,
-    q: &Integer,
-) -> bool {
-    p.significant_bits() >= 4 * L::SECURITY_BITS && q.significant_bits() >= 4 * L::SECURITY_BITS
+/// Checks that a prime, that is a part of secret paillier key, meets security level constraints
+pub(crate) fn validate_secret_paillier_prime_size<L: SecurityLevel>(prime: &Integer) -> bool {
+    prime.significant_bits() >= 4 * L::SECURITY_BITS
 }
