@@ -1845,6 +1845,42 @@ Since we have not yet implemented a $t$-out-of-$n$ version of key refresh, and d
 
 This protocol is run to generate auxiliary information for each signer in a cluster.  
 
+\subsubsection{Utility functions}
+
+\begin{description}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\fn{generate\_paillier\_key}^L() \to (N; p, q)$}
+\algoInputs{security level $L = (\kappa_\rsa, \dots)$}
+\algoOutputsList{
+    \item Paillier public key $N \in \Z$ of $n_\rsa$ bits or more
+    \item safe primes $p, q \in \Z^2$, each of $\kappa_\rsa$ bits or more
+}
+\begin{algorithmic}[1]
+\State Generate $\kappa_\rsa$-bit safe primes $p, q$ using the algorithm from Section~\ref{sec:safe-prime}.
+\State Compute Pailier public key $N = pq$
+\State \Return $(N; p, q)$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\fn{generate\_pedersen\_params}^L() \to (N, s, t; \phi, \lambda)$}
+\algoInputs{security level $L = (\kappa_\rsa, \dots)$}
+\algoOutputs{Pedersen public parameters $N, s, t \in \Z^3$, and secret parameter $\lambda \in \Z$}
+\begin{algorithmic}[1]
+\State $(N; p, q) \gets \fn{generate\_paillier\_key}^L()$
+\State Set $\phi = (p-1)(q-1)$
+\State Sample $r \gets \Z^*_N$, and $\lambda \gets [\phi/4]$
+\State Set $t = r^2 \bmod N$, and $s = t^\lambda \bmod N$
+\State \Return $(N, s, t; \phi, \lambda)$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\end{description}
+
+\subsubsection{Protocol}
 
 \begin{description}
     \item[\textbf{Input.}] \
@@ -1858,50 +1894,48 @@ This protocol is run to generate auxiliary information for each signer in a clus
 
     \item[\textbf{Round 1.}] \
     \begin{algorithmic}[1]
-        \State Generate $\kappa_\rsa$-bit safe primes $p_i, q_i$ using the algorithm from Section~\ref{sec:safe-prime}.
-        \State Compute $N_i = p_iq_i$ and $\phi = (p_i - 1)(q_i - 1)$, and create a Paillier decryption key $\sk_i$ using those values.
-        \State Sample  $r \gets \Z_{N_i}^{*}$ and $\lambda \gets \Z_\phi$,
-        and compute $t_i = r_i^2 \bmod N_i$ and $s_i = t_i^\lambda \bmod N_i$.
-        \State Compute $\hat{\psi}_i = \proveni{prm}^L(\Encode(\sid, i), N_i, s_i, t_i; \phi, \lambda)$.
+        \State Generate Paillier key $(N_i; p_i, q_i) \gets \fn{generate\_paillier\_key}^L()$
+        \State Generate Perdersen parameters $(\hat N_i, s_i, t_i; \hat \phi_i, \lambda_i) \gets \fn{generate\_pedersen\_params}^L()$
+        \State Compute $\hat{\psi}_i = \proveni{prm}^L(\Encode(\sid, i), \hat N_i, s_i, t_i; \hat \phi_i, \lambda_i)$.
         \State Sample $\rho_i, u_i \leftarrow \Bit^\kappa$, 
         and compute $V_i =
-        H(\Encode[hash\_com](\sid, i, N_i, s_i, t_i, \hat{\psi}_i, \rho_i, u_i))$.
+        H(\Encode[hash\_com](\sid, i, N_i, \hat N_i, s_i, t_i, \hat{\psi}_i, \rho_i, u_i))$.
         \State Send $V_i$ to all parties.
     \end{algorithmic}
     
 
     \item[\textbf{Round 2.}] \
     \begin{algorithmic}[1]
-        \State Receive $V_j \in \Bit^\kappa$ from all parties
+        \State Receive $V_j \in \Byte^*$ from all parties
         \If{$\var{echo\_enabled}$} \Comment{Reliability check}
             \State Compute $h_i = H(\Encode[echo](\sid, V_0, \dots, V_{n-1}))$ and 
             send $h_i$ to all parties
             \State Upon receiving $h_j \in \Bit^\kappa$ from all parties, abort if $h_i \neq h_j$ for some $j \in [n]$
         \EndIf
-        \State Send $(N_i, s_i, t_i, \hat{\psi}_i, \rho_i, u_i)$ to all parties
+        \State Send $(N_i, \hat N_i, s_i, t_i, \hat{\psi}_i, \rho_i, u_i)$ to all parties
     \end{algorithmic}
 
     \item[\textbf{Round 3.}] \
 
     \begin{algorithmic}[1]
-        \State Receive $(N_j, s_j, t_j, \hat{\psi}_j, \rho_j, u_j)$
+        \State Receive $(N_j, \hat N_j, s_j, t_j, \hat{\psi}_j, \rho_j, u_j)$
         from all parties
-        \State For all $j \in [n]$, set $R_j = (N_j, s_j, t_j)$; let
-        $\vec{R} = (R_j)_{j \in [n]}$
+        \State For all $j \in [n]$, set $R_j = (\hat N_j, s_j, t_j)$; let
+        $\vec{R} = (R_j)_{j \in [n]}$, and $\vec N = (N_j)_{j \in [n]}$
 
         \For{$j \in [n] \setminus \{i\}$}
-            \State Assert $(N_j, s_j, t_j, \rho_j, u_j) \? \in
+            \State Assert $(N_j, \hat N_j, s_j, t_j, \rho_j, u_j) \? \in
                 (\Z, \Z, \Z, \Bit^\kappa, \Bit^\kappa)$
             \State Assert $V_j \? =
-                H(\Encode[hash\_com](\sid, j, N_j, s_j, t_j, \hat{\psi}_j, \rho_j, u_j))$
-            \State Assert $N_j$ is at least $8 \cdot \kappa - 1$ bits in length
-            \State Assert $\verifyni{prm}^L(\Encode(\sid, j), N_j, s_j, t_j, \hat{\psi}_j)$
+                H(\Encode[hash\_com](\sid, j, N_j, \hat N_j, s_j, t_j, \hat{\psi}_j, \rho_j, u_j))$
+            \State Assert that $N_j, \hat N_j$ are at least $n_\rsa$ bits in length
+            \State Assert $\verifyni{prm}^L(\Encode(\sid, j), \hat N_j, s_j, t_j, \hat{\psi}_j)$
         \EndFor
         \State Compute $\rho=\bigoplus_j \rho_j$
         \State Compute $\psi_i = \proveni{mod}^L(\Encode(\sid, i, \rho), N_i; (p_i, q_i))$
         \For{$j \in [n] \setminus \{i\}$}
-            \State Compute $\phi_i^j = \proveni{fac}^{L}(\Encode(\sid, i, \rho), R_j, N_i; (p_i, q_i))$
-            \State Send $(\psi_i, \phi_i^j)$ to $P_j$
+            \State Compute $\psi'_{i,j} = \proveni{fac}^{L}(\Encode(\sid, i, \rho), R_j, N_i; (p_i, q_i))$
+            \State Send $(\psi_i, \psi'_{i,j})$ to $P_j$
         \EndFor
     \end{algorithmic}
 
@@ -1909,13 +1943,13 @@ This protocol is run to generate auxiliary information for each signer in a clus
     \item[\textbf{Output.}] \
 
     \begin{algorithmic}[1]
-        \State Receive $(\psi_j, \phi_j^i)$ from all parties
+        \State Receive $(\psi_j, \psi'_{j,i})$ from all parties
         \For{$j \in [n] \setminus \{i\}$}
             \State Assert $\verifyni{mod}^L(\Encode(\sid, j, \rho), N_j, \psi_j)$
-            \State Assert $\verifyni{fac}^{L}(\Encode(\sid, j, \rho), R_i, N_j, \phi_j^i)$
+            \State Assert $\verifyni{fac}^{L}(\Encode(\sid, j, \rho), R_i, N_j, \psi'_{j,i})$
         \EndFor
         \State For $j \in [n]$ (including $j=i$), precompute a fixed-based multiexponentiation table $T_j$ as described in Section~\ref{sec:multiexp}. Let $\vec{T} = (T_j)_{j \in [n]}$
-        \State \Return $(p_i, q_i, \vec{R}, \vec{T})$
+        \State \Return $(p_i, q_i, \vec N, \vec{R}, \vec{T})$
     \end{algorithmic}
 
 \end{description}
