@@ -335,14 +335,13 @@ where
         {
             true
         } else {
-            let data = π_prm::Data {
-                N: &d.hat_N,
-                s: &d.s,
-                t: &d.t,
-            };
             π_prm::verify::<{ crate::security_level::M }, D>(
                 &unambiguous::ProofPrm { sid, prover: j },
-                data,
+                π_prm::Data {
+                    N: &d.hat_N,
+                    s: &d.s,
+                    t: &d.t,
+                },
                 &d.params_proof,
             )
             .is_err()
@@ -367,11 +366,8 @@ where
             rho: rho_bytes.as_ref(),
             prover: i,
         },
-        &π_mod::Data { n: N.clone() },
-        &π_mod::PrivateData {
-            p: p.clone(),
-            q: q.clone(),
-        },
+        π_mod::Data { n: &N },
+        π_mod::PrivateData { p: &p, q: &q },
         &mut rng,
     )
     .map_err(Bug::PiMod)?;
@@ -442,9 +438,6 @@ where
         &decommitments,
         &shares_msg_b,
         |j, decommitment, proof_msg| {
-            let data = π_mod::Data {
-                n: decommitment.N.clone(),
-            };
             let (comm, proof) = &proof_msg.mod_proof;
             π_mod::non_interactive::verify::<{ crate::security_level::M }, D>(
                 &unambiguous::ProofMod {
@@ -452,7 +445,7 @@ where
                     rho: rho_bytes.as_ref(),
                     prover: j,
                 },
-                &data,
+                π_mod::Data { n: &decommitment.N },
                 comm,
                 proof,
             )
@@ -466,13 +459,7 @@ where
     tracer.stage("Validate ψ'_j,i (П_fac)");
     // verify fac proofs
 
-    let phi_common_aux = π_fac::Aux {
-        s: pedersen_params.s.clone(),
-        t: pedersen_params.t.clone(),
-        rsa_modulo: pedersen_params.hat_N.clone(),
-        multiexp: None,
-        crt: pedersen_params.crt.clone(),
-    };
+    let phi_common_aux: π_fac::Aux = (&pedersen_params).into();
     let blame = collect_blame(
         &decommitments,
         &shares_msg_b,

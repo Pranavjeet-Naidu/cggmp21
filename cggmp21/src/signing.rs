@@ -15,7 +15,7 @@ use rand_core::{CryptoRng, RngCore};
 use round_based::{
     rounds_router::{simple_store::RoundInput, RoundsRouter},
     runtime::AsyncRuntime,
-    Delivery, Mpc, MpcParty, MsgId, Outgoing, PartyIndex,
+    Delivery, Mpc, MpcParty, Outgoing, PartyIndex,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -771,11 +771,8 @@ where
             .map_err(IoError::receive_message)?;
         tracer.msgs_received();
         tracer.stage("Assert other parties hashed messages (reliability check)");
-        let parties_have_different_hashes = round1a_hashes
-            .into_iter_indexed()
-            .filter(|(_j, _msg_id, hash)| hash.0 != h_i)
-            .map(|(j, msg_id, _)| (j, msg_id))
-            .collect::<Vec<_>>();
+        let parties_have_different_hashes =
+            utils::collect_simple_blame(&round1a_hashes, |hash| hash.0 != h_i);
         if !parties_have_different_hashes.is_empty() {
             return Err(SigningAborted::Round1aNotReliable(parties_have_different_hashes).into());
         }
@@ -784,27 +781,22 @@ where
     // Step 1. Verify proofs
     tracer.stage("Verify psi0 proofs");
     {
-        let mut faulty_parties = vec![];
-        for ((j, msg1_id, ciphertext), (_, msg2_id, proof)) in
-            ciphertexts.iter_indexed().zip(psi0.iter_indexed())
-        {
-            let R_j = &R[usize::from(j)];
-            if pi_enc::non_interactive::verify::<D>(
-                &unambiguous::ProofEnc { sid, prover: j },
-                &R_i.into(),
-                pi_enc::Data {
-                    key: &fast_paillier::EncryptionKey::from_n(R_j.hat_N.clone()),
-                    ciphertext: &ciphertext.K,
-                },
-                &proof.psi0.0,
-                &security_params.pi_enc,
-                &proof.psi0.1,
-            )
-            .is_err()
-            {
-                faulty_parties.push((j, msg1_id, msg2_id))
-            }
-        }
+        let faulty_parties =
+            utils::collect_blame_with_data(&ciphertexts, &psi0, |j, ciphertext, proof| {
+                let R_j = &R[usize::from(j)];
+                pi_enc::non_interactive::verify::<D>(
+                    &unambiguous::ProofEnc { sid, prover: j },
+                    &R_i.into(),
+                    pi_enc::Data {
+                        key: &fast_paillier::EncryptionKey::from_n(R_j.hat_N.clone()),
+                        ciphertext: &ciphertext.K,
+                    },
+                    &proof.psi0.0,
+                    &security_params.pi_enc,
+                    &proof.psi0.1,
+                )
+                .err()
+            });
 
         if !faulty_parties.is_empty() {
             return Err(SigningAborted::EncProofOfK(faulty_parties).into());
@@ -987,93 +979,87 @@ where
         .map_err(IoError::receive_message)?;
     tracer.msgs_received();
 
-    let mut faulty_parties = vec![];
-    for ((j, msg_id, msg), (_, ciphertext_msg_id, ciphertexts)) in
-        round2_msgs.iter_indexed().zip(ciphertexts.iter_indexed())
-    {
-        tracer.stage("Retrieve auxiliary data");
-        let X_j = X[usize::from(j)];
-        let R_j = &R[usize::from(j)];
-        let enc_j = fast_paillier::EncryptionKey::from_n(R_j.hat_N.clone());
+    let faulty_parties =
+        utils::collect_blame_with_data(&round2_msgs, &ciphertexts, |j, msg, ciphertexts| {
+            tracer.stage("Retrieve auxiliary data");
+            let X_j = X[usize::from(j)];
+            let R_j = &R[usize::from(j)];
+            let enc_j = fast_paillier::EncryptionKey::from_n(R_j.hat_N.clone());
 
-        tracer.stage("Validate psi");
-        let psi_invalid = pi_aff::non_interactive::verify::<E, D>(
-            &unambiguous::ProofPsi {
-                sid,
-                prover: j,
-                hat: false,
-            },
-            &R_i.into(),
-            pi_aff::Data {
-                key0: &dec_i,
-                key1: &enc_j,
-                c: &K_i,
-                d: &msg.D,
-                y: &msg.F,
-                x: &msg.Gamma,
-            },
-            &msg.psi.0,
-            &security_params.pi_aff,
-            &msg.psi.1,
-        )
-        .err();
+            tracer.stage("Validate psi");
+            let psi_invalid = pi_aff::non_interactive::verify::<E, D>(
+                &unambiguous::ProofPsi {
+                    sid,
+                    prover: j,
+                    hat: false,
+                },
+                &R_i.into(),
+                pi_aff::Data {
+                    key0: &dec_i,
+                    key1: &enc_j,
+                    c: &K_i,
+                    d: &msg.D,
+                    y: &msg.F,
+                    x: &msg.Gamma,
+                },
+                &msg.psi.0,
+                &security_params.pi_aff,
+                &msg.psi.1,
+            )
+            .err();
 
-        tracer.stage("Validate hat_psi");
-        let hat_psi_invalid = pi_aff::non_interactive::verify::<E, D>(
-            &unambiguous::ProofPsi {
-                sid,
-                prover: j,
-                hat: true,
-            },
-            &R_i.into(),
-            pi_aff::Data {
-                key0: &dec_i,
-                key1: &enc_j,
-                c: &K_i,
-                d: &msg.hat_D,
-                y: &msg.hat_F,
-                x: &X_j,
-            },
-            &msg.hat_psi.0,
-            &security_params.pi_aff,
-            &msg.hat_psi.1,
-        )
-        .err();
+            tracer.stage("Validate hat_psi");
+            let hat_psi_invalid = pi_aff::non_interactive::verify::<E, D>(
+                &unambiguous::ProofPsi {
+                    sid,
+                    prover: j,
+                    hat: true,
+                },
+                &R_i.into(),
+                pi_aff::Data {
+                    key0: &dec_i,
+                    key1: &enc_j,
+                    c: &K_i,
+                    d: &msg.hat_D,
+                    y: &msg.hat_F,
+                    x: &X_j,
+                },
+                &msg.hat_psi.0,
+                &security_params.pi_aff,
+                &msg.hat_psi.1,
+            )
+            .err();
 
-        tracer.stage("Validate psi_prime");
-        let psi_prime_invalid = pi_log::non_interactive::verify::<E, D>(
-            &unambiguous::ProofLog {
-                sid,
-                prover: j,
-                prime_prime: false,
-            },
-            &R_i.into(),
-            pi_log::Data {
-                key0: &enc_j,
-                c: &ciphertexts.G,
-                x: &msg.Gamma,
-                b: &Point::<E>::generator().to_point(),
-            },
-            &msg.psi_prime.0,
-            &security_params.pi_log,
-            &msg.psi_prime.1,
-        )
-        .err();
+            tracer.stage("Validate psi_prime");
+            let psi_prime_invalid = pi_log::non_interactive::verify::<E, D>(
+                &unambiguous::ProofLog {
+                    sid,
+                    prover: j,
+                    prime_prime: false,
+                },
+                &R_i.into(),
+                pi_log::Data {
+                    key0: &enc_j,
+                    c: &ciphertexts.G,
+                    x: &msg.Gamma,
+                    b: &Point::<E>::generator().to_point(),
+                },
+                &msg.psi_prime.0,
+                &security_params.pi_log,
+                &msg.psi_prime.1,
+            )
+            .err();
 
-        if psi_invalid.is_some() || hat_psi_invalid.is_some() || psi_prime_invalid.is_some() {
-            faulty_parties.push((
-                j,
-                ciphertext_msg_id,
-                msg_id,
-                (psi_invalid, hat_psi_invalid, psi_prime_invalid),
-            ))
-        }
-        runtime.yield_now().await;
-    }
-
+            if psi_invalid.is_some() || hat_psi_invalid.is_some() || psi_prime_invalid.is_some() {
+                Some((psi_invalid, hat_psi_invalid, psi_prime_invalid))
+            } else {
+                None
+            }
+        });
     if !faulty_parties.is_empty() {
         return Err(SigningAborted::InvalidPsi(faulty_parties).into());
     }
+    runtime.yield_now().await;
 
     // Step 2
     tracer.stage("Compute Gamma, Delta_i, delta_i, chi_i");
@@ -1160,42 +1146,36 @@ where
     tracer.msgs_received();
 
     tracer.stage("Validate psi_prime_prime");
-    let mut faulty_parties = vec![];
-    for ((j, msg_id, msg_j), (_, ciphertext_id, ciphertext_j)) in
-        round3_msgs.iter_indexed().zip(ciphertexts.iter_indexed())
-    {
-        let R_j = &R[usize::from(j)];
-        let enc_j = fast_paillier::EncryptionKey::from_n(R_j.hat_N.clone());
+    let faulty_parties =
+        utils::collect_blame_with_data(&round3_msgs, &ciphertexts, |j, msg_j, ciphertext_j| {
+            let R_j = &R[usize::from(j)];
+            let enc_j = fast_paillier::EncryptionKey::from_n(R_j.hat_N.clone());
 
-        let data = pi_log::Data {
-            key0: &enc_j,
-            c: &ciphertext_j.K,
-            x: &msg_j.Delta,
-            b: &Gamma,
-        };
+            let data = pi_log::Data {
+                key0: &enc_j,
+                c: &ciphertext_j.K,
+                x: &msg_j.Delta,
+                b: &Gamma,
+            };
 
-        if pi_log::non_interactive::verify::<E, D>(
-            &unambiguous::ProofLog {
-                sid,
-                prover: j,
-                prime_prime: true,
-            },
-            &R_i.into(),
-            data,
-            &msg_j.psi_prime_prime.0,
-            &security_params.pi_log,
-            &msg_j.psi_prime_prime.1,
-        )
-        .is_err()
-        {
-            faulty_parties.push((j, ciphertext_id, msg_id))
-        }
-    }
-    runtime.yield_now().await;
-
+            pi_log::non_interactive::verify::<E, D>(
+                &unambiguous::ProofLog {
+                    sid,
+                    prover: j,
+                    prime_prime: true,
+                },
+                &R_i.into(),
+                data,
+                &msg_j.psi_prime_prime.0,
+                &security_params.pi_log,
+                &msg_j.psi_prime_prime.1,
+            )
+            .err()
+        });
     if !faulty_parties.is_empty() {
         return Err(SigningAborted::InvalidPsiPrimePrime(faulty_parties).into());
     }
+    runtime.yield_now().await;
 
     // Step 2
     tracer.stage("Calculate presignature");
@@ -1526,13 +1506,11 @@ enum Reason {
 #[derive(Debug, Error)]
 enum SigningAborted {
     #[error("pi_enc::verify(K) failed")]
-    EncProofOfK(Vec<(PartyIndex, MsgId, MsgId)>),
+    EncProofOfK(Vec<(utils::AbortBlame, paillier_zk::InvalidProof)>),
     #[error("ψ, ψˆ, or ψ' proofs are invalid")]
     InvalidPsi(
         Vec<(
-            PartyIndex,
-            MsgId,
-            MsgId,
+            utils::AbortBlame,
             (
                 Option<paillier_zk::InvalidProof>,
                 Option<paillier_zk::InvalidProof>,
@@ -1541,13 +1519,13 @@ enum SigningAborted {
         )>,
     ),
     #[error("ψ'' proof is invalid")]
-    InvalidPsiPrimePrime(Vec<(PartyIndex, MsgId, MsgId)>),
+    InvalidPsiPrimePrime(Vec<(utils::AbortBlame, paillier_zk::InvalidProof)>),
     #[error("Delta != G * delta")]
     MismatchedDelta,
     #[error("resulting signature is not valid")]
     SignatureInvalid,
     #[error("other parties received different broadcast messages at round1a")]
-    Round1aNotReliable(Vec<(PartyIndex, MsgId)>),
+    Round1aNotReliable(Vec<utils::AbortBlame>),
 }
 
 #[derive(Debug, Error)]
