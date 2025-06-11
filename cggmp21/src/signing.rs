@@ -591,6 +591,7 @@ where
 
     // Assemble rest of the data
     let (p_i, q_i) = (&key_share.aux.p, &key_share.aux.q);
+    let N = utils::subset(S, &key_share.aux.N).ok_or(Bug::Subset)?;
     let R = utils::subset(S, &key_share.aux.pedersen_params).ok_or(Bug::Subset)?;
 
     // t-out-of-t signing
@@ -606,6 +607,7 @@ where
         key_share.core.shared_public_key + Shift,
         p_i,
         q_i,
+        &N,
         &R,
         message_to_sign,
         enforce_reliable_broadcast,
@@ -629,6 +631,7 @@ async fn signing_n_out_of_n<M, E, L, D, R>(
     pk: Point<E>,
     p_i: &Integer,
     q_i: &Integer,
+    N: &[Integer],
     R: &[PedersenParams],
     message_to_sign: Option<DataToSign<E>>,
     enforce_reliable_broadcast: bool,
@@ -648,7 +651,8 @@ where
 
     tracer.stage("Retrieve auxiliary data");
     let R_i = &R[usize::from(i)];
-    let N_i = &R_i.hat_N;
+    let N_i = &N[usize::from(i)];
+
     let dec_i: fast_paillier::DecryptionKey =
         fast_paillier::DecryptionKey::from_primes(p_i.clone(), q_i.clone())
             .map_err(|_| Bug::InvalidOwnPaillierKey)?;
@@ -783,12 +787,11 @@ where
     {
         let faulty_parties =
             utils::collect_blame_with_data(&ciphertexts, &psi0, |j, ciphertext, proof| {
-                let R_j = &R[usize::from(j)];
                 pi_enc::non_interactive::verify::<D>(
                     &unambiguous::ProofEnc { sid, prover: j },
                     &R_i.into(),
                     pi_enc::Data {
-                        key: &fast_paillier::EncryptionKey::from_n(R_j.hat_N.clone()),
+                        key: &fast_paillier::EncryptionKey::from_n(N[usize::from(j)].clone()),
                         ciphertext: &ciphertext.K,
                     },
                     &proof.psi0.0,
@@ -813,7 +816,7 @@ where
     for (j, _, ciphertext_j) in ciphertexts.iter_indexed() {
         tracer.stage("Sample random r, hat_r, s, hat_s, beta, hat_beta");
         let R_j = &R[usize::from(j)];
-        let N_j = &R_j.hat_N;
+        let N_j = &N[usize::from(j)];
         let enc_j = fast_paillier::EncryptionKey::from_n(N_j.clone());
 
         let r_ij = N_i.random_below_ref(&mut utils::external_rand(rng)).into();
@@ -983,8 +986,7 @@ where
         utils::collect_blame_with_data(&round2_msgs, &ciphertexts, |j, msg, ciphertexts| {
             tracer.stage("Retrieve auxiliary data");
             let X_j = X[usize::from(j)];
-            let R_j = &R[usize::from(j)];
-            let enc_j = fast_paillier::EncryptionKey::from_n(R_j.hat_N.clone());
+            let enc_j = fast_paillier::EncryptionKey::from_n(N[usize::from(j)].clone());
 
             tracer.stage("Validate psi");
             let psi_invalid = pi_aff::non_interactive::verify::<E, D>(
@@ -1148,8 +1150,7 @@ where
     tracer.stage("Validate psi_prime_prime");
     let faulty_parties =
         utils::collect_blame_with_data(&round3_msgs, &ciphertexts, |j, msg_j, ciphertext_j| {
-            let R_j = &R[usize::from(j)];
-            let enc_j = fast_paillier::EncryptionKey::from_n(R_j.hat_N.clone());
+            let enc_j = fast_paillier::EncryptionKey::from_n(N[usize::from(j)].clone());
 
             let data = pi_log::Data {
                 key0: &enc_j,

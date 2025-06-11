@@ -1,4 +1,4 @@
-use cggmp21::{key_share::AnyKeyShare, security_level::SecurityLevel128};
+use cggmp21::key_share::AnyKeyShare;
 use cggmp21_tests::{convert_from_stark_scalar, convert_stark_scalar};
 use generic_ec::{coords::HasAffineX, curves::Stark};
 use rand::{seq::SliceRandom, Rng};
@@ -11,7 +11,7 @@ fn sign_transaction() {
     let n = 3;
 
     let shares = cggmp21_tests::CACHED_SHARES
-        .get_shares::<Stark, SecurityLevel128>(t, n, false)
+        .get_shares::<Stark>(t, n, false)
         .expect("retrieve cached shares");
 
     let eid: [u8; 32] = rng.gen();

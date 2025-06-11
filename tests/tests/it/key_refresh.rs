@@ -25,7 +25,7 @@ where
     let mut rng = rand_dev::DevRng::new();
 
     let shares = cggmp21_tests::CACHED_SHARES
-        .get_shares::<E, SecurityLevel128>(Some(t), n, false)
+        .get_shares::<E>(Some(t), n, false)
         .expect("retrieve cached shares");
     let mut primes = cggmp21_tests::CACHED_PRIMES.iter::<SecurityLevel128>();
 
@@ -78,16 +78,23 @@ where
     println!("Signers: {participants:?}");
     let participants_shares = participants.iter().map(|i| &key_shares[usize::from(*i)]);
 
-    let sig = round_based::sim::run_with_setup(participants_shares, |i, party, share| {
-        let party = cggmp21_tests::buffer_outgoing(party);
-        let mut party_rng = rng.fork();
-        async move {
-            cggmp21::signing(eid, i, participants, share)
-                .enforce_reliable_broadcast(reliable_broadcast)
-                .sign(&mut party_rng, party, message_to_sign)
-                .await
-        }
-    })
+    let mut tracers = (0..t)
+        .map(|i| cggmp21::progress::Stderr::new().with_prefix(i))
+        .collect::<Vec<_>>();
+    let sig = round_based::sim::run_with_setup(
+        participants_shares.zip(&mut tracers),
+        |i, party, (share, tracer)| {
+            let party = cggmp21_tests::buffer_outgoing(party);
+            let mut party_rng = rng.fork();
+            async move {
+                cggmp21::signing(eid, i, participants, share)
+                    .set_progress_tracer(tracer)
+                    .enforce_reliable_broadcast(reliable_broadcast)
+                    .sign(&mut party_rng, party, message_to_sign)
+                    .await
+            }
+        },
+    )
     .unwrap()
     .expect_ok()
     .expect_eq();

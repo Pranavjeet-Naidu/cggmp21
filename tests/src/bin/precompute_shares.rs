@@ -1,10 +1,7 @@
 use anyhow::{bail, Context, Result};
 use cggmp21::supported_curves::{Secp256k1, Secp256r1, Stark};
-use cggmp21::{
-    security_level::{KeygenSecurityLevel, SecurityLevel128},
-    trusted_dealer,
-};
-use cggmp21_tests::{generate_blum_prime, PrecomputedKeyShares, PregeneratedPrimes};
+use cggmp21::{security_level::SecurityLevel128, trusted_dealer};
+use cggmp21_tests::{PrecomputedKeyShares, PregeneratedPrimes};
 use generic_ec::Curve;
 use rand::{rngs::OsRng, CryptoRng, RngCore};
 
@@ -49,6 +46,17 @@ fn precompute_shares() -> Result<()> {
     let mut rng = OsRng;
     let mut cache = PrecomputedKeyShares::empty();
 
+    eprintln!("precompute aux data");
+    let max_n = 10;
+    let primes = PregeneratedPrimes::generate::<_, SecurityLevel128>(max_n, &mut rng);
+    let primes = primes.iter::<SecurityLevel128>().collect::<Vec<_>>();
+
+    let aux = cggmp21::trusted_dealer::generate_aux_data_with_primes(&mut rng, primes, true)
+        .context("gen aux")?;
+
+    cache.add_aux(aux);
+
+    eprintln!("precompute shares");
     precompute_shares_for_curve::<Secp256r1, _>(&mut rng, &mut cache)?;
     precompute_shares_for_curve::<Secp256k1, _>(&mut rng, &mut cache)?;
     precompute_shares_for_curve::<Stark, _>(&mut rng, &mut cache)?;
@@ -80,18 +88,10 @@ fn precompute_shares_for_curve<E: Curve, R: RngCore + CryptoRng>(
                     "t={t:?},n={n},curve={},hd_enabled={hd_enabled}",
                     E::CURVE_NAME
                 );
-                let primes = std::iter::repeat_with(|| {
-                    let p = generate_blum_prime(rng, SecurityLevel128::SECURITY_BITS * 4);
-                    let q = generate_blum_prime(rng, SecurityLevel128::SECURITY_BITS * 4);
-                    (p, q)
-                })
-                .take(n.into())
-                .collect();
                 let shares = trusted_dealer::builder::<E, SecurityLevel128>(n)
                     .set_threshold(t)
-                    .set_pregenerated_primes(primes)
                     .hd_wallet(hd_enabled)
-                    .generate_shares(rng)
+                    .generate_core_shares(rng)
                     .context("generate shares")?;
                 cache
                     .add_shares(t, n, hd_enabled, &shares)

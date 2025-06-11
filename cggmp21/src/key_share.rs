@@ -112,7 +112,7 @@ impl<L: SecurityLevel> Validate for DirtyAuxInfo<L> {
             .find(|N| !crate::security_level::validate_public_paillier_key_size::<L>(&N))
         {
             return Err(InvalidKeyShareReason::PaillierPkTooSmall {
-                required: 8 * L::SECURITY_BITS - 1,
+                required: L::RSA_PUBKEY_BITLEN,
                 actual: N.significant_bits(),
             }
             .into());
@@ -122,7 +122,7 @@ impl<L: SecurityLevel> Validate for DirtyAuxInfo<L> {
             !crate::security_level::validate_public_paillier_key_size::<L>(&params.hat_N)
         }) {
             return Err(InvalidKeyShareReason::PedersenModuleTooSmall {
-                required: 8 * L::SECURITY_BITS - 1,
+                required: L::RSA_PUBKEY_BITLEN,
                 actual: params.hat_N.significant_bits(),
             }
             .into());
@@ -277,7 +277,7 @@ impl<E: Curve, L: SecurityLevel> DirtyKeyShare<E, L> {
             return Err(InvalidKeyShareReason::AuxLen.into());
         }
 
-        let N_i = &aux.pedersen_params[usize::from(core.i)].hat_N;
+        let N_i = &aux.N[usize::from(core.i)];
         if *N_i != (&aux.p * &aux.q).complete() {
             return Err(InvalidKeyShareReason::PrimesMul.into());
         }
@@ -435,5 +435,28 @@ impl<T> From<ValidateError<T, InvalidIncompleteKeyShare>> for InvalidKeyShare {
 impl<T> From<ValidateError<T, InvalidKeyShare>> for InvalidKeyShare {
     fn from(err: cggmp21_keygen::key_share::ValidateError<T, InvalidKeyShare>) -> Self {
         err.into_error()
+    }
+}
+
+/// Tools for migrating key shares from cggmp21 to cggmp24
+///
+/// CGGMP24 revision of the protocol introduced changes in the structure of the key shares:
+/// * The core key share [`IncompleteKeyShare`] has not changed, you can use cggmp24 library
+///   to deserialize core key share from cggmp21
+/// * However, [`AuxInfo`] and [`KeyShare`] have changed: now each signer has distinct Paillier
+///   and Pedersen keys (previously, they both were one key)
+///
+/// If you have [`KeyShare`]s serialized by cggmp21, we advise you to discard auxiliary data
+/// stored within the key share, extract the core key share (that contains the most important
+/// part of the key share), and re-generate auxiliary data by carrying out
+/// [`aux_info_gen`](crate::aux_info_gen) protocol.
+pub mod cggmp21_compat {
+    /// Deserializes a key share from cggmp21, discards the auxiliary data and extracts the core share.
+    #[derive(serde::Deserialize, Clone)]
+    pub struct ExtractCoreShare<E: generic_ec::Curve> {
+        /// Extracted core share
+        pub core: super::IncompleteKeyShare<E>,
+        #[serde(rename = "aux")]
+        _aux: serde::de::IgnoredAny,
     }
 }

@@ -82,11 +82,11 @@ pub struct MsgRound2<L: SecurityLevel> {
     // ideally it would be [u8; L::SECURITY_BYTES], but no rustc support yet
     #[serde(with = "hex")]
     #[udigest(as_bytes)]
-    pub rho_bytes: L::Rid,
+    pub rho_bytes: L::SecurityBytes,
     /// $u_i$
     #[serde(with = "hex")]
     #[udigest(as_bytes)]
-    pub decommit: L::Rid,
+    pub decommit: L::SecurityBytes,
 }
 /// Unicast message of round 3, sent to each participant
 #[derive(Clone, Serialize, Deserialize)]
@@ -214,7 +214,7 @@ where
 
     tracer.stage("Sample random bytes");
     // rho_i in paper, this signer's share of bytes
-    let mut rho_bytes = L::Rid::default();
+    let mut rho_bytes = L::SecurityBytes::default();
     rng.fill_bytes(rho_bytes.as_mut());
 
     tracer.stage("Compute hash commitment and sample decommitment");
@@ -227,7 +227,7 @@ where
         params_proof: hat_psi,
         rho_bytes: rho_bytes.clone(),
         decommit: {
-            let mut nonce = L::Rid::default();
+            let mut nonce = L::SecurityBytes::default();
             rng.fill_bytes(nonce.as_mut());
             nonce
         },

@@ -9,7 +9,7 @@ use sha2::Sha256;
 
 use cggmp21::key_share::AnyKeyShare;
 use cggmp21::signing::DataToSign;
-use cggmp21::{security_level::SecurityLevel128, ExecutionId};
+use cggmp21::ExecutionId;
 
 cggmp21_tests::test_suite! {
     test: signing_works,
@@ -42,7 +42,7 @@ where
     let mut rng = DevRng::new();
 
     let shares = cggmp21_tests::CACHED_SHARES
-        .get_shares::<E, SecurityLevel128>(t, n, hd_wallet)
+        .get_shares::<E>(t, n, hd_wallet)
         .expect("retrieve cached shares");
 
     let eid: [u8; 32] = rng.gen();
@@ -132,7 +132,7 @@ where
     let mut rng = DevRng::new();
 
     let shares = cggmp21_tests::CACHED_SHARES
-        .get_shares::<E, SecurityLevel128>(t, n, hd_wallet)
+        .get_shares::<E>(t, n, hd_wallet)
         .expect("retrieve cached shares");
 
     let eid: [u8; 32] = rng.gen();
@@ -243,7 +243,7 @@ where
     let mut rng = DevRng::new();
 
     let shares = cggmp21_tests::CACHED_SHARES
-        .get_shares::<E, SecurityLevel128>(t, n, hd_wallet)
+        .get_shares::<E>(t, n, hd_wallet)
         .expect("retrieve cached shares");
 
     let eid: [u8; 32] = rng.gen();

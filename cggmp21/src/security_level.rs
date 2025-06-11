@@ -24,6 +24,11 @@ pub const M: usize = 128;
 ///
 /// You should not implement this trait manually. Use [define_security_level] macro instead.
 pub trait SecurityLevel: KeygenSecurityLevel {
+    /// Length of RSA prime that matches [Self::SECURITY_BITS]
+    const RSA_PRIME_BITLEN: u32;
+    /// Minimal length of RSA public key (bi-prime $N = pq$) that matches [Self::SECURITY_BITS]
+    const RSA_PUBKEY_BITLEN: u32;
+
     /// $\varepsilon$ bits
     const EPSILON: usize;
 
@@ -31,14 +36,6 @@ pub trait SecurityLevel: KeygenSecurityLevel {
     const ELL: usize;
     /// $\ell'$ parameter
     const ELL_PRIME: usize;
-
-    /// $m$ parameter
-    ///
-    /// **Note:** currently, security parameter $m$ is hardcoded to [`M = 128`](M) due to compiler limitations.
-    /// If you implement this trait directly, actual value of $m$ will be ignored. If you're using [define_security_level] macro
-    /// it will produce a compilation error if different value of $m$ is set. We're going to fix that once `generic_const_exprs`
-    /// feature is stable.
-    const M: usize;
 
     /// $q$ parameter
     ///
@@ -70,43 +67,11 @@ pub fn max_exponents_size<L: SecurityLevel>() -> (u32, u32) {
 /// Internal module that's powers `define_security_level` macro
 #[doc(hidden)]
 pub mod _internal {
-    use hex::FromHex;
 
     pub use crate::rug::Integer;
     pub use cggmp21_keygen::security_level::{
         define_security_level as define_keygen_security_level, SecurityLevel as KeygenSecurityLevel,
     };
-
-    #[derive(Clone)]
-    pub struct Rid<const N: usize>([u8; N]);
-
-    impl<const N: usize> AsRef<[u8]> for Rid<N> {
-        fn as_ref(&self) -> &[u8] {
-            &self.0
-        }
-    }
-
-    impl<const N: usize> AsMut<[u8]> for Rid<N> {
-        fn as_mut(&mut self) -> &mut [u8] {
-            &mut self.0
-        }
-    }
-
-    impl<const N: usize> Default for Rid<N> {
-        fn default() -> Self {
-            Self([0u8; N])
-        }
-    }
-
-    impl<const N: usize> FromHex for Rid<N>
-    where
-        [u8; N]: FromHex,
-    {
-        type Error = <[u8; N] as FromHex>::Error;
-        fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
-            FromHex::from_hex(hex).map(Self)
-        }
-    }
 }
 
 /// Defines security level
@@ -138,40 +103,47 @@ pub mod _internal {
 #[macro_export]
 macro_rules! define_security_level {
     ($struct_name:ident {
-        security_bits = $k:expr,
-        epsilon = $e:expr,
-        ell = $ell:expr,
-        ell_prime = $ell_prime:expr,
-        m = $m:tt,
-        q = $q:expr,
+        security_bits: $k:expr,
+        rsa_prime_bitlen: $rsa_prime_bitlen:expr,
+        rsa_pubkey_bitlen: $rsa_pubkey_bitlen:expr,
+        epsilon: $e:expr,
+        ell: $ell:expr,
+        ell_prime: $ell_prime:expr,
+        m: $m:tt,
+        q: $q:expr,
     }) => {
         $crate::define_security_level! {
             $struct_name {
-                epsilon = $e,
-                ell = $ell,
-                ell_prime = $ell_prime,
-                m = $m,
-                q = $q,
+                rsa_prime_bitlen: $rsa_prime_bitlen,
+                rsa_pubkey_bitlen: $rsa_pubkey_bitlen,
+                epsilon: $e,
+                ell: $ell,
+                ell_prime: $ell_prime,
+                m: $m,
+                q: $q,
             }
         }
         $crate::security_level::_internal::define_keygen_security_level! {
             $struct_name {
-                security_bits = $k,
+                security_bits: $k,
             }
         }
     };
     ($struct_name:ident {
-        epsilon = $e:expr,
-        ell = $ell:expr,
-        ell_prime = $ell_prime:expr,
-        m = 128,
-        q = $q:expr,
+        rsa_prime_bitlen: $rsa_prime_bitlen:expr,
+        rsa_pubkey_bitlen: $rsa_pubkey_bitlen:expr,
+        epsilon: $e:expr,
+        ell: $ell:expr,
+        ell_prime: $ell_prime:expr,
+        m: 128,
+        q: $q:expr,
     }) => {
         impl $crate::security_level::SecurityLevel for $struct_name {
+            const RSA_PRIME_BITLEN: u32 = $rsa_prime_bitlen;
+            const RSA_PUBKEY_BITLEN: u32 = $rsa_pubkey_bitlen;
             const EPSILON: usize = $e;
             const ELL: usize = $ell;
             const ELL_PRIME: usize = $ell_prime;
-            const M: usize = 128;
 
             fn q() -> $crate::security_level::_internal::Integer {
                 $q
@@ -179,11 +151,13 @@ macro_rules! define_security_level {
         }
     };
     ($struct_name:ident {
-        epsilon = $e:expr,
-        ell = $ell:expr,
-        ell_prime = $ell_prime:expr,
-        m = $m:tt,
-        q = $q:expr,
+        rsa_prime_bitlen: $rsa_prime_bitlen:expr,
+        rsa_pubkey_bitlen: $rsa_pubkey_bitlen:expr,
+        epsilon: $e:expr,
+        ell: $ell:expr,
+        ell_prime: $ell_prime:expr,
+        m: $m:tt,
+        q: $q:expr,
     }) => {
         compile_error!(concat!("Currently, we can not set security parameter M to anything but 128 (you set m=", stringify!($m), ")"));
     };
@@ -194,20 +168,22 @@ pub use define_security_level;
 
 #[doc(inline)]
 pub use cggmp21_keygen::security_level::SecurityLevel128;
-define_security_level!(SecurityLevel128{
-    epsilon = 230,
-    ell = 256,
-    ell_prime = 848,
-    m = 128,
-    q = (Integer::ONE << 128_u32).into(),
+define_security_level!(SecurityLevel128 {
+    rsa_prime_bitlen: 1536,
+    rsa_pubkey_bitlen: 3071,
+    epsilon: 256,
+    ell: 128,
+    ell_prime: 640,
+    m: 128,
+    q: (Integer::ONE << 128_u32).into(),
 });
 
 /// Checks that public paillier key meets security level constraints
 pub(crate) fn validate_public_paillier_key_size<L: SecurityLevel>(N: &Integer) -> bool {
-    N.significant_bits() >= 8 * L::SECURITY_BITS - 1
+    N.significant_bits() >= L::RSA_PUBKEY_BITLEN
 }
 
 /// Checks that a prime, that is a part of secret paillier key, meets security level constraints
 pub(crate) fn validate_secret_paillier_prime_size<L: SecurityLevel>(prime: &Integer) -> bool {
-    prime.significant_bits() >= 4 * L::SECURITY_BITS
+    prime.significant_bits() >= L::RSA_PRIME_BITLEN
 }

@@ -72,7 +72,7 @@ impl<L: SecurityLevel> PregeneratedPrimes<L> {
     pub fn generate<R: RngCore>(rng: &mut R) -> Self {
         Self {
             primes: [(); 4]
-                .map(|_| fast_paillier::utils::generate_safe_prime(rng, 4 * L::SECURITY_BITS)),
+                .map(|_| fast_paillier::utils::generate_safe_prime(rng, L::RSA_PRIME_BITLEN)),
             _phantom: std::marker::PhantomData,
         }
     }

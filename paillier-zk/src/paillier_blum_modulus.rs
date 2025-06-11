@@ -302,12 +302,12 @@ mod test {
         let p = generate_blum_prime(&mut rng, 256);
         let q = generate_blum_prime(&mut rng, 256);
         let n = (&p * &q).complete();
-        let data = super::Data { n };
-        let pdata = super::PrivateData { p, q };
+        let data = super::Data { n: &n };
+        let pdata = super::PrivateData { p: &p, q: &q };
         let shared_state = "shared state";
         let (commitment, proof) =
-            super::non_interactive::prove::<65, D>(&shared_state, &data, &pdata, &mut rng).unwrap();
-        let r = super::non_interactive::verify::<65, D>(&shared_state, &data, &commitment, &proof);
+            super::non_interactive::prove::<65, D>(&shared_state, data, pdata, &mut rng).unwrap();
+        let r = super::non_interactive::verify::<65, D>(&shared_state, data, &commitment, &proof);
         match r {
             Ok(()) => (),
             Err(e) => panic!("{e:?}"),
@@ -326,12 +326,12 @@ mod test {
             }
         };
         let n = (&p * &q).complete();
-        let data = super::Data { n };
-        let pdata = super::PrivateData { p, q };
+        let data = super::Data { n: &n };
+        let pdata = super::PrivateData { p: &p, q: &q };
         let shared_state = "shared state";
         let (commitment, proof) =
-            super::non_interactive::prove::<65, D>(&shared_state, &data, &pdata, &mut rng).unwrap();
-        let r = super::non_interactive::verify::<65, D>(&shared_state, &data, &commitment, &proof);
+            super::non_interactive::prove::<65, D>(&shared_state, data, pdata, &mut rng).unwrap();
+        let r = super::non_interactive::verify::<65, D>(&shared_state, data, &commitment, &proof);
         if r.is_ok() {
             panic!("proof should not pass");
         }
