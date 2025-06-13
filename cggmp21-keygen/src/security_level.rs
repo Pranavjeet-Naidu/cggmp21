@@ -13,12 +13,12 @@
 ///
 /// You should not implement this trait manually. Use [define_security_level] macro instead.
 pub trait SecurityLevel: Clone + Sync + Send + 'static {
-    /// $\kappa$ bits of security
+    /// $\kappa$ bits
     const KAPPA_BITS: u32;
-    /// $\kappa/8$ bytes of security
+    /// $\kappa/8$ bytes
     const KAPPA_BYTES: usize;
 
-    /// Byte array of [SECURITY_BYTES](Self::SECURITY_BYTES) bytes
+    /// Byte array of [KAPPA_BYTES](Self::KAPPA_BYTES) bytes
     type KappaBytes: AsRef<[u8]>
         + AsMut<[u8]>
         + Default

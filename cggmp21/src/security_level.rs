@@ -36,12 +36,6 @@ pub trait SecurityLevel: KeygenSecurityLevel {
     const ELL: usize;
     /// $\ell'$ parameter
     const ELL_PRIME: usize;
-
-    /// $q$ parameter
-    ///
-    /// Note that it's not curve order, and it doesn't need to be a prime, it's another security parameter
-    /// that determines security level.
-    fn q() -> Integer;
 }
 
 /// Determines max size of exponents
@@ -88,12 +82,11 @@ pub mod _internal {
 /// #[derive(Clone)]
 /// pub struct MyLevel;
 /// define_security_level!(MyLevel{
-///     security_bits = 1024,
+///     kappa_bits = 1024,
 ///     epsilon = 128,
 ///     ell = 1024,
 ///     ell_prime = 1024,
 ///     m = 128,
-///     q = (Integer::ONE.clone() << 48_u32) - 1,
 /// });
 /// ```
 ///
@@ -110,7 +103,6 @@ macro_rules! define_security_level {
         ell: $ell:expr,
         ell_prime: $ell_prime:expr,
         m: $m:tt,
-        q: $q:expr,
     }) => {
         $crate::define_security_level! {
             $struct_name {
@@ -120,7 +112,6 @@ macro_rules! define_security_level {
                 ell: $ell,
                 ell_prime: $ell_prime,
                 m: $m,
-                q: $q,
             }
         }
         $crate::security_level::_internal::define_keygen_security_level! {
@@ -136,7 +127,6 @@ macro_rules! define_security_level {
         ell: $ell:expr,
         ell_prime: $ell_prime:expr,
         m: 128,
-        q: $q:expr,
     }) => {
         impl $crate::security_level::SecurityLevel for $struct_name {
             const RSA_PRIME_BITLEN: u32 = $rsa_prime_bitlen;
@@ -144,10 +134,6 @@ macro_rules! define_security_level {
             const EPSILON: usize = $e;
             const ELL: usize = $ell;
             const ELL_PRIME: usize = $ell_prime;
-
-            fn q() -> $crate::security_level::_internal::Integer {
-                $q
-            }
         }
     };
     ($struct_name:ident {
@@ -157,7 +143,6 @@ macro_rules! define_security_level {
         ell: $ell:expr,
         ell_prime: $ell_prime:expr,
         m: $m:tt,
-        q: $q:expr,
     }) => {
         compile_error!(concat!("Currently, we can not set security parameter M to anything but 128 (you set m=", stringify!($m), ")"));
     };
@@ -175,7 +160,6 @@ define_security_level!(SecurityLevel128 {
     ell: 256,
     ell_prime: 256 * 5,
     m: 128,
-    q: (Integer::ONE << 128_u32).into(),
 });
 
 /// Checks that public paillier key meets security level constraints

@@ -16,7 +16,6 @@ define_security_level!(DummyLevel {
     ell: 128,
     ell_prime: 128,
     m: 128,
-    q: (cggmp21::rug::Integer::ONE.clone() << 128) - 1,
 });
 
 cggmp21_tests::test_suite! {
