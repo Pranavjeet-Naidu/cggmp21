@@ -632,7 +632,7 @@ where
     let N = utils::subset(S, &key_share.aux.N)
         .ok_or(Bug::Subset)?
         .into_iter()
-        .map(|n| fast_paillier::EncryptionKey::from_n(n))
+        .map(fast_paillier::EncryptionKey::from_n)
         .collect::<Vec<_>>();
     let R = utils::subset(S, &key_share.aux.pedersen_params).ok_or(Bug::Subset)?;
 

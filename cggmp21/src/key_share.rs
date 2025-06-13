@@ -109,7 +109,7 @@ impl<L: SecurityLevel> Validate for DirtyAuxInfo<L> {
         if let Some(N) = self
             .N
             .iter()
-            .find(|N| !crate::security_level::validate_public_paillier_key_size::<L>(&N))
+            .find(|N| !crate::security_level::validate_public_paillier_key_size::<L>(N))
         {
             return Err(InvalidKeyShareReason::PaillierPkTooSmall {
                 required: L::RSA_PUBKEY_BITLEN,

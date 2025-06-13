@@ -111,11 +111,7 @@ where
         .iter_indexed()
         .zip(proof_messages.iter_indexed())
         .filter_map(|((j, data_msg_id, data), (_, proof_msg_id, proof))| {
-            if let Some(data) = filter(j, data, proof) {
-                Some((AbortBlame::new(j, data_msg_id, proof_msg_id), data))
-            } else {
-                None
-            }
+            filter(j, data, proof).map(|data| (AbortBlame::new(j, data_msg_id, proof_msg_id), data))
         })
         .collect()
 }

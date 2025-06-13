@@ -193,13 +193,13 @@ pub mod interactive {
         for (point, y) in proof.points.iter().zip(challenge.ys.iter()) {
             fail_if_ne(
                 InvalidProofReason::EqualityCheck(2),
-                &y.gcd_ref(&data.n).complete(),
+                &y.gcd_ref(data.n).complete(),
                 Integer::ONE,
             )?;
             if Integer::from(
                 point
                     .z
-                    .pow_mod_ref(&data.n, &data.n)
+                    .pow_mod_ref(data.n, data.n)
                     .ok_or(InvalidProofReason::ModPow)?,
             ) != *y
             {
@@ -208,14 +208,14 @@ pub mod interactive {
             let y = y.clone();
             let y = if point.a { data.n - y } else { y };
             let y = if point.b {
-                (y * &commitment.w).modulo(&data.n)
+                (y * &commitment.w).modulo(data.n)
             } else {
                 y
             };
             if Integer::from(
                 point
                     .x
-                    .pow_mod_ref(&4.into(), &data.n)
+                    .pow_mod_ref(&4.into(), data.n)
                     .ok_or(InvalidProofReason::ModPow)?,
             ) != y
             {
