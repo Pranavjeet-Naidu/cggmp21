@@ -150,7 +150,7 @@ pub struct PrivateData<'a, E: Curve> {
 /// Prover's public commitment
 #[derive(Debug, Clone, udigest::Digestable)]
 #[udigest(bound = "")]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct Commitment<E: Curve> {
     #[udigest(as = crate::common::encoding::Integer)]
     pub s: Integer,

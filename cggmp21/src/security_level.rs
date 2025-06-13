@@ -56,10 +56,10 @@ pub fn max_exponents_size<L: SecurityLevel>() -> (u32, u32) {
     use std::cmp;
 
     let x_bits = cmp::max(
-        L::ELL as u32 + L::EPSILON as u32 + 4 * L::SECURITY_BITS,
+        L::ELL as u32 + L::EPSILON as u32 + L::RSA_PRIME_BITLEN,
         (L::ELL_PRIME + L::EPSILON) as _,
     );
-    let y_bits = (L::ELL + L::EPSILON) as u32 + 8 * L::SECURITY_BITS;
+    let y_bits = (L::ELL + L::EPSILON) as u32 + (L::RSA_PUBKEY_BITLEN + 4);
 
     (x_bits, y_bits)
 }
@@ -103,7 +103,7 @@ pub mod _internal {
 #[macro_export]
 macro_rules! define_security_level {
     ($struct_name:ident {
-        security_bits: $k:expr,
+        kappa_bits: $k:expr,
         rsa_prime_bitlen: $rsa_prime_bitlen:expr,
         rsa_pubkey_bitlen: $rsa_pubkey_bitlen:expr,
         epsilon: $e:expr,
@@ -125,7 +125,7 @@ macro_rules! define_security_level {
         }
         $crate::security_level::_internal::define_keygen_security_level! {
             $struct_name {
-                security_bits: $k,
+                kappa_bits: $k,
             }
         }
     };
@@ -171,9 +171,9 @@ pub use cggmp21_keygen::security_level::SecurityLevel128;
 define_security_level!(SecurityLevel128 {
     rsa_prime_bitlen: 1536,
     rsa_pubkey_bitlen: 3071,
-    epsilon: 256,
-    ell: 128,
-    ell_prime: 640,
+    epsilon: 256 * 2,
+    ell: 256,
+    ell_prime: 256 * 5,
     m: 128,
     q: (Integer::ONE << 128_u32).into(),
 });

@@ -60,7 +60,7 @@ pub struct MsgRound2<E: Curve, L: SecurityLevel> {
     /// `rid_i`
     #[serde_as(as = "utils::HexOrBin")]
     #[udigest(as_bytes)]
-    pub rid: L::SecurityBytes,
+    pub rid: L::KappaBytes,
     /// $X_i$
     pub X: NonZero<Point<E>>,
     /// $A_i$
@@ -73,7 +73,7 @@ pub struct MsgRound2<E: Curve, L: SecurityLevel> {
     /// $u_i$
     #[serde(with = "hex::serde")]
     #[udigest(as_bytes)]
-    pub decommit: L::SecurityBytes,
+    pub decommit: L::KappaBytes,
 }
 /// Message from round 3
 #[derive(Clone, Serialize, Deserialize)]
@@ -158,7 +158,7 @@ where
     let x_i = NonZero::<SecretScalar<E>>::random(rng);
     let X_i = Point::generator() * &x_i;
 
-    let mut rid = L::SecurityBytes::default();
+    let mut rid = L::KappaBytes::default();
     rng.fill_bytes(rid.as_mut());
 
     #[cfg(feature = "hd-wallet")]
@@ -181,7 +181,7 @@ where
         #[cfg(feature = "hd-wallet")]
         chain_code: chain_code_local,
         decommit: {
-            let mut nonce = L::SecurityBytes::default();
+            let mut nonce = L::KappaBytes::default();
             rng.fill_bytes(nonce.as_mut());
             nonce
         },
@@ -304,7 +304,7 @@ where
     let rid = decommitments
         .iter_including_me(&my_decommitment)
         .map(|d| &d.rid)
-        .fold(L::SecurityBytes::default(), utils::xor_array);
+        .fold(L::KappaBytes::default(), utils::xor_array);
     let challenge = Scalar::from_hash::<D>(&unambiguous::SchnorrPok {
         sid,
         prover: i,

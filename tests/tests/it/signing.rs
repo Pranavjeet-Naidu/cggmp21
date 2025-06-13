@@ -174,9 +174,15 @@ where
         None
     };
 
+    // all presig commitments must be same
+    for (i, (_, commitment)) in presigs.iter().enumerate() {
+        assert_eq!(presigs[0].1, *commitment, "cmp(0, {i})")
+    }
+    let (_, commitments) = presigs[0].clone();
+
     let partial_signatures = presigs
         .into_iter()
-        .map(|presig| {
+        .map(|(presig, _commitments)| {
             #[cfg(feature = "hd-wallet")]
             let presig = if let Some(derivation_path) = &derivation_path {
                 let epub = shares[0].extended_public_key().expect("not hd wallet");
@@ -193,8 +199,9 @@ where
         })
         .collect::<Vec<_>>();
 
-    let signature = cggmp21::PartialSignature::combine(&partial_signatures)
-        .expect("invalid partial sigantures");
+    let signature =
+        cggmp21::PartialSignature::combine(&partial_signatures, &commitments, message_to_sign)
+            .expect("invalid partial sigantures");
 
     #[cfg(feature = "hd-wallet")]
     let public_key = if let Some(path) = &derivation_path {

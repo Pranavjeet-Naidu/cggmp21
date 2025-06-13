@@ -9,7 +9,7 @@ use cggmp21::trusted_dealer;
 #[derive(Clone)]
 struct DummyLevel;
 define_security_level!(DummyLevel {
-    security_bits: 32,
+    kappa_bits: 32,
     rsa_prime_bitlen: 100,
     rsa_pubkey_bitlen: 100,
     epsilon: 64,

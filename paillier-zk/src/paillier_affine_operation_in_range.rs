@@ -174,48 +174,44 @@ pub struct SecurityParams {
     pub l_y: usize,
     /// Epsilon in paper, slackness parameter
     pub epsilon: usize,
-    /// q in paper. Security parameter for challenge
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub q: Integer,
 }
 
 /// Public data that both parties know
 #[derive(Debug, Clone, Copy, udigest::Digestable)]
 #[udigest(bound = "")]
 pub struct Data<'a, C: Curve> {
-    /// N0 in paper, public key that C was encrypted on
+    /// Nj in the spec, public key that C was encrypted on
     #[udigest(as = crate::common::encoding::AnyEncryptionKey)]
-    pub key0: &'a dyn AnyEncryptionKey,
-    /// N1 in paper, public key that y -> Y was encrypted on
+    pub key_j: &'a dyn AnyEncryptionKey,
+    /// Ni in the spec, public key that y -> Y was encrypted on
     #[udigest(as = crate::common::encoding::AnyEncryptionKey)]
-    pub key1: &'a dyn AnyEncryptionKey,
-    /// C or C0 in paper, some data encrypted on N0
+    pub key_i: &'a dyn AnyEncryptionKey,
+    /// C in the spec, some data encrypted on Nj
     #[udigest(as = &crate::common::encoding::Integer)]
     pub c: &'a Ciphertext,
-    /// D or C in paper, result of affine transformation of C0 with x and y
+    /// D in the spec, result of affine transformation of C with x and y
     #[udigest(as = &crate::common::encoding::Integer)]
     pub d: &'a Integer,
-    /// Y in paper, y encrypted on N1
+    /// Y in the spec, y encrypted on Ni
     #[udigest(as = &crate::common::encoding::Integer)]
     pub y: &'a Ciphertext,
-    /// X in paper, obtained as g^x
+    /// X in the spec, obtained as `x G`
     pub x: &'a Point<C>,
 }
 
 /// Private data of prover
 #[derive(Clone, Copy)]
 pub struct PrivateData<'a> {
-    /// x or epsilon in paper, preimage of X
+    /// x in the spec, preimage of X
     pub x: &'a Integer,
-    /// y or delta in paper, preimage of Y
+    /// y in the spec, preimage of Y
     pub y: &'a Integer,
-    /// rho in paper, nonce in encryption of y for additive action
+    /// rho in the spec, nonce in encryption of y for additive action
     pub nonce: &'a Nonce,
-    /// rho_y in paper, nonce in encryption of y to obtain Y
+    /// rho_y in the spec, nonce in encryption of y to obtain Y
     pub nonce_y: &'a Nonce,
 }
 
-// As described in cggmp21 at page 35
 /// Prover's first message, obtained by [`interactive::commit`]
 #[derive(Debug, Clone, udigest::Digestable)]
 #[udigest(bound = "")]
@@ -245,8 +241,8 @@ pub struct PrivateCommitment {
     pub r: Integer,
     pub r_y: Integer,
     pub gamma: Integer,
-    pub m: Integer,
     pub delta: Integer,
+    pub m: Integer,
     pub mu: Integer,
 }
 
@@ -296,21 +292,21 @@ pub mod interactive {
 
         let alpha = Integer::from_rng_pm(&two_to_l_e, &mut rng);
         let beta = Integer::from_rng_pm(&two_to_l_prime_e, &mut rng);
-        let r = Integer::gen_invertible(data.key0.n(), &mut rng);
-        let r_y = Integer::gen_invertible(data.key1.n(), &mut rng);
+        let r = Integer::gen_invertible(data.key_j.n(), &mut rng);
+        let r_y = Integer::gen_invertible(data.key_i.n(), &mut rng);
         let gamma = Integer::from_rng_pm(&hat_n_at_two_to_l_e, &mut rng);
         let delta = Integer::from_rng_pm(&hat_n_at_two_to_l_e, &mut rng);
         let m = Integer::from_rng_pm(&hat_n_at_two_to_l, &mut rng);
         let mu = Integer::from_rng_pm(&hat_n_at_two_to_l, &mut rng);
 
-        let beta_enc_key0 = data.key0.encrypt_with(&beta, &r)?;
-        let alpha_at_c = data.key0.omul(&alpha, data.c)?;
-        let a = data.key0.oadd(&alpha_at_c, &beta_enc_key0)?;
-
         let commitment = Commitment {
-            a,
+            a: {
+                let beta_enc_key0 = data.key_j.encrypt_with(&beta, &r)?;
+                let alpha_at_c = data.key_j.omul(&alpha, data.c)?;
+                data.key_j.oadd(&alpha_at_c, &beta_enc_key0)?
+            },
             b_x: Point::<C>::generator() * alpha.to_scalar(),
-            b_y: data.key1.encrypt_with(&beta, &r_y)?,
+            b_y: data.key_i.encrypt_with(&beta, &r_y)?,
             e: aux.combine(&alpha, &gamma)?,
             s: aux.combine(pdata.x, &m)?,
             f: aux.combine(&beta, &delta)?,
@@ -342,11 +338,12 @@ pub mod interactive {
             z3: (&pcomm.gamma + challenge * &pcomm.m).complete(),
             z4: (&pcomm.delta + challenge * &pcomm.mu).complete(),
             w: data
-                .key0
+                .key_j
                 .n()
                 .combine(&pcomm.r, Integer::ONE, pdata.nonce, challenge)?,
+            // TODO: this can be optimized as prover knows key_i factorization
             w_y: data
-                .key1
+                .key_i
                 .n()
                 .combine(&pcomm.r_y, Integer::ONE, pdata.nonce_y, challenge)?,
         })
@@ -365,23 +362,23 @@ pub mod interactive {
         {
             let lhs = {
                 let z1_at_c = data
-                    .key0
+                    .key_j
                     .omul(&proof.z1, data.c)
                     .map_err(|_| InvalidProofReason::PaillierOp)?;
                 let enc = data
-                    .key0
+                    .key_j
                     .encrypt_with(&proof.z2, &proof.w)
                     .map_err(|_| InvalidProofReason::PaillierEnc)?;
-                data.key0
+                data.key_j
                     .oadd(&z1_at_c, &enc)
                     .map_err(|_| InvalidProofReason::PaillierOp)?
             };
             let rhs = {
                 let e_at_d = data
-                    .key0
+                    .key_j
                     .omul(challenge, data.d)
                     .map_err(|_| InvalidProofReason::PaillierOp)?;
-                data.key0
+                data.key_j
                     .oadd(&commitment.a, &e_at_d)
                     .map_err(|_| InvalidProofReason::PaillierOp)?
             };
@@ -394,15 +391,15 @@ pub mod interactive {
         }
         {
             let lhs = data
-                .key1
+                .key_i
                 .encrypt_with(&proof.z2, &proof.w_y)
                 .map_err(|_| InvalidProofReason::PaillierEnc)?;
             let rhs = {
                 let e_at_y = data
-                    .key1
+                    .key_i
                     .omul(challenge, data.y)
                     .map_err(|_| InvalidProofReason::PaillierOp)?;
-                data.key1
+                data.key_i
                     .oadd(&commitment.b_y, &e_at_y)
                     .map_err(|_| InvalidProofReason::PaillierOp)?
             };
@@ -436,11 +433,9 @@ pub mod interactive {
     }
 
     /// Generate random challenge
-    pub fn challenge<R>(security: &SecurityParams, rng: &mut R) -> Integer
-    where
-        R: RngCore,
-    {
-        Integer::from_rng_pm(&security.q, rng)
+    pub fn challenge<C: Curve>(rng: &mut impl rand_core::RngCore) -> Integer {
+        let q = Integer::curve_order::<C>();
+        Integer::from_rng_pm(&q, rng)
     }
 }
 
@@ -503,7 +498,7 @@ pub mod non_interactive {
             commitment,
         });
         let mut rng = rand_hash::HashRng::<D, _>::from_seed(seed);
-        super::interactive::challenge(security, &mut rng)
+        super::interactive::challenge::<C>(&mut rng)
     }
 }
 
@@ -539,8 +534,8 @@ mod test {
         let d = ek0.oadd(&x_at_c, &y_enc_ek0).unwrap();
 
         let data = super::Data {
-            key0: &ek0,
-            key1: &ek1,
+            key_j: &ek0,
+            key_i: &ek1,
             c: &c,
             d: &d,
             y: &y_enc_ek1,
@@ -576,7 +571,6 @@ mod test {
             l_x: 1024,
             l_y: 1024,
             epsilon: 300,
-            q: (Integer::ONE << 128_u32).into(),
         };
         let x = Integer::from_rng_pm(&(Integer::ONE << security.l_x).complete(), &mut rng);
         let y = Integer::from_rng_pm(&(Integer::ONE << security.l_y).complete(), &mut rng);
@@ -589,7 +583,6 @@ mod test {
             l_x: 1024,
             l_y: 1024,
             epsilon: 300,
-            q: (Integer::ONE << 128_u32).complete(),
         };
         let x = Integer::from_rng_pm(&(Integer::ONE << security.l_x).complete(), &mut rng);
         let y = (Integer::ONE << (security.l_y + security.epsilon)).complete() + 1;
@@ -606,7 +599,6 @@ mod test {
             l_x: 1024,
             l_y: 1024,
             epsilon: 300,
-            q: (Integer::ONE << 128_u32).complete(),
         };
         let x = (Integer::ONE << (security.l_x + security.epsilon)).complete() + 1;
         let y = Integer::from_rng_pm(&(Integer::ONE << security.l_y).complete(), &mut rng);

@@ -63,7 +63,7 @@ pub struct MsgRound2Broad<E: Curve, L: SecurityLevel> {
     /// `rid_i`
     #[serde_as(as = "utils::HexOrBin")]
     #[udigest(as_bytes)]
-    pub rid: L::SecurityBytes,
+    pub rid: L::KappaBytes,
     /// $\vec S_i$
     pub F: Polynomial<Point<E>>,
     /// $A_i$
@@ -76,7 +76,7 @@ pub struct MsgRound2Broad<E: Curve, L: SecurityLevel> {
     /// $u_i$
     #[serde(with = "hex::serde")]
     #[udigest(as_bytes)]
-    pub decommit: L::SecurityBytes,
+    pub decommit: L::KappaBytes,
 }
 /// Message from round 2 unicasted to each party
 #[derive(Clone, Serialize, Deserialize)]
@@ -168,7 +168,7 @@ where
     tracer.round_begins();
 
     tracer.stage("Sample rid_i, schnorr commitment, polynomial, chain_code");
-    let mut rid = L::SecurityBytes::default();
+    let mut rid = L::KappaBytes::default();
     rng.fill_bytes(rid.as_mut());
 
     let (r, h) = schnorr_pok::prover_commits_ephemeral_secret::<E, _>(rng);
@@ -200,7 +200,7 @@ where
         #[cfg(feature = "hd-wallet")]
         chain_code: chain_code_local,
         decommit: {
-            let mut nonce = L::SecurityBytes::default();
+            let mut nonce = L::KappaBytes::default();
             rng.fill_bytes(nonce.as_mut());
             nonce
         },
@@ -343,7 +343,7 @@ where
     let rid = decommitments
         .iter_including_me(&my_decommitment)
         .map(|d| &d.rid)
-        .fold(L::SecurityBytes::default(), utils::xor_array);
+        .fold(L::KappaBytes::default(), utils::xor_array);
     #[cfg(feature = "hd-wallet")]
     let chain_code = if hd_enabled {
         tracer.stage("Compute chain_code");

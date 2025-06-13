@@ -14,12 +14,12 @@
 /// You should not implement this trait manually. Use [define_security_level] macro instead.
 pub trait SecurityLevel: Clone + Sync + Send + 'static {
     /// $\kappa$ bits of security
-    const SECURITY_BITS: u32;
+    const KAPPA_BITS: u32;
     /// $\kappa/8$ bytes of security
-    const SECURITY_BYTES: usize;
+    const KAPPA_BYTES: usize;
 
     /// Byte array of [SECURITY_BYTES](Self::SECURITY_BYTES) bytes
-    type SecurityBytes: AsRef<[u8]>
+    type KappaBytes: AsRef<[u8]>
         + AsMut<[u8]>
         + Default
         + Clone
@@ -85,12 +85,12 @@ pub mod _internal {
 #[macro_export]
 macro_rules! define_security_level {
     ($struct_name:ident {
-        security_bits: $k:expr$(,)?
+        kappa_bits: $k:expr$(,)?
     }) => {
         impl $crate::security_level::SecurityLevel for $struct_name {
-            const SECURITY_BITS: u32 = $k;
-            const SECURITY_BYTES: usize = $k / 8;
-            type SecurityBytes = $crate::security_level::_internal::SecurityBytes<{ $k / 8 }>;
+            const KAPPA_BITS: u32 = $k;
+            const KAPPA_BYTES: usize = $k / 8;
+            type KappaBytes = $crate::security_level::_internal::SecurityBytes<{ $k / 8 }>;
         }
     };
 }
@@ -103,4 +103,4 @@ pub use define_security_level;
 /// This security level is intended to provide 128 bits of security for the protocol when run with up to 128 participants.
 #[derive(Clone)]
 pub struct SecurityLevel128;
-define_security_level!(SecurityLevel128 { security_bits: 128 });
+define_security_level!(SecurityLevel128 { kappa_bits: 256 });
