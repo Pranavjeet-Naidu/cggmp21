@@ -16,7 +16,7 @@ pub use cggmp21_keygen::security_level::SecurityLevel as KeygenSecurityLevel;
 
 /// Hardcoded value for parameter $m$ of security level
 ///
-/// Currently, [security parameter $m$](SecurityLevel::M) is hardcoded to this constant. We're going to fix that
+/// Currently, security parameter $m$ is hardcoded to this constant. We're going to fix that
 /// once `feature(generic_const_exprs)` is stable.
 pub const M: usize = 128;
 
@@ -24,9 +24,10 @@ pub const M: usize = 128;
 ///
 /// You should not implement this trait manually. Use [define_security_level] macro instead.
 pub trait SecurityLevel: KeygenSecurityLevel {
-    /// Length of RSA prime that matches [Self::SECURITY_BITS]
+    /// Length of RSA prime that matches the security level
     const RSA_PRIME_BITLEN: u32;
-    /// Minimal length of RSA public key (bi-prime $N = pq$) that matches [Self::SECURITY_BITS]
+    /// Minimal length of RSA public key (bi-prime $N = pq$) that matches the
+    /// security level
     const RSA_PUBKEY_BITLEN: u32;
 
     /// $\varepsilon$ bits

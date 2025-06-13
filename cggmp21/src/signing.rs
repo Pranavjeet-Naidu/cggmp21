@@ -87,7 +87,7 @@ pub struct Presignature<E: Curve> {
 pub struct PresignatureCommitments<E: Curve> {
     /// $\Gamma$ presignature commitment
     pub Gamma: NonZero<Point<E>>,
-    /// $(\tilde \Delta_j, \tilde S_j)_{j\in[n]}$
+    /// $(\tilde \Delta_j, \tilde S_j)_{j\in\[n\]}$
     pub commitments: Vec<(Point<E>, Point<E>)>,
 }
 
@@ -260,14 +260,6 @@ mod unambiguous {
         pub sid: ExecutionId<'a>,
         pub prover: u16,
         pub hat: bool,
-    }
-
-    #[derive(udigest::Digestable)]
-    #[udigest(tag = prefixed!("proof_log"))]
-    pub struct ProofLog<'a> {
-        pub sid: ExecutionId<'a>,
-        pub prover: u16,
-        pub prime_prime: bool,
     }
 
     #[derive(udigest::Digestable)]

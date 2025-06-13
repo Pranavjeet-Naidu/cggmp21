@@ -37,7 +37,7 @@ pub struct DirtyAuxInfo<L: SecurityLevel = crate::default_choice::SecurityLevel>
     pub p: Integer,
     /// Secret prime $q$
     pub q: Integer,
-    /// Paillier public keys $\vec N = (N_j)_{j \in [n]}$
+    /// Paillier public keys $\vec N = (N_j)_{j \in \[n\]}$
     pub N: Vec<Integer>,
     /// Parties Pedersen parameters
     ///
@@ -180,7 +180,7 @@ impl<L: SecurityLevel> DirtyAuxInfo<L> {
 
     /// Precomputes CRT parameters
     ///
-    /// Refer to [`PartyAux::precompute_crt`] for the docs.
+    /// Refer to [`PedersenParams::precompute_crt`] for the docs.
     pub fn precompute_crt(&mut self, i: u16) -> Result<(), InvalidKeyShare> {
         let aux_i = self
             .pedersen_params
@@ -228,7 +228,7 @@ impl PedersenParams {
     /// present, are overwritten)
     ///
     /// Note: CRT parameters contain secret information. Leaking them exposes secret Paillier key. Keep
-    /// [`AuxInfo::parties`](DirtyAuxInfo::parties) secret (as well as rest of the key share).
+    /// them secret (as well as rest of the key share).
     pub fn precompute_crt(&mut self, p: &Integer, q: &Integer) -> Result<(), InvalidKeyShare> {
         if (p * q).complete() != self.hat_N {
             return Err(InvalidKeyShareReason::CrtInvalidPq.into());
@@ -296,7 +296,7 @@ impl<E: Curve> DirtyKeyShare<E> {
     /// CRT parameters are saved into the key share (old params, if present, are overwritten)
     ///
     /// Note: CRT parameters contain secret information. Leaking them exposes secret Paillier key. Keep
-    /// [`AuxInfo::parties`](DirtyAuxInfo::parties) secret (as well as rest of the key share).
+    /// them secret (as well as rest of the key share).
     pub fn precompute_crt(&mut self) -> Result<(), InvalidKeyShare> {
         let i = self.core.i;
         self.aux.precompute_crt(i)
