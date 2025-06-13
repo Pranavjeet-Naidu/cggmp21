@@ -44,7 +44,7 @@ pub fn builder<E: Curve, L: SecurityLevel>(n: u16) -> TrustedDealerBuilder<E, L>
     TrustedDealerBuilder::new(n)
 }
 
-type CoreBuilder<E> = key_share::trusted_dealer::TrustedDealerBuilder<E>;
+type CoreBuilder<E> = cggmp21_keygen::key_share::trusted_dealer::TrustedDealerBuilder<E>;
 
 /// Trusted dealer builder
 pub struct TrustedDealerBuilder<E: Curve, L: SecurityLevel> {
@@ -258,7 +258,7 @@ enum Reason {
     #[error("couldn't build multiexp tables")]
     BuildMultiexp(#[source] InvalidKeyShare),
     #[error(transparent)]
-    CoreError(#[from] key_share::trusted_dealer::TrustedDealerError),
+    CoreError(#[from] cggmp21_keygen::key_share::trusted_dealer::TrustedDealerError),
     #[error("generate pedersen params")]
     GenPedersen(#[from] utils::GenPedersenError),
 }

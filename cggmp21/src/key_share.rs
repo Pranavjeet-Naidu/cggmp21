@@ -370,7 +370,7 @@ impl<E: Curve, T: AsRef<IncompleteKeyShare<E>>> AnyKeyShare<E> for T {}
 pub fn reconstruct_secret_key<E: Curve>(
     key_shares: &[impl AnyKeyShare<E>],
 ) -> Result<generic_ec::SecretScalar<E>, ReconstructError> {
-    key_share::reconstruct_secret_key(key_shares)
+    cggmp21_keygen::key_share::reconstruct_secret_key(key_shares)
 }
 
 impl From<&PedersenParams> for π_enc::Aux {
@@ -418,7 +418,7 @@ enum InvalidKeyShareReason {
 
 /// Error indicating that [key reconstruction](reconstruct_secret_key) failed
 #[cfg(feature = "spof")]
-pub use key_share::ReconstructError;
+pub use cggmp21_keygen::key_share::ReconstructError;
 
 impl From<InvalidIncompleteKeyShare> for InvalidKeyShare {
     fn from(err: InvalidIncompleteKeyShare) -> Self {

@@ -325,6 +325,11 @@ pub mod supported_curves;
 mod utils;
 mod zk;
 
+mod _unused_deps {
+    // we don't use it, but we need to enable certain features
+    use key_share as _;
+}
+
 #[cfg(feature = "spof")]
 pub mod trusted_dealer;
 
