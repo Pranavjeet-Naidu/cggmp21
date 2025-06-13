@@ -109,7 +109,7 @@
 //!
 //! ```rust,no_run
 //! # async fn doc() -> Result<(), cggmp21::KeyRefreshError> {
-//! # type Msg = cggmp21::key_refresh::msg::aux_only::Msg<sha2::Sha256, cggmp21::security_level::SecurityLevel128>;
+//! # type Msg = cggmp21::key_refresh::msg::Msg<sha2::Sha256, cggmp21::security_level::SecurityLevel128>;
 //! # let incoming = futures::stream::pending::<Result<round_based::Incoming<Msg>, std::convert::Infallible>>();
 //! # let outgoing = futures::sink::drain::<round_based::Outgoing<Msg>>();
 //! # let delivery = (incoming, outgoing);

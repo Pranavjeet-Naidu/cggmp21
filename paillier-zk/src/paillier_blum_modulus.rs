@@ -25,14 +25,14 @@
 //! // Verifier and prover share the same state
 //! let shared_state = "some shared state";
 //!
-//! let data = p::Data { n };
-//! let pdata = p::PrivateData { p, q };
+//! let data = p::Data { n: &n };
+//! let pdata = p::PrivateData { p: &p, q: &q };
 //!
 //! let (commitment, proof) =
 //!     p::non_interactive::prove::<{SECURITY}, sha2::Sha256>(
 //!         &shared_state,
-//!         &data,
-//!         &pdata,
+//!         data,
+//!         pdata,
 //!         &mut rng,
 //!     )?;
 //!
@@ -48,7 +48,7 @@
 //!
 //! p::non_interactive::verify::<{SECURITY}, sha2::Sha256>(
 //!     &shared_state,
-//!     &data,
+//!     data,
 //!     &commitment,
 //!     &proof,
 //! )?;

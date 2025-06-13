@@ -53,21 +53,20 @@
 //! let aux: p::Aux = pregenerated::verifier_aux();
 //! let security = p::SecurityParams {
 //!     l_x: 256,
-//!     l_y: 848,
-//!     epsilon: 230,
-//!     q: (Integer::ONE << 128_u32).complete(),
+//!     l_y: 256 * 5,
+//!     epsilon: 256 * 2,
 //! };
 //!
 //! // 1. Setup: prover prepares the paillier keys
 //!
 //! // C and D are encrypted by this key
-//! let key0: fast_paillier::EncryptionKey = pregenerated::someone_encryption_key0();
+//! let key_j: fast_paillier::EncryptionKey = pregenerated::someone_encryption_key0();
 //! // Y is encrypted using this key
-//! let key1: fast_paillier::EncryptionKey = pregenerated::someone_encryption_key1();
+//! let key_i: fast_paillier::EncryptionKey = pregenerated::someone_encryption_key1();
 //!
-//! // C is some number encrypted using key0. Neither of parties
+//! // C is some number encrypted using key_j. Neither of parties
 //! // need to know the plaintext
-//! let ciphertext_c = Integer::gen_invertible(&key0.nn(), &mut rng);
+//! let ciphertext_c = Integer::gen_invertible(&key_j.nn(), &mut rng);
 //!
 //! // 2. Setup: prover prepares all plaintexts
 //!
@@ -87,28 +86,28 @@
 //! // X in paper
 //! let ciphertext_x = Point::<E>::generator() * plaintext_x.to_scalar();
 //! // Y and ρ_y in paper
-//! let (ciphertext_y, nonce_y) = key1.encrypt_with_random(
+//! let (ciphertext_y, nonce_y) = key_i.encrypt_with_random(
 //!     &mut rng,
-//!     &(plaintext_y.signed_modulo(key1.n())),
+//!     &(plaintext_y.signed_modulo(key_i.n())),
 //! )?;
 //! // nonce is ρ in paper
-//! let (ciphertext_y_by_key1, nonce) = key0.encrypt_with_random(
+//! let (ciphertext_y_by_key_j, nonce) = key_j.encrypt_with_random(
 //!     &mut rng,
-//!     &(plaintext_y.signed_modulo(key0.n()))
+//!     &(plaintext_y.signed_modulo(key_j.n()))
 //! )?;
 //! // D in paper
-//! let ciphertext_d = key0
+//! let ciphertext_d = key_j
 //!     .oadd(
-//!         &key0.omul(&plaintext_x, &ciphertext_c)?,
-//!         &ciphertext_y_by_key1,
+//!         &key_j.omul(&plaintext_x, &ciphertext_c)?,
+//!         &ciphertext_y_by_key_j,
 //!     )?;
 //!
 //! // 4. Prover computes a non-interactive proof that plaintext_x and
 //! //    plaintext_y are at most `l_x` and `l_y` bits
 //!
 //! let data = p::Data {
-//!     key0: &key0,
-//!     key1: &key1,
+//!     key_j: &key_j,
+//!     key_i: &key_i,
 //!     c: &ciphertext_c,
 //!     d: &ciphertext_d,
 //!     x: &ciphertext_x,

@@ -72,21 +72,23 @@ pub mod _internal {
 ///
 /// ## Example
 ///
-/// This code defines security level corresponding to $\kappa=1024$, $\varepsilon=128$, $\ell = \ell' = 1024$,
-/// $m = 128$, and $q = 2^{48}-1$ (note: choice of parameters is random, it does not correspond to meaningful
-/// security level):
+/// This code defines security level corresponding to $\kappa=1024$, RSA prime bitlen = 256,
+/// RSA public key bitlen = 511, $\varepsilon=128$, $\ell = \ell' = 1024$, and $m = 128$ (note:
+/// choice of parameters is random, it does not correspond to meaningful security level):
 /// ```rust
 /// use cggmp21::security_level::define_security_level;
 /// use cggmp21::rug::Integer;
 ///
 /// #[derive(Clone)]
 /// pub struct MyLevel;
-/// define_security_level!(MyLevel{
-///     kappa_bits = 1024,
-///     epsilon = 128,
-///     ell = 1024,
-///     ell_prime = 1024,
-///     m = 128,
+/// define_security_level!(MyLevel {
+///     kappa_bits: 1024,
+///     rsa_prime_bitlen: 256,
+///     rsa_pubkey_bitlen: 511,
+///     epsilon: 128,
+///     ell: 1024,
+///     ell_prime: 1024,
+///     m: 128,
 /// });
 /// ```
 ///

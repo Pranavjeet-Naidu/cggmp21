@@ -79,7 +79,7 @@ pub mod _internal {
 /// #[derive(Clone)]
 /// pub struct MyLevel;
 /// define_security_level!(MyLevel{
-///     security_bits = 1024,
+///     kappa_bits: 1024,
 /// });
 /// ```
 #[macro_export]
