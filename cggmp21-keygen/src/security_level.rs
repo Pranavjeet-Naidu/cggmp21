@@ -36,27 +36,27 @@ pub mod _internal {
     use hex::FromHex;
 
     #[derive(Clone)]
-    pub struct SecurityBytes<const N: usize>([u8; N]);
+    pub struct KappaBytes<const N: usize>([u8; N]);
 
-    impl<const N: usize> AsRef<[u8]> for SecurityBytes<N> {
+    impl<const N: usize> AsRef<[u8]> for KappaBytes<N> {
         fn as_ref(&self) -> &[u8] {
             &self.0
         }
     }
 
-    impl<const N: usize> AsMut<[u8]> for SecurityBytes<N> {
+    impl<const N: usize> AsMut<[u8]> for KappaBytes<N> {
         fn as_mut(&mut self) -> &mut [u8] {
             &mut self.0
         }
     }
 
-    impl<const N: usize> Default for SecurityBytes<N> {
+    impl<const N: usize> Default for KappaBytes<N> {
         fn default() -> Self {
             Self([0u8; N])
         }
     }
 
-    impl<const N: usize> FromHex for SecurityBytes<N>
+    impl<const N: usize> FromHex for KappaBytes<N>
     where
         [u8; N]: FromHex,
     {
@@ -90,7 +90,7 @@ macro_rules! define_security_level {
         impl $crate::security_level::SecurityLevel for $struct_name {
             const KAPPA_BITS: u32 = $k;
             const KAPPA_BYTES: usize = $k / 8;
-            type KappaBytes = $crate::security_level::_internal::SecurityBytes<{ $k / 8 }>;
+            type KappaBytes = $crate::security_level::_internal::KappaBytes<{ $k / 8 }>;
         }
     };
 }
