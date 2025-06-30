@@ -207,7 +207,7 @@ pub mod msg {
         /// $\hat F_{j,i}$
         pub hat_F: fast_paillier::Ciphertext,
         /// $\psi_i$
-        pub psi: (pi_elog::Commitment<E>, pi_elog::Proof<E>),
+        pub psi_tilde: (pi_elog::Commitment<E>, pi_elog::Proof<E>),
         /// $\psi_{j,i}$
         pub psi_j: (pi_aff::Commitment<E>, pi_aff::Proof),
         /// $\hat \psi_{j,i}$
@@ -925,7 +925,7 @@ where
     let Gamma_i = Point::generator() * &gamma_i;
 
     tracer.stage("Prove psi_i");
-    let psi = pi_elog::non_interactive::prove::<E, D>(
+    let psi_tilde_i = pi_elog::non_interactive::prove::<E, D>(
         &unambiguous::ProofElog {
             sid,
             prover: i,
@@ -1084,7 +1084,7 @@ where
                     F: F_ji,
                     hat_D: hat_D_ji,
                     hat_F: hat_F_ji,
-                    psi: psi.clone(),
+                    psi_tilde: psi_tilde_i.clone(),
                     psi_j: psi_ji,
                     hat_psi_j: hat_psi_ji,
                 }),
@@ -1128,8 +1128,8 @@ where
                     y: &msg.Gamma,
                     h: &Point::generator().to_point(),
                 },
-                &msg.psi.0,
-                &msg.psi.1,
+                &msg.psi_tilde.0,
+                &msg.psi_tilde.1,
             )
             .err();
 

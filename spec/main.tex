@@ -1879,7 +1879,7 @@ This protocol is run to generate auxiliary information for each signer in a clus
 \begin{inlineAlgorithm}
 \algoName{$\fn{generate\_pedersen\_params}^L() \to (N, s, t; \phi, \lambda)$}
 \algoInputs{security level $L = (\kappa_\rsa, \dots)$}
-\algoOutputs{Pedersen public parameters $N, s, t \in \Z^3$, and secret parameter $\lambda \in \Z$}
+\algoOutputs{Pedersen public parameters $N, s, t \in \Z^3$, and secret parameters $\phi = \phi(N)$ and $\lambda \in \Z$}
 \begin{algorithmic}[1]
 \State $(N; p, q) \gets \fn{generate\_paillier\_key}^L()$
 \State Set $\phi = (p-1)(q-1)$
@@ -2213,7 +2213,7 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
             \State $\verifyni{enc\mbox{-}elg}^L(\Encode(\sid, j), R_i, (N_j, G_j, Y_j, B_{j,1}, B_{j,2}), \psi^1_{i,j})$
         \EndFor
         \State Compute $\Gamma_i = \gamma_i \cdot G$
-        \State Set $\psi_i = \proveni{elog}(\Encode(\sid, i), (B_{i,1}, B_{i,2}, Y_i, \Gamma_i, G); (\gamma_i, b_i))$
+        \State Set $\tilde \psi_i = \proveni{elog}(\Encode(\sid, i), (B_{i,1}, B_{i,2}, Y_i, \Gamma_i, G); (\gamma_i, b_i))$
         \For{$j \in [n] \setminus \{i\}$}
             \State Sample $r_{i,j}, \hat{r}_{i,j} \gets \Z_{N_i}^2$,
                           $s_{i,j}, \hat{s}_{i,j} \gets \Z_{N_j}^2$, and
@@ -2226,19 +2226,19 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
             \State Compute $\psi_{j,i} = \proveni{aff\mbox{-}g}^L(\Encode(\sid, i), R_j, (N_j, N_i, K_j, D_{j,i}, F_{j,i}, \Gamma_i); (\gamma_i, -\beta_{i,j}, s_{i,j}, r_{i,j}))$
             \State Compute $\hat{\psi}_{j,i} = \proveni{aff\mbox{-}g}^L(\Encode(\sid, i), R_j, (N_j, N_i, K_j, \hat{D}_{j,i}, \hat{F}_{j,i}, X_i); (x_i, -\hat{\beta}_{i,j}, \hat{s}_{i,j}, \hat{r}_{i,j}))$
             %\jnote{To consider later: this and the previous could possibly be combined for better efficiency}
-            \State Send $(\Gamma_i, \psi_i, D_{j,i}, F_{j,i}, \hat{D}_{j,i}, \hat{F}_{j,i}, \psi_{j,i}, \hat{\psi}_{j,i})$ to $P_j$
+            \State Send $(\Gamma_i, \tilde \psi_i, D_{j,i}, F_{j,i}, \hat{D}_{j,i}, \hat{F}_{j,i}, \psi_{j,i}, \hat{\psi}_{j,i})$ to $P_j$
         \EndFor
     \end{algorithmic}
 
     \item[\textbf{Round 3.}] \ 
     \begin{algorithmic}[1]
-        \State Receive $(\Gamma_j, \psi_i, D_{i,j}, F_{i,j}, \hat{D}_{i,j}, \hat{F}_{i,j}, \psi_{i,j}, \hat{\psi}_{i,j})
+        \State Receive $(\Gamma_j, \tilde \psi_j, D_{i,j}, F_{i,j}, \hat{D}_{i,j}, \hat{F}_{i,j}, \psi_{i,j}, \hat{\psi}_{i,j})
             \in (\E, *, \Z, \Z, \Z, \Z, *, *)$ from all parties
 
             \Comment{domains of the proofs are specified within ZK proofs verify functions}
 
         \For{$j \in [n] \setminus \{i\}$}
-            \State Assert $\verifyni{elog}(\Encode(\sid, j), (B_{j,1}, B_{j,2}, Y_j, \Gamma_j, G), \psi_j)$
+            \State Assert $\verifyni{elog}(\Encode(\sid, j), (B_{j,1}, B_{j,2}, Y_j, \Gamma_j, G), \tilde \psi_j)$
             \State Assert $\verifyni{aff\mbox{-}g}^L(\Encode(\sid, j), R_i, (N_i, N_j, K_i, D_{i,j}, F_{i,j}, \Gamma_j), \psi_{i,j}; \sk_i)$
             \State Assert $\verifyni{aff\mbox{-}g}^L(\Encode(\sid, j), R_i, (N_i, N_j, K_i, \hat{D}_{i,j}, \hat{F}_{i,j}, X_j), \hat{\psi}_{i,j}; \sk_i)$
         \EndFor
