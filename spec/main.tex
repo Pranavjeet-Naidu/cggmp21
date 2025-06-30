@@ -325,10 +325,10 @@ We let $\lambda$ denote the bit length of the curve order (so $2^\lambda \leq q 
 The security parameters of the protocol are denoted collectively by $L = (\kappa, \varepsilon, \ell, \ell', m, Q)$. 
 These parameters are used in the following ways:
 \begin{itemize}
-    \item $\kappa$ determines the target security bits of the protocol, it should match the security level of the used elliptic curve.
+    \item $\kappa$ is set to $\log_2 q$, bit-length of curve prime order. E.g. for secp256k1, $\kappa = 256$.
 
-    \item $\kappa_\rsa$ is a bit-length of the primes used for Paillier private keys. It's chosen to match $\kappa$ bits of security.
-    \item $n_\rsa$ is minimal length of the Paillier public key, private key of which has $\kappa_\rsa$ bits.
+    \item $n_\rsa$ is minimal length of the Paillier public key, private key of which has $\kappa_\rsa$ bits. It's chosen to match target security level. E.g. for 128-bits security, NIST recommends~\cite{NIST-RSA-keylen} 3072 bits public key.
+    \item $\kappa_\rsa$ is a bit-length of the primes used for Paillier private keys. Product of two such primes must be at least $n_\rsa$ bits long.
 
     \item $\ell, \ell'$ correspond to bounds on the ranges of certain plaintexts that are encrypted, while %Parameters should be set so that $2^\ell \leq 2^{8\kappa-1}$.
     $\eps$ is a slack parameter. (Honest parties choose plaintexts in a range determined by $\ell$ or $\ell'$; the zero-knowledge proofs, however, only prove that a party chose plaintexts in a range determined by $\ell+\eps$ or $\ell'+\eps$.)
