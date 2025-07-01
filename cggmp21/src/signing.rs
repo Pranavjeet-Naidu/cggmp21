@@ -207,7 +207,7 @@ pub mod msg {
         /// $\hat F_{j,i}$
         pub hat_F: fast_paillier::Ciphertext,
         /// $\psi_i$
-        pub psi_tilde: (pi_elog::Commitment<E>, pi_elog::Proof<E>),
+        pub tilde_psi: (pi_elog::Commitment<E>, pi_elog::Proof<E>),
         /// $\psi_{j,i}$
         pub psi_j: (pi_aff::Commitment<E>, pi_aff::Proof),
         /// $\hat \psi_{j,i}$
@@ -755,7 +755,7 @@ where
         tracer.stage("Prove ψ0_j");
         let R_j = &R[usize::from(j)];
 
-        let psi0 = pi_enc_elg::non_interactive::prove::<E, D>(
+        let psi0_ji = pi_enc_elg::non_interactive::prove::<E, D>(
             &unambiguous::ProofEnc {
                 sid,
                 prover: i,
@@ -779,7 +779,7 @@ where
         )
         .map_err(|e| Bug::PiEncElg(BugSource::psi0, e))?;
 
-        let psi1 = pi_enc_elg::non_interactive::prove::<E, D>(
+        let psi1_ji = pi_enc_elg::non_interactive::prove::<E, D>(
             &unambiguous::ProofEnc {
                 sid,
                 prover: i,
@@ -805,7 +805,13 @@ where
 
         tracer.send_msg();
         outgoings
-            .feed(Outgoing::p2p(j, Msg::Round1b(MsgRound1b { psi0, psi1 })))
+            .feed(Outgoing::p2p(
+                j,
+                Msg::Round1b(MsgRound1b {
+                    psi0: psi0_ji,
+                    psi1: psi1_ji,
+                }),
+            ))
             .await
             .map_err(IoError::send_message)?;
         tracer.msg_sent();
@@ -924,8 +930,8 @@ where
     // Step 2
     let Gamma_i = Point::generator() * &gamma_i;
 
-    tracer.stage("Prove psi_i");
-    let psi_tilde_i = pi_elog::non_interactive::prove::<E, D>(
+    tracer.stage("Prove tilde_psi_i");
+    let tilde_psi_i = pi_elog::non_interactive::prove::<E, D>(
         &unambiguous::ProofElog {
             sid,
             prover: i,
@@ -1084,7 +1090,7 @@ where
                     F: F_ji,
                     hat_D: hat_D_ji,
                     hat_F: hat_F_ji,
-                    psi_tilde: psi_tilde_i.clone(),
+                    tilde_psi: tilde_psi_i.clone(),
                     psi_j: psi_ji,
                     hat_psi_j: hat_psi_ji,
                 }),
@@ -1114,8 +1120,8 @@ where
             let X_j = X[usize::from(j)];
             let enc_j = &N[usize::from(j)];
 
-            tracer.stage("Validate psi_j");
-            let psi_invalid = pi_elog::non_interactive::verify::<E, D>(
+            tracer.stage("Validate tilde_psi_j");
+            let tilde_psi_invalid = pi_elog::non_interactive::verify::<E, D>(
                 &unambiguous::ProofElog {
                     sid,
                     prover: j,
@@ -1128,8 +1134,8 @@ where
                     y: &msg.Gamma,
                     h: &Point::generator().to_point(),
                 },
-                &msg.psi_tilde.0,
-                &msg.psi_tilde.1,
+                &msg.tilde_psi.0,
+                &msg.tilde_psi.1,
             )
             .err();
 
@@ -1177,8 +1183,9 @@ where
             )
             .err();
 
-            if psi_invalid.is_some() || psi_j_invalid.is_some() || hat_psi_j_invalid.is_some() {
-                Some((psi_invalid, psi_j_invalid, hat_psi_j_invalid))
+            if tilde_psi_invalid.is_some() || psi_j_invalid.is_some() || hat_psi_j_invalid.is_some()
+            {
+                Some((tilde_psi_invalid, psi_j_invalid, hat_psi_j_invalid))
             } else {
                 None
             }
