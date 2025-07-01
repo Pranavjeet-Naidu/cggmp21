@@ -752,7 +752,7 @@ where
     tracer.msg_sent();
 
     for j in utils::iter_peers(i, n) {
-        tracer.stage("Prove ψ0_j");
+        tracer.stage("Prove psi0_ji, psi1_ji");
         let R_j = &R[usize::from(j)];
 
         let psi0_ji = pi_enc_elg::non_interactive::prove::<E, D>(
