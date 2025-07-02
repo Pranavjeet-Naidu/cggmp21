@@ -1885,6 +1885,7 @@ This protocol is run to generate auxiliary information for each signer in a clus
 \State Set $\phi = (p-1)(q-1)$
 \State Sample $r \gets \Z^*_N$, and $\lambda \gets [\phi/4]$
 \State Set $t = r^2 \bmod N$, and $s = t^\lambda \bmod N$
+    \Comment{\parbox[t]{.5\linewidth}{$s$ is computed via CRT exponentiation as described in \ref{sec:CRT}}}
 \State \Return $(N, s, t; \phi, \lambda)$
 \end{algorithmic}
 \end{inlineAlgorithm}
