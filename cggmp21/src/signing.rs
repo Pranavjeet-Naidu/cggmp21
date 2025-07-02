@@ -1227,7 +1227,7 @@ where
     runtime.yield_now().await;
 
     tracer.stage("Prove psi_prime");
-    let psi_prime = pi_elog::non_interactive::prove::<E, D>(
+    let psi_prime_i = pi_elog::non_interactive::prove::<E, D>(
         &unambiguous::ProofElog {
             sid,
             prover: i,
@@ -1253,7 +1253,7 @@ where
         delta: delta_i,
         S: S_i,
         Delta: Delta_i,
-        psi_prime,
+        psi_prime: psi_prime_i,
     };
     outgoings
         .send(Outgoing::broadcast(Msg::Round3(my_round3_msg.clone())))
