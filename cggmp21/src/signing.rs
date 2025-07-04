@@ -80,15 +80,24 @@ pub struct Presignature<E: Curve> {
     pub tilde_chi: SecretScalar<E>,
 }
 
-/// Presigature commitments
+/// Public part of the presignature that can be used to verify partial signatures from other parties
 ///
 /// They are used to validate partial signature produced by the signers from a presignature
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PresignatureCommitments<E: Curve> {
+pub struct PresignaturePublicData<E: Curve> {
     /// $\Gamma$ presignature commitment
     pub Gamma: NonZero<Point<E>>,
     /// $(\tilde \Delta_j, \tilde S_j)_{j\in\[n\]}$
-    pub commitments: Vec<(Point<E>, Point<E>)>,
+    pub commitments: Vec<PresignatureCommitment<E>>,
+}
+
+/// Presignature commitment, used to verify partial signature correctness
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PresignatureCommitment<E: Curve> {
+    /// $\tilde \Delta_j$
+    pub tilde_Delta: Point<E>,
+    /// $\tilde \S_j$
+    pub tilde_S: Point<E>,
 }
 
 /// Partial signature issued by signer for given message
@@ -430,7 +439,7 @@ where
         self,
         rng: &mut R,
         party: M,
-    ) -> Result<(Presignature<E>, PresignatureCommitments<E>), SigningError>
+    ) -> Result<(Presignature<E>, PresignaturePublicData<E>), SigningError>
     where
         R: RngCore + CryptoRng,
         M: Mpc<ProtocolMessage = Msg<E, D>>,
@@ -465,7 +474,7 @@ where
         self,
         rng: &'r mut R,
     ) -> impl round_based::state_machine::StateMachine<
-        Output = Result<(Presignature<E>, PresignatureCommitments<E>), SigningError>,
+        Output = Result<(Presignature<E>, PresignaturePublicData<E>), SigningError>,
         Msg = Msg<E, D>,
     > + 'r
     where
@@ -1320,9 +1329,12 @@ where
 
     let commitments = round3_msgs
         .iter_including_me(&my_round3_msg)
-        .map(|m| (delta_inv * m.Delta, delta_inv * m.S))
+        .map(|m| PresignatureCommitment {
+            tilde_Delta: delta_inv * m.Delta,
+            tilde_S: delta_inv * m.S,
+        })
         .collect::<Vec<_>>();
-    let commitments = PresignatureCommitments { Gamma, commitments };
+    let commitments = PresignaturePublicData { Gamma, commitments };
 
     let presig = Presignature {
         Gamma,
@@ -1486,7 +1498,7 @@ where
     /// resulting signature to be sure that no one aborted the protocol.
     pub fn combine(
         partial_signatures: &[PartialSignature<E>],
-        commitments: &PresignatureCommitments<E>,
+        commitments: &PresignaturePublicData<E>,
         m: DataToSign<E>,
     ) -> Option<Signature<E>> {
         if partial_signatures.is_empty()
@@ -1499,7 +1511,9 @@ where
             let m = m.to_scalar();
             for (partial_sig, commitment) in partial_signatures.iter().zip(&commitments.commitments)
             {
-                if partial_sig.sigma * commitments.Gamma != m * commitment.0 + r * commitment.1 {
+                if partial_sig.sigma * commitments.Gamma
+                    != m * commitment.tilde_Delta + r * commitment.tilde_S
+                {
                     return None;
                 }
             }
@@ -1594,7 +1608,7 @@ impl<E: Curve> Signature<E> {
 }
 
 enum ProtocolOutput<E: Curve> {
-    Presignature((Presignature<E>, PresignatureCommitments<E>)),
+    Presignature((Presignature<E>, PresignaturePublicData<E>)),
     Signature(Signature<E>),
 }
 
