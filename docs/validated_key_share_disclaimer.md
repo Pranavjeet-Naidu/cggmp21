@@ -6,5 +6,5 @@ benefit from those optimizations, be aware that invalid/inconsistent data
 may lead to unexpected and unverbose protocol termination and as well to
 security breach.
 
-[CRT parameters]: crate::key_refresh::GenericKeyRefreshBuilder::precompute_crt
-[multiexponentiation tables]: crate::key_refresh::GenericKeyRefreshBuilder::precompute_multiexp_tables
+[CRT parameters]: PedersenParams::crt
+[multiexponentiation tables]: PedersenParams::multiexp

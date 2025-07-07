@@ -25,14 +25,14 @@
 //! // Verifier and prover share the same state
 //! let shared_state = "some shared state";
 //!
-//! let data = p::Data { n };
-//! let pdata = p::PrivateData { p, q };
+//! let data = p::Data { n: &n };
+//! let pdata = p::PrivateData { p: &p, q: &q };
 //!
 //! let (commitment, proof) =
 //!     p::non_interactive::prove::<{SECURITY}, sha2::Sha256>(
 //!         &shared_state,
-//!         &data,
-//!         &pdata,
+//!         data,
+//!         pdata,
 //!         &mut rng,
 //!     )?;
 //!
@@ -48,7 +48,7 @@
 //!
 //! p::non_interactive::verify::<{SECURITY}, sha2::Sha256>(
 //!     &shared_state,
-//!     &data,
+//!     data,
 //!     &commitment,
 //!     &proof,
 //! )?;
@@ -62,18 +62,17 @@ use rug::Integer;
 use serde::{Deserialize, Serialize};
 
 /// Public data that both parties know: the Paillier-Blum modulus
-#[derive(Debug, Clone, udigest::Digestable)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Data {
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub n: Integer,
+#[derive(Debug, Clone, Copy, udigest::Digestable)]
+pub struct Data<'a> {
+    #[udigest(as = &crate::common::encoding::Integer)]
+    pub n: &'a Integer,
 }
 
 /// Private data of prover
-#[derive(Clone)]
-pub struct PrivateData {
-    pub p: Integer,
-    pub q: Integer,
+#[derive(Clone, Copy)]
+pub struct PrivateData<'a> {
+    pub p: &'a Integer,
+    pub q: &'a Integer,
 }
 
 /// Prover's first message, obtained by [`interactive::commit`]
@@ -135,7 +134,7 @@ pub mod interactive {
     use super::{Challenge, Commitment, Data, PrivateData, Proof, ProofPoint};
 
     /// Create random commitment
-    pub fn commit<R: RngCore>(Data { ref n }: &Data, rng: &mut R) -> Commitment {
+    pub fn commit<R: RngCore>(Data { n }: Data, rng: &mut R) -> Commitment {
         Commitment {
             w: sample_invertible_with_neg_jacobi(n, rng),
         }
@@ -143,8 +142,8 @@ pub mod interactive {
 
     /// Compute proof for given data and prior protocol values
     pub fn prove<const M: usize>(
-        Data { ref n }: &Data,
-        PrivateData { ref p, ref q }: &PrivateData,
+        Data { n }: Data,
+        PrivateData { p, q }: PrivateData,
         Commitment { ref w }: &Commitment,
         challenge: &Challenge<M>,
     ) -> Result<Proof<M>, Error> {
@@ -174,7 +173,7 @@ pub mod interactive {
     /// Verify the proof. If this succeeds, the relation Rmod holds with chance
     /// `1/2^M`
     pub fn verify<const M: usize>(
-        data: &Data,
+        data: Data,
         commitment: &Commitment,
         challenge: &Challenge<M>,
         proof: &Proof<M>,
@@ -194,29 +193,29 @@ pub mod interactive {
         for (point, y) in proof.points.iter().zip(challenge.ys.iter()) {
             fail_if_ne(
                 InvalidProofReason::EqualityCheck(2),
-                &y.gcd_ref(&data.n).complete(),
+                &y.gcd_ref(data.n).complete(),
                 Integer::ONE,
             )?;
             if Integer::from(
                 point
                     .z
-                    .pow_mod_ref(&data.n, &data.n)
+                    .pow_mod_ref(data.n, data.n)
                     .ok_or(InvalidProofReason::ModPow)?,
             ) != *y
             {
                 return Err(InvalidProofReason::IncorrectNthRoot.into());
             }
             let y = y.clone();
-            let y = if point.a { &data.n - y } else { y };
+            let y = if point.a { data.n - y } else { y };
             let y = if point.b {
-                (y * &commitment.w).modulo(&data.n)
+                (y * &commitment.w).modulo(data.n)
             } else {
                 y
             };
             if Integer::from(
                 point
                     .x
-                    .pow_mod_ref(&4.into(), &data.n)
+                    .pow_mod_ref(&4.into(), data.n)
                     .ok_or(InvalidProofReason::ModPow)?,
             ) != y
             {
@@ -229,10 +228,7 @@ pub mod interactive {
     /// Generate random challenge
     ///
     /// `data` parameter is used to generate challenge in correct range
-    pub fn challenge<const M: usize, R: RngCore>(
-        Data { ref n }: &Data,
-        rng: &mut R,
-    ) -> Challenge<M> {
+    pub fn challenge<const M: usize, R: RngCore>(Data { n }: Data, rng: &mut R) -> Challenge<M> {
         let ys = [(); M].map(|()| Integer::gen_invertible(n, rng));
         Challenge { ys }
     }
@@ -253,8 +249,8 @@ pub mod non_interactive {
     /// Obtained from the above interactive proof via Fiat-Shamir heuristic.
     pub fn prove<const M: usize, D: Digest>(
         shared_state: &impl udigest::Digestable,
-        data: &Data,
-        pdata: &PrivateData,
+        data: Data,
+        pdata: PrivateData,
         rng: &mut impl rand_core::RngCore,
     ) -> Result<(Commitment, Proof<M>), Error> {
         let commitment = super::interactive::commit(data, rng);
@@ -266,7 +262,7 @@ pub mod non_interactive {
     /// Verify the proof, deriving challenge independently from same data
     pub fn verify<const M: usize, D: Digest>(
         shared_state: &impl udigest::Digestable,
-        data: &Data,
+        data: Data,
         commitment: &Commitment,
         proof: &Proof<M>,
     ) -> Result<(), InvalidProof> {
@@ -277,7 +273,7 @@ pub mod non_interactive {
     /// Deterministically compute challenge based on prior known values in protocol
     pub fn challenge<const M: usize, D: Digest>(
         shared_state: &impl udigest::Digestable,
-        data: &Data,
+        data: Data,
         commitment: &Commitment,
     ) -> Challenge<M> {
         let tag = "paillier_zk.blum_modulus.ni_challenge";
@@ -306,12 +302,12 @@ mod test {
         let p = generate_blum_prime(&mut rng, 256);
         let q = generate_blum_prime(&mut rng, 256);
         let n = (&p * &q).complete();
-        let data = super::Data { n };
-        let pdata = super::PrivateData { p, q };
+        let data = super::Data { n: &n };
+        let pdata = super::PrivateData { p: &p, q: &q };
         let shared_state = "shared state";
         let (commitment, proof) =
-            super::non_interactive::prove::<65, D>(&shared_state, &data, &pdata, &mut rng).unwrap();
-        let r = super::non_interactive::verify::<65, D>(&shared_state, &data, &commitment, &proof);
+            super::non_interactive::prove::<65, D>(&shared_state, data, pdata, &mut rng).unwrap();
+        let r = super::non_interactive::verify::<65, D>(&shared_state, data, &commitment, &proof);
         match r {
             Ok(()) => (),
             Err(e) => panic!("{e:?}"),
@@ -330,12 +326,12 @@ mod test {
             }
         };
         let n = (&p * &q).complete();
-        let data = super::Data { n };
-        let pdata = super::PrivateData { p, q };
+        let data = super::Data { n: &n };
+        let pdata = super::PrivateData { p: &p, q: &q };
         let shared_state = "shared state";
         let (commitment, proof) =
-            super::non_interactive::prove::<65, D>(&shared_state, &data, &pdata, &mut rng).unwrap();
-        let r = super::non_interactive::verify::<65, D>(&shared_state, &data, &commitment, &proof);
+            super::non_interactive::prove::<65, D>(&shared_state, data, pdata, &mut rng).unwrap();
+        let r = super::non_interactive::verify::<65, D>(&shared_state, data, &commitment, &proof);
         if r.is_ok() {
             panic!("proof should not pass");
         }

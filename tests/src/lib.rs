@@ -1,8 +1,13 @@
 use anyhow::{bail, Context, Result};
-use cggmp21::{key_share::KeyShare, rug::Integer, security_level::SecurityLevel};
+use cggmp21::{
+    key_share::{KeyShare, Validate},
+    rug::Integer,
+    security_level::SecurityLevel128,
+    IncompleteKeyShare,
+};
 use generic_ec::Curve;
 use rand::RngCore;
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 /// Wraps a sink to buffer the messages. Used in [`buffer_outgoing`]
 #[pin_project::pin_project]
@@ -99,53 +104,97 @@ lazy_static::lazy_static! {
         ).unwrap();
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct PrecomputedKeyShares {
-    shares: Map<String, Value>,
+    /// contains only core key shares, that needs to be completed with `aux`
+    shares: std::collections::BTreeMap<String, Vec<Value>>,
+    /// re-usable aux data
+    aux: Vec<cggmp21::key_share::AuxInfo<SecurityLevel128>>,
 }
 
 impl PrecomputedKeyShares {
     pub fn empty() -> Self {
         Self {
             shares: Default::default(),
+            aux: vec![],
         }
     }
+
     #[allow(clippy::should_implement_trait)]
     pub fn from_serialized(shares: &str) -> Result<Self> {
-        let shares = serde_json::from_str(shares).context("parse shares")?;
-        Ok(Self { shares })
+        serde_json::from_str(shares).context("parse shares")
     }
 
     pub fn to_serialized(&self) -> Result<String> {
-        serde_json::to_string_pretty(&self.shares).context("serialize shares")
+        serde_json::to_string_pretty(self).context("serialize shares")
     }
 
-    pub fn get_shares<E: Curve, L: SecurityLevel>(
+    pub fn get_shares<E: Curve>(
         &self,
         t: Option<u16>,
         n: u16,
         hd_enabled: bool,
-    ) -> Result<Vec<KeyShare<E, L>>> {
+    ) -> Result<Vec<KeyShare<E, SecurityLevel128>>> {
         let key_shares = self
             .shares
             .get(&Self::key::<E>(t, n, hd_enabled))
             .context("shares not found")?;
-        serde_json::from_value(key_shares.clone()).context("parse key shares")
+        let aux = self.get_aux(n).context("get aux")?;
+        key_shares
+            .iter()
+            .cloned()
+            .zip(aux)
+            .map(|(share, aux)| {
+                let share = serde_json::from_value(share).context("parse key share")?;
+                cggmp21::KeyShare::from_parts((share, aux)).context("invalid key share")
+            })
+            .collect()
     }
 
-    pub fn add_shares<E: Curve, L: SecurityLevel>(
+    /// Retrieves aux data for a set of `n` signers
+    fn get_aux(&self, n: u16) -> Result<Vec<cggmp21::key_share::AuxInfo<SecurityLevel128>>> {
+        let n: usize = n.into();
+        if n > self.aux.len() {
+            anyhow::bail!("too many parties")
+        }
+        self.aux
+            .iter()
+            .cloned()
+            .map(|aux| {
+                let mut aux = aux.into_inner();
+                aux.N.truncate(n);
+                aux.pedersen_params.truncate(n);
+                aux.validate()
+            })
+            .collect::<Result<_, _>>()
+            .context("invalid resulting aux")
+    }
+
+    pub fn add_shares<E: Curve>(
         &mut self,
         t: Option<u16>,
         n: u16,
         hd_enabled: bool,
-        shares: &[KeyShare<E, L>],
+        shares: &[IncompleteKeyShare<E>],
     ) -> Result<()> {
         if usize::from(n) != shares.len() {
             bail!("expected {n} key shares, only {} provided", shares.len());
         }
-        let key_shares = serde_json::to_value(shares).context("serialize shares")?;
+        if usize::from(n) > self.aux.len() {
+            bail!("amount of key shares is greater than amount of aux data")
+        }
+        let key_shares = shares
+            .iter()
+            .map(serde_json::to_value)
+            .collect::<Result<_, _>>()
+            .context("serialize key shares")?;
         self.shares
             .insert(Self::key::<E>(t, n, hd_enabled), key_shares);
         Ok(())
+    }
+
+    pub fn add_aux(&mut self, aux: Vec<cggmp21::key_share::AuxInfo<SecurityLevel128>>) {
+        self.aux = aux;
     }
 
     fn key<E: Curve>(t: Option<u16>, n: u16, hd_enabled: bool) -> String {
@@ -178,13 +227,17 @@ impl PregeneratedPrimes {
     where
         L: cggmp21::security_level::SecurityLevel,
     {
-        if self.bitsize != 4 * L::SECURITY_BITS {
+        if self.bitsize != L::RSA_PRIME_BITLEN {
             panic!("Attempting to use generated primes while expecting wrong bit size");
         }
-        self.primes.chunks(2).map(|s| {
-            let p = &s[0];
-            let q = &s[1];
-            cggmp21::key_refresh::PregeneratedPrimes::new(p.clone(), q.clone())
+        self.primes.chunks(4).map(|primes| {
+            let primes = [
+                primes[0].clone(),
+                primes[1].clone(),
+                primes[2].clone(),
+                primes[3].clone(),
+            ];
+            cggmp21::key_refresh::PregeneratedPrimes::try_from(primes)
                 .expect("primes have wrong bit size")
         })
     }
@@ -195,13 +248,9 @@ impl PregeneratedPrimes {
         L: cggmp21::security_level::SecurityLevel,
         R: RngCore,
     {
-        let bitsize = 4 * L::SECURITY_BITS;
-        let primes = (0..amount)
-            .flat_map(|_| {
-                let p = generate_blum_prime(rng, bitsize);
-                let q = generate_blum_prime(rng, bitsize);
-                [p, q]
-            })
+        let bitsize = L::RSA_PRIME_BITLEN;
+        let primes = (0..amount * 4)
+            .map(|_| generate_blum_prime(rng, bitsize))
             .collect();
 
         Self { primes, bitsize }

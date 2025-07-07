@@ -5,25 +5,24 @@ use futures::SinkExt;
 use generic_ec::{coords::AlwaysHasAffineX, Curve, NonZero, Point, Scalar, SecretScalar};
 use generic_ec_zkp::polynomial::lagrange_coefficient_at_zero;
 use paillier_zk::rug::Complete;
-use paillier_zk::{fast_paillier, rug::Integer};
 use paillier_zk::{
-    group_element_vs_paillier_encryption_in_range as pi_log,
-    paillier_affine_operation_in_range as pi_aff, paillier_encryption_in_range as pi_enc,
-    IntegerExt,
+    dlog_with_el_gamal_commitment as pi_elog, paillier_affine_operation_in_range as pi_aff,
+    paillier_encryption_in_range_with_el_gamal as pi_enc_elg, IntegerExt,
 };
+use paillier_zk::{fast_paillier, rug::Integer};
 use rand_core::{CryptoRng, RngCore};
 use round_based::{
     rounds_router::{simple_store::RoundInput, RoundsRouter},
     runtime::AsyncRuntime,
-    Delivery, Mpc, MpcParty, MsgId, Outgoing, PartyIndex,
+    Delivery, Mpc, MpcParty, Outgoing, PartyIndex,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::errors::IoError;
-use crate::key_share::{KeyShare, PartyAux, VssSetup};
+use crate::key_share::{InvalidKeyShare, KeyShare, PedersenParams, VssSetup};
 use crate::progress::Tracer;
-use crate::{key_share::InvalidKeyShare, security_level::SecurityLevel, utils, ExecutionId};
+use crate::{security_level::SecurityLevel, utils, ExecutionId};
 
 use self::msg::*;
 
@@ -73,12 +72,32 @@ impl<E: Curve> DataToSign<E> {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct Presignature<E: Curve> {
-    /// $R$ component of presignature
-    pub R: NonZero<Point<E>>,
-    /// $k$ component of presignaure
-    pub k: SecretScalar<E>,
-    /// $\chi$ component of presignature
-    pub chi: SecretScalar<E>,
+    /// $\Gamma$ component of presignature
+    pub Gamma: NonZero<Point<E>>,
+    /// $\tilde k_i$ component of presignature
+    pub tilde_k: SecretScalar<E>,
+    /// $\tilde \chi_i$ component of presignature
+    pub tilde_chi: SecretScalar<E>,
+}
+
+/// Public part of the presignature that can be used to verify partial signatures from other parties
+///
+/// They are used to validate partial signature produced by the signers from a presignature
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PresignaturePublicData<E: Curve> {
+    /// $\Gamma$ presignature commitment
+    pub Gamma: NonZero<Point<E>>,
+    /// $(\tilde \Delta_j, \tilde S_j)_{j\in\[n\]}$
+    pub commitments: Vec<PresignatureCommitment<E>>,
+}
+
+/// Presignature commitment, used to verify partial signature correctness
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PresignatureCommitment<E: Curve> {
+    /// $\tilde \Delta_j$
+    pub tilde_Delta: Point<E>,
+    /// $\tilde \S_j$
+    pub tilde_S: Point<E>,
 }
 
 /// Partial signature issued by signer for given message
@@ -86,11 +105,9 @@ pub struct Presignature<E: Curve> {
 /// Can be obtained using [`Presignature::issue_partial_signature`]. Partial signature doesn't carry any sensitive inforamtion.
 ///
 /// Threshold amount of partial signatures can be combined into a regular signature using [`PartialSignature::combine`]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct PartialSignature<E: Curve> {
-    /// $r$ component of partial signature
-    pub r: Scalar<E>,
     /// $\sigma$ component of partial signature
     pub sigma: Scalar<E>,
 }
@@ -119,13 +136,15 @@ pub mod msg {
 
     use paillier_zk::fast_paillier;
     use paillier_zk::{
-        group_element_vs_paillier_encryption_in_range as pi_log,
-        paillier_affine_operation_in_range as pi_aff, paillier_encryption_in_range as pi_enc,
+        dlog_with_el_gamal_commitment as pi_elog, paillier_affine_operation_in_range as pi_aff,
+        paillier_encryption_in_range_with_el_gamal as pi_enc_elg,
     };
     use round_based::ProtocolMessage;
     use serde::{Deserialize, Serialize};
 
     use crate::utils;
+
+    use super::PartialSignature;
 
     /// Signing protocol message
     ///
@@ -135,9 +154,9 @@ pub mod msg {
     #[allow(clippy::large_enum_variant)]
     pub enum Msg<E: Curve, D: Digest> {
         /// Round 1a message
-        Round1a(MsgRound1a),
+        Round1a(MsgRound1a<E>),
         /// Round 1b message
-        Round1b(MsgRound1b),
+        Round1b(MsgRound1b<E>),
         /// Round 2 message
         Round2(MsgRound2<E>),
         /// Round 3 message
@@ -150,21 +169,36 @@ pub mod msg {
 
     /// Message from round 1a
     #[derive(Clone, Serialize, Deserialize, udigest::Digestable)]
+    #[serde(bound = "")]
     #[udigest(tag = prefixed!("round1"))]
-    pub struct MsgRound1a {
+    #[udigest(bound = "")]
+    pub struct MsgRound1a<E: Curve> {
         /// $K_i$
         #[udigest(as = utils::encoding::Integer)]
         pub K: fast_paillier::Ciphertext,
         /// $G_i$
         #[udigest(as = utils::encoding::Integer)]
         pub G: fast_paillier::Ciphertext,
+        /// $Y_i$
+        pub Y: Point<E>,
+        /// $A_{i,1}$
+        pub A1: Point<E>,
+        /// $A_{i,2}$
+        pub A2: Point<E>,
+        /// $B_{i,1}$
+        pub B1: Point<E>,
+        /// $B_{i,2}$
+        pub B2: Point<E>,
     }
 
     /// Message from round 1b
     #[derive(Clone, Serialize, Deserialize)]
-    pub struct MsgRound1b {
+    #[serde(bound = "")]
+    pub struct MsgRound1b<E: Curve> {
         /// $\psi^0_{j,i}$
-        pub psi0: (pi_enc::Commitment, pi_enc::Proof),
+        pub psi0: (pi_enc_elg::Commitment<E>, pi_enc_elg::Proof<E>),
+        /// $\psi^1_{j,i}$
+        pub psi1: (pi_enc_elg::Commitment<E>, pi_enc_elg::Proof<E>),
     }
 
     /// Message from round 2
@@ -181,12 +215,12 @@ pub mod msg {
         pub hat_D: fast_paillier::Ciphertext,
         /// $\hat F_{j,i}$
         pub hat_F: fast_paillier::Ciphertext,
+        /// $\psi_i$
+        pub tilde_psi: (pi_elog::Commitment<E>, pi_elog::Proof<E>),
         /// $\psi_{j,i}$
-        pub psi: (pi_aff::Commitment<E>, pi_aff::Proof),
+        pub psi_j: (pi_aff::Commitment<E>, pi_aff::Proof),
         /// $\hat \psi_{j,i}$
-        pub hat_psi: (pi_aff::Commitment<E>, pi_aff::Proof),
-        /// $\psi'_{j,i}$
-        pub psi_prime: (pi_log::Commitment<E>, pi_log::Proof),
+        pub hat_psi_j: (pi_aff::Commitment<E>, pi_aff::Proof),
     }
 
     /// Message from round 3
@@ -195,10 +229,12 @@ pub mod msg {
     pub struct MsgRound3<E: Curve> {
         /// $\delta_i$
         pub delta: Scalar<E>,
+        /// $S_i$
+        pub S: Point<E>,
         /// $\Delta_i$
         pub Delta: Point<E>,
-        /// $\psi''_{j,i}$
-        pub psi_prime_prime: (pi_log::Commitment<E>, pi_log::Proof),
+        /// $\psi'_i$
+        pub psi_prime: (pi_elog::Commitment<E>, pi_elog::Proof<E>),
     }
 
     /// Message from round 4
@@ -206,7 +242,7 @@ pub mod msg {
     #[serde(bound = "")]
     pub struct MsgRound4<E: Curve> {
         /// $\sigma_i$
-        pub sigma: Scalar<E>,
+        pub partial_sig: PartialSignature<E>,
     }
 
     /// Message from auxiliary round for reliability check
@@ -223,6 +259,8 @@ mod unambiguous {
     pub struct ProofEnc<'a> {
         pub sid: ExecutionId<'a>,
         pub prover: u16,
+        /// Either `0` (corresponds to $\psi^0_{j,i}$) or `1` (corresponds to $\psi^1_{j,i}$)
+        pub num: u8,
     }
 
     #[derive(udigest::Digestable)]
@@ -234,18 +272,19 @@ mod unambiguous {
     }
 
     #[derive(udigest::Digestable)]
-    #[udigest(tag = prefixed!("proof_log"))]
-    pub struct ProofLog<'a> {
+    #[udigest(tag = prefixed!("proof_elog"))]
+    pub struct ProofElog<'a> {
         pub sid: ExecutionId<'a>,
         pub prover: u16,
-        pub prime_prime: bool,
+        pub prime: bool,
     }
 
     #[derive(udigest::Digestable)]
     #[udigest(tag = prefixed!("echo_round"))]
-    pub struct Echo<'a> {
+    #[udigest(bound = "")]
+    pub struct Echo<'a, E: generic_ec::Curve> {
         pub sid: ExecutionId<'a>,
-        pub ciphertexts: &'a super::MsgRound1a,
+        pub ciphertexts: &'a super::MsgRound1a<E>,
     }
 }
 
@@ -400,7 +439,7 @@ where
         self,
         rng: &mut R,
         party: M,
-    ) -> Result<Presignature<E>, SigningError>
+    ) -> Result<(Presignature<E>, PresignaturePublicData<E>), SigningError>
     where
         R: RngCore + CryptoRng,
         M: Mpc<ProtocolMessage = Msg<E, D>>,
@@ -435,7 +474,7 @@ where
         self,
         rng: &'r mut R,
     ) -> impl round_based::state_machine::StateMachine<
-        Output = Result<Presignature<E>, SigningError>,
+        Output = Result<(Presignature<E>, PresignaturePublicData<E>), SigningError>,
         Msg = Msg<E, D>,
     > + 'r
     where
@@ -530,7 +569,7 @@ where
     // Validate arguments
     let n: u16 = key_share
         .aux
-        .parties
+        .pedersen_params
         .len()
         .try_into()
         .map_err(|_| Bug::PartiesNumberExceedsU16)?;
@@ -591,7 +630,12 @@ where
 
     // Assemble rest of the data
     let (p_i, q_i) = (&key_share.aux.p, &key_share.aux.q);
-    let R = utils::subset(S, &key_share.aux.parties).ok_or(Bug::Subset)?;
+    let N = utils::subset(S, &key_share.aux.N)
+        .ok_or(Bug::Subset)?
+        .into_iter()
+        .map(fast_paillier::EncryptionKey::from_n)
+        .collect::<Vec<_>>();
+    let R = utils::subset(S, &key_share.aux.pedersen_params).ok_or(Bug::Subset)?;
 
     // t-out-of-t signing
     signing_n_out_of_n::<_, _, L, _, _>(
@@ -606,6 +650,7 @@ where
         key_share.core.shared_public_key + Shift,
         p_i,
         q_i,
+        &N,
         &R,
         message_to_sign,
         enforce_reliable_broadcast,
@@ -629,7 +674,8 @@ async fn signing_n_out_of_n<M, E, L, D, R>(
     pk: Point<E>,
     p_i: &Integer,
     q_i: &Integer,
-    R: &[PartyAux],
+    N: &[fast_paillier::EncryptionKey],
+    R: &[PedersenParams],
     message_to_sign: Option<DataToSign<E>>,
     enforce_reliable_broadcast: bool,
 ) -> Result<ProtocolOutput<E>, SigningError>
@@ -648,7 +694,7 @@ where
 
     tracer.stage("Retrieve auxiliary data");
     let R_i = &R[usize::from(i)];
-    let N_i = &R_i.N;
+
     let dec_i: fast_paillier::DecryptionKey =
         fast_paillier::DecryptionKey::from_primes(p_i.clone(), q_i.clone())
             .map_err(|_| Bug::InvalidOwnPaillierKey)?;
@@ -658,11 +704,11 @@ where
 
     tracer.stage("Setup networking");
     let mut rounds = RoundsRouter::<Msg<E, D>>::builder();
-    let round1a = rounds.add_round(RoundInput::<MsgRound1a>::broadcast(i, n));
-    let round1b = rounds.add_round(RoundInput::<MsgRound1b>::p2p(i, n));
+    let round1a = rounds.add_round(RoundInput::<MsgRound1a<E>>::broadcast(i, n));
+    let round1b = rounds.add_round(RoundInput::<MsgRound1b<E>>::p2p(i, n));
     let round1a_sync = rounds.add_round(RoundInput::<MsgReliabilityCheck<D>>::broadcast(i, n));
     let round2 = rounds.add_round(RoundInput::<MsgRound2<E>>::p2p(i, n));
-    let round3 = rounds.add_round(RoundInput::<MsgRound3<E>>::p2p(i, n));
+    let round3 = rounds.add_round(RoundInput::<MsgRound3<E>>::broadcast(i, n));
     let round4 = rounds.add_round(RoundInput::<MsgRound4<E>>::broadcast(i, n));
     let mut rounds = rounds.listen(incomings);
 
@@ -673,8 +719,8 @@ where
     let gamma_i = SecretScalar::<E>::random(rng);
     let k_i = SecretScalar::<E>::random(rng);
 
-    let v_i = Integer::gen_invertible(N_i, rng);
-    let rho_i = Integer::gen_invertible(N_i, rng);
+    let v_i = Integer::gen_invertible(dec_i.n(), rng);
+    let rho_i = Integer::gen_invertible(dec_i.n(), rng);
 
     tracer.stage("Encrypt G_i and K_i");
     let G_i = dec_i
@@ -683,41 +729,97 @@ where
     let K_i = dec_i
         .encrypt_with(&utils::scalar_to_bignumber(&k_i), &rho_i)
         .map_err(|_| Bug::PaillierEnc(BugSource::K_i))?;
-    runtime.yield_now().await;
+
+    tracer.stage("Generate a_i, b_i, A_i1, A_i2, B_i1, B_i2");
+    let Y_i = {
+        let y_i = SecretScalar::<E>::random(rng);
+        Point::generator() * y_i
+    };
+    let a_i = SecretScalar::<E>::random(rng);
+    let b_i = SecretScalar::<E>::random(rng);
+
+    let A_i1 = &a_i * Point::generator();
+    let A_i2 = &a_i * Y_i + &k_i * Point::generator();
+
+    let B_i1 = &b_i * Point::generator();
+    let B_i2 = &b_i * Y_i + &gamma_i * Point::generator();
 
     tracer.send_msg();
     outgoings
         .feed(Outgoing::broadcast(Msg::Round1a(MsgRound1a {
             K: K_i.clone(),
             G: G_i.clone(),
+            Y: Y_i,
+            A1: A_i1,
+            A2: A_i2,
+            B1: B_i1,
+            B2: B_i2,
         })))
         .await
         .map_err(IoError::send_message)?;
     tracer.msg_sent();
 
     for j in utils::iter_peers(i, n) {
-        tracer.stage("Prove ψ0_j");
+        tracer.stage("Prove psi0_ji, psi1_ji");
         let R_j = &R[usize::from(j)];
 
-        let psi0 = pi_enc::non_interactive::prove::<D>(
-            &unambiguous::ProofEnc { sid, prover: i },
+        let psi0_ji = pi_enc_elg::non_interactive::prove::<E, D>(
+            &unambiguous::ProofEnc {
+                sid,
+                prover: i,
+                num: 0,
+            },
             &R_j.into(),
-            pi_enc::Data {
+            pi_enc_elg::Data {
                 key: &dec_i,
                 ciphertext: &K_i,
+                a: &Y_i,
+                b: &A_i1,
+                x: &A_i2,
             },
-            pi_enc::PrivateData {
+            pi_enc_elg::PrivateData {
                 plaintext: &utils::scalar_to_bignumber(&k_i),
                 nonce: &rho_i,
+                b: a_i.as_ref(),
             },
-            &security_params.pi_enc,
-            &mut *rng,
+            &security_params.pi_enc_elg,
+            rng,
         )
-        .map_err(|e| Bug::PiEnc(BugSource::psi0, e))?;
+        .map_err(|e| Bug::PiEncElg(BugSource::psi0, e))?;
+
+        let psi1_ji = pi_enc_elg::non_interactive::prove::<E, D>(
+            &unambiguous::ProofEnc {
+                sid,
+                prover: i,
+                num: 1,
+            },
+            &R_j.into(),
+            pi_enc_elg::Data {
+                key: &dec_i,
+                ciphertext: &G_i,
+                a: &Y_i,
+                b: &B_i1,
+                x: &B_i2,
+            },
+            pi_enc_elg::PrivateData {
+                plaintext: &utils::scalar_to_bignumber(&gamma_i),
+                nonce: &v_i,
+                b: b_i.as_ref(),
+            },
+            &security_params.pi_enc_elg,
+            rng,
+        )
+        .map_err(|e| Bug::PiEncElg(BugSource::psi1, e))?;
 
         tracer.send_msg();
         outgoings
-            .feed(Outgoing::p2p(j, Msg::Round1b(MsgRound1b { psi0 })))
+            .feed(Outgoing::p2p(
+                j,
+                Msg::Round1b(MsgRound1b {
+                    psi0: psi0_ji,
+                    psi1: psi1_ji,
+                }),
+            ))
             .await
             .map_err(IoError::send_message)?;
         tracer.msg_sent();
@@ -735,7 +837,7 @@ where
         .complete(round1a)
         .await
         .map_err(IoError::receive_message)?;
-    let psi0 = rounds
+    let psi_proofs = rounds
         .complete(round1b)
         .await
         .map_err(IoError::receive_message)?;
@@ -749,6 +851,11 @@ where
                 .iter_including_me(&MsgRound1a {
                     K: K_i.clone(),
                     G: G_i.clone(),
+                    Y: Y_i,
+                    A1: A_i1,
+                    A2: A_i2,
+                    B1: B_i1,
+                    B2: B_i2,
                 })
                 .map(|ciphertexts| unambiguous::Echo { sid, ciphertexts }),
         );
@@ -771,49 +878,89 @@ where
             .map_err(IoError::receive_message)?;
         tracer.msgs_received();
         tracer.stage("Assert other parties hashed messages (reliability check)");
-        let parties_have_different_hashes = round1a_hashes
-            .into_iter_indexed()
-            .filter(|(_j, _msg_id, hash)| hash.0 != h_i)
-            .map(|(j, msg_id, _)| (j, msg_id))
-            .collect::<Vec<_>>();
+        let parties_have_different_hashes =
+            utils::collect_simple_blame(&round1a_hashes, |hash| hash.0 != h_i);
         if !parties_have_different_hashes.is_empty() {
             return Err(SigningAborted::Round1aNotReliable(parties_have_different_hashes).into());
         }
     }
 
     // Step 1. Verify proofs
-    tracer.stage("Verify psi0 proofs");
-    {
-        let mut faulty_parties = vec![];
-        for ((j, msg1_id, ciphertext), (_, msg2_id, proof)) in
-            ciphertexts.iter_indexed().zip(psi0.iter_indexed())
-        {
-            let R_j = &R[usize::from(j)];
-            if pi_enc::non_interactive::verify::<D>(
-                &unambiguous::ProofEnc { sid, prover: j },
+    tracer.stage("Verify psi0, psi1 proofs");
+    let faulty_parties =
+        utils::collect_blame_with_data(&ciphertexts, &psi_proofs, |j, ciphertexts, proof| {
+            let N_j = &N[usize::from(j)];
+            pi_enc_elg::non_interactive::verify::<E, D>(
+                &unambiguous::ProofEnc {
+                    sid,
+                    prover: j,
+                    num: 0,
+                },
                 &R_i.into(),
-                pi_enc::Data {
-                    key: &fast_paillier::EncryptionKey::from_n(R_j.N.clone()),
-                    ciphertext: &ciphertext.K,
+                pi_enc_elg::Data {
+                    key: N_j,
+                    ciphertext: &ciphertexts.K,
+                    a: &ciphertexts.Y,
+                    b: &ciphertexts.A1,
+                    x: &ciphertexts.A2,
                 },
                 &proof.psi0.0,
-                &security_params.pi_enc,
                 &proof.psi0.1,
+                &security_params.pi_enc_elg,
             )
-            .is_err()
-            {
-                faulty_parties.push((j, msg1_id, msg2_id))
-            }
-        }
+            .err()?;
+            pi_enc_elg::non_interactive::verify::<E, D>(
+                &unambiguous::ProofEnc {
+                    sid,
+                    prover: j,
+                    num: 1,
+                },
+                &R_i.into(),
+                pi_enc_elg::Data {
+                    key: N_j,
+                    ciphertext: &ciphertexts.G,
+                    a: &ciphertexts.Y,
+                    b: &ciphertexts.B1,
+                    x: &ciphertexts.B2,
+                },
+                &proof.psi1.0,
+                &proof.psi1.1,
+                &security_params.pi_enc_elg,
+            )
+            .err()
+        });
 
-        if !faulty_parties.is_empty() {
-            return Err(SigningAborted::EncProofOfK(faulty_parties).into());
-        }
+    if !faulty_parties.is_empty() {
+        return Err(SigningAborted::EncProofOfK(faulty_parties).into());
     }
     runtime.yield_now().await;
 
     // Step 2
     let Gamma_i = Point::generator() * &gamma_i;
+
+    tracer.stage("Prove tilde_psi_i");
+    let tilde_psi_i = pi_elog::non_interactive::prove::<E, D>(
+        &unambiguous::ProofElog {
+            sid,
+            prover: i,
+            prime: false,
+        },
+        pi_elog::Data {
+            l: &B_i1,
+            m: &B_i2,
+            x: &Y_i,
+            y: &Gamma_i,
+            h: &Point::generator().to_point(),
+        },
+        pi_elog::PrivateData {
+            y: gamma_i.as_ref(),
+            lambda: b_i.as_ref(),
+        },
+        rng,
+    )
+    .map_err(|e| Bug::PiElog(BugSource::psi, e))?;
+    runtime.yield_now().await;
+
     let J = (Integer::ONE << L::ELL_PRIME).complete();
 
     let mut beta_sum = Scalar::zero();
@@ -821,13 +968,24 @@ where
     for (j, _, ciphertext_j) in ciphertexts.iter_indexed() {
         tracer.stage("Sample random r, hat_r, s, hat_s, beta, hat_beta");
         let R_j = &R[usize::from(j)];
-        let N_j = &R_j.N;
-        let enc_j = fast_paillier::EncryptionKey::from_n(N_j.clone());
+        let enc_j = &N[usize::from(j)];
 
-        let r_ij = N_i.random_below_ref(&mut utils::external_rand(rng)).into();
-        let hat_r_ij = N_i.random_below_ref(&mut utils::external_rand(rng)).into();
-        let s_ij = N_j.random_below_ref(&mut utils::external_rand(rng)).into();
-        let hat_s_ij = N_j.random_below_ref(&mut utils::external_rand(rng)).into();
+        let r_ij = dec_i
+            .n()
+            .random_below_ref(&mut utils::external_rand(rng))
+            .into();
+        let hat_r_ij = dec_i
+            .n()
+            .random_below_ref(&mut utils::external_rand(rng))
+            .into();
+        let s_ij = enc_j
+            .n()
+            .random_below_ref(&mut utils::external_rand(rng))
+            .into();
+        let hat_s_ij = enc_j
+            .n()
+            .random_below_ref(&mut utils::external_rand(rng))
+            .into();
 
         let beta_ij = Integer::from_rng_pm(&J, rng);
         let hat_beta_ij = Integer::from_rng_pm(&J, rng);
@@ -883,8 +1041,8 @@ where
             },
             &R_j.into(),
             pi_aff::Data {
-                key0: &enc_j,
-                key1: &dec_i,
+                key_j: enc_j,
+                key_i: &dec_i,
                 c: &ciphertext_j.K,
                 d: &D_ji,
                 y: &F_ji,
@@ -911,8 +1069,8 @@ where
             },
             &R_j.into(),
             pi_aff::Data {
-                key0: &enc_j,
-                key1: &dec_i,
+                key_j: enc_j,
+                key_i: &dec_i,
                 c: &ciphertext_j.K,
                 d: &hat_D_ji,
                 y: &hat_F_ji,
@@ -928,29 +1086,6 @@ where
             &mut *rng,
         )
         .map_err(|e| Bug::PiAffG(BugSource::hat_psi, e))?;
-
-        tracer.stage("Prove psi_prime_ji ");
-        let psi_prime_ji = pi_log::non_interactive::prove::<E, D>(
-            &unambiguous::ProofLog {
-                sid,
-                prover: i,
-                prime_prime: false,
-            },
-            &R_j.into(),
-            pi_log::Data {
-                key0: &dec_i,
-                c: &G_i,
-                x: &Gamma_i,
-                b: &Point::<E>::generator().to_point(),
-            },
-            pi_log::PrivateData {
-                x: &utils::scalar_to_bignumber(&gamma_i),
-                nonce: &v_i,
-            },
-            &security_params.pi_log,
-            &mut *rng,
-        )
-        .map_err(|e| Bug::PiLog(BugSource::psi_prime, e))?;
         runtime.yield_now().await;
 
         tracer.send_msg();
@@ -963,9 +1098,9 @@ where
                     F: F_ji,
                     hat_D: hat_D_ji,
                     hat_F: hat_F_ji,
-                    psi: psi_ji,
-                    hat_psi: hat_psi_ji,
-                    psi_prime: psi_prime_ji,
+                    tilde_psi: tilde_psi_i.clone(),
+                    psi_j: psi_ji,
+                    hat_psi_j: hat_psi_ji,
                 }),
             ))
             .await
@@ -987,93 +1122,86 @@ where
         .map_err(IoError::receive_message)?;
     tracer.msgs_received();
 
-    let mut faulty_parties = vec![];
-    for ((j, msg_id, msg), (_, ciphertext_msg_id, ciphertexts)) in
-        round2_msgs.iter_indexed().zip(ciphertexts.iter_indexed())
-    {
-        tracer.stage("Retrieve auxiliary data");
-        let X_j = X[usize::from(j)];
-        let R_j = &R[usize::from(j)];
-        let enc_j = fast_paillier::EncryptionKey::from_n(R_j.N.clone());
+    let faulty_parties =
+        utils::collect_blame_with_data(&round2_msgs, &ciphertexts, |j, msg, ciphertexts| {
+            tracer.stage("Retrieve auxiliary data");
+            let X_j = X[usize::from(j)];
+            let enc_j = &N[usize::from(j)];
 
-        tracer.stage("Validate psi");
-        let psi_invalid = pi_aff::non_interactive::verify::<E, D>(
-            &unambiguous::ProofPsi {
-                sid,
-                prover: j,
-                hat: false,
-            },
-            &R_i.into(),
-            pi_aff::Data {
-                key0: &dec_i,
-                key1: &enc_j,
-                c: &K_i,
-                d: &msg.D,
-                y: &msg.F,
-                x: &msg.Gamma,
-            },
-            &msg.psi.0,
-            &security_params.pi_aff,
-            &msg.psi.1,
-        )
-        .err();
+            tracer.stage("Validate tilde_psi_j");
+            let tilde_psi_invalid = pi_elog::non_interactive::verify::<E, D>(
+                &unambiguous::ProofElog {
+                    sid,
+                    prover: j,
+                    prime: false,
+                },
+                pi_elog::Data {
+                    l: &ciphertexts.B1,
+                    m: &ciphertexts.B2,
+                    x: &ciphertexts.Y,
+                    y: &msg.Gamma,
+                    h: &Point::generator().to_point(),
+                },
+                &msg.tilde_psi.0,
+                &msg.tilde_psi.1,
+            )
+            .err();
 
-        tracer.stage("Validate hat_psi");
-        let hat_psi_invalid = pi_aff::non_interactive::verify::<E, D>(
-            &unambiguous::ProofPsi {
-                sid,
-                prover: j,
-                hat: true,
-            },
-            &R_i.into(),
-            pi_aff::Data {
-                key0: &dec_i,
-                key1: &enc_j,
-                c: &K_i,
-                d: &msg.hat_D,
-                y: &msg.hat_F,
-                x: &X_j,
-            },
-            &msg.hat_psi.0,
-            &security_params.pi_aff,
-            &msg.hat_psi.1,
-        )
-        .err();
+            tracer.stage("Validate psi_i,j");
+            let psi_j_invalid = pi_aff::non_interactive::verify::<E, D>(
+                &unambiguous::ProofPsi {
+                    sid,
+                    prover: j,
+                    hat: false,
+                },
+                &R_i.into(),
+                pi_aff::Data {
+                    key_j: &dec_i,
+                    key_i: enc_j,
+                    c: &K_i,
+                    d: &msg.D,
+                    y: &msg.F,
+                    x: &msg.Gamma,
+                },
+                &msg.psi_j.0,
+                &security_params.pi_aff,
+                &msg.psi_j.1,
+            )
+            .err();
 
-        tracer.stage("Validate psi_prime");
-        let psi_prime_invalid = pi_log::non_interactive::verify::<E, D>(
-            &unambiguous::ProofLog {
-                sid,
-                prover: j,
-                prime_prime: false,
-            },
-            &R_i.into(),
-            pi_log::Data {
-                key0: &enc_j,
-                c: &ciphertexts.G,
-                x: &msg.Gamma,
-                b: &Point::<E>::generator().to_point(),
-            },
-            &msg.psi_prime.0,
-            &security_params.pi_log,
-            &msg.psi_prime.1,
-        )
-        .err();
+            tracer.stage("Validate hat_psi_i,j");
+            let hat_psi_j_invalid = pi_aff::non_interactive::verify::<E, D>(
+                &unambiguous::ProofPsi {
+                    sid,
+                    prover: j,
+                    hat: true,
+                },
+                &R_i.into(),
+                pi_aff::Data {
+                    key_j: &dec_i,
+                    key_i: enc_j,
+                    c: &K_i,
+                    d: &msg.hat_D,
+                    y: &msg.hat_F,
+                    x: &X_j,
+                },
+                &msg.hat_psi_j.0,
+                &security_params.pi_aff,
+                &msg.hat_psi_j.1,
+            )
+            .err();
 
-        if psi_invalid.is_some() || hat_psi_invalid.is_some() || psi_prime_invalid.is_some() {
-            faulty_parties.push((
-                j,
-                ciphertext_msg_id,
-                msg_id,
-                (psi_invalid, hat_psi_invalid, psi_prime_invalid),
-            ))
-        }
-        runtime.yield_now().await;
-    }
-
+            if tilde_psi_invalid.is_some() || psi_j_invalid.is_some() || hat_psi_j_invalid.is_some()
+            {
+                Some((tilde_psi_invalid, psi_j_invalid, hat_psi_j_invalid))
+            } else {
+                None
+            }
+        });
     if !faulty_parties.is_empty() {
         return Err(SigningAborted::InvalidPsi(faulty_parties).into());
     }
+    runtime.yield_now().await;
 
     // Step 2
     tracer.stage("Compute Gamma, Delta_i, delta_i, chi_i");
@@ -1103,49 +1231,42 @@ where
 
     let delta_i = gamma_i.as_ref() * k_i.as_ref() + alpha_sum + beta_sum;
     let chi_i = x_i * k_i.as_ref() + hat_alpha_sum + hat_beta_sum;
+    let S_i = chi_i * Gamma;
     runtime.yield_now().await;
 
-    for j in utils::iter_peers(i, n) {
-        tracer.stage("Prove psi_prime_prime");
-        let R_j = &R[usize::from(j)];
-        let psi_prime_prime = pi_log::non_interactive::prove::<E, D>(
-            &unambiguous::ProofLog {
-                sid,
-                prover: i,
-                prime_prime: true,
-            },
-            &R_j.into(),
-            pi_log::Data {
-                key0: &dec_i,
-                c: &K_i,
-                x: &Delta_i,
-                b: &Gamma,
-            },
-            pi_log::PrivateData {
-                x: &utils::scalar_to_bignumber(&k_i),
-                nonce: &rho_i,
-            },
-            &security_params.pi_log,
-            &mut *rng,
-        )
-        .map_err(|e| Bug::PiLog(BugSource::psi_prime_prime, e))?;
+    tracer.stage("Prove psi_prime");
+    let psi_prime_i = pi_elog::non_interactive::prove::<E, D>(
+        &unambiguous::ProofElog {
+            sid,
+            prover: i,
+            prime: true,
+        },
+        pi_elog::Data {
+            l: &A_i1,
+            m: &A_i2,
+            x: &Y_i,
+            y: &Delta_i,
+            h: &Gamma,
+        },
+        pi_elog::PrivateData {
+            y: k_i.as_ref(),
+            lambda: a_i.as_ref(),
+        },
+        rng,
+    )
+    .map_err(|e| Bug::PiLog(BugSource::psi_prime, e))?;
 
-        tracer.send_msg();
-        outgoings
-            .feed(Outgoing::p2p(
-                j,
-                Msg::Round3(MsgRound3 {
-                    delta: delta_i,
-                    Delta: Delta_i,
-                    psi_prime_prime,
-                }),
-            ))
-            .await
-            .map_err(IoError::send_message)?;
-        tracer.msg_sent();
-    }
     tracer.send_msg();
-    outgoings.flush().await.map_err(IoError::send_message)?;
+    let my_round3_msg = MsgRound3 {
+        delta: delta_i,
+        S: S_i,
+        Delta: Delta_i,
+        psi_prime: psi_prime_i,
+    };
+    outgoings
+        .send(Outgoing::broadcast(Msg::Round3(my_round3_msg.clone())))
+        .await
+        .map_err(IoError::send_message)?;
     tracer.msg_sent();
 
     // Output
@@ -1160,68 +1281,71 @@ where
     tracer.msgs_received();
 
     tracer.stage("Validate psi_prime_prime");
-    let mut faulty_parties = vec![];
-    for ((j, msg_id, msg_j), (_, ciphertext_id, ciphertext_j)) in
-        round3_msgs.iter_indexed().zip(ciphertexts.iter_indexed())
-    {
-        let R_j = &R[usize::from(j)];
-        let enc_j = fast_paillier::EncryptionKey::from_n(R_j.N.clone());
-
-        let data = pi_log::Data {
-            key0: &enc_j,
-            c: &ciphertext_j.K,
-            x: &msg_j.Delta,
-            b: &Gamma,
-        };
-
-        if pi_log::non_interactive::verify::<E, D>(
-            &unambiguous::ProofLog {
-                sid,
-                prover: j,
-                prime_prime: true,
-            },
-            &R_i.into(),
-            data,
-            &msg_j.psi_prime_prime.0,
-            &security_params.pi_log,
-            &msg_j.psi_prime_prime.1,
-        )
-        .is_err()
-        {
-            faulty_parties.push((j, ciphertext_id, msg_id))
-        }
-    }
-    runtime.yield_now().await;
-
+    let faulty_parties =
+        utils::collect_blame_with_data(&round3_msgs, &ciphertexts, |j, msg_j, ciphertext_j| {
+            pi_elog::non_interactive::verify::<E, D>(
+                &unambiguous::ProofElog {
+                    sid,
+                    prover: j,
+                    prime: true,
+                },
+                pi_elog::Data {
+                    l: &ciphertext_j.A1,
+                    m: &ciphertext_j.A2,
+                    x: &ciphertext_j.Y,
+                    y: &msg_j.Delta,
+                    h: &Gamma,
+                },
+                &msg_j.psi_prime.0,
+                &msg_j.psi_prime.1,
+            )
+            .err()
+        });
     if !faulty_parties.is_empty() {
         return Err(SigningAborted::InvalidPsiPrimePrime(faulty_parties).into());
     }
+    runtime.yield_now().await;
 
     // Step 2
     tracer.stage("Calculate presignature");
     let delta = delta_i + round3_msgs.iter().map(|m| m.delta).sum::<Scalar<E>>();
     let Delta = Delta_i + round3_msgs.iter().map(|m| m.Delta).sum::<Point<E>>();
+    let S = S_i + round3_msgs.iter().map(|m| m.S).sum::<Point<E>>();
 
-    if Point::generator() * delta != Delta {
+    if Point::generator() * delta != Delta || pk * delta != S {
         // Following the protocol, party should broadcast additional proofs
         // to convince others it didn't cheat. However, since identifiable
         // abort is not implemented yet, this part of the protocol is missing
         return Err(SigningAborted::MismatchedDelta.into());
     }
 
-    let R = Gamma * delta.invert().ok_or(Bug::ZeroDelta)?;
-    let R = NonZero::from_point(R).ok_or(Bug::ZeroR)?;
+    let delta_inv = delta.invert().ok_or(Bug::Zero(BugSource::delta))?;
+
+    let tilde_k_i = SecretScalar::new(&mut (k_i * delta_inv));
+    let tilde_chi_i = SecretScalar::new(&mut (chi_i * delta_inv));
+
+    let Gamma = NonZero::from_point(Gamma).ok_or(Bug::Zero(BugSource::Gamma))?;
+
+    let commitments = round3_msgs
+        .iter_including_me(&my_round3_msg)
+        .map(|m| PresignatureCommitment {
+            tilde_Delta: delta_inv * m.Delta,
+            tilde_S: delta_inv * m.S,
+        })
+        .collect::<Vec<_>>();
+    let commitments = PresignaturePublicData { Gamma, commitments };
+
     let presig = Presignature {
-        R,
-        k: k_i,
-        chi: SecretScalar::new(&mut chi_i.clone()),
+        Gamma,
+        tilde_k: tilde_k_i,
+        tilde_chi: tilde_chi_i,
     };
 
     // If message is not specified, protocol terminates here and outputs partial
     // signature
     let Some(message_to_sign) = message_to_sign else {
         tracer.protocol_ends();
-        return Ok(ProtocolOutput::Presignature(presig));
+        return Ok(ProtocolOutput::Presignature((presig, commitments)));
     };
 
     // Signing
@@ -1232,9 +1356,7 @@ where
 
     tracer.send_msg();
     outgoings
-        .send(Outgoing::broadcast(Msg::Round4(MsgRound4 {
-            sigma: partial_sig.sigma,
-        })))
+        .send(Outgoing::broadcast(Msg::Round4(MsgRound4 { partial_sig })))
         .await
         .map_err(IoError::send_message)?;
     tracer.msg_sent();
@@ -1248,24 +1370,18 @@ where
         .await
         .map_err(IoError::receive_message)?;
     tracer.msgs_received();
-    let sig = {
-        let r = NonZero::from_scalar(partial_sig.r);
-        let s = NonZero::from_scalar(
-            partial_sig.sigma + partial_sigs.iter().map(|m| m.sigma).sum::<Scalar<E>>(),
-        );
-        Option::zip(r, s).map(|(r, s)| Signature { r, s }.normalize_s())
-    };
-    let sig_invalid = match &sig {
-        Some(sig) => sig.verify(&pk, &message_to_sign).is_err(),
-        None => true,
-    };
-    if sig_invalid {
-        // Following the protocol, party should broadcast additional proofs
-        // to convince others it didn't cheat. However, since identifiable
-        // abort is not implemented yet, this part of the protocol is missing
-        return Err(SigningAborted::SignatureInvalid.into());
-    }
-    let sig = sig.ok_or(SigningAborted::SignatureInvalid)?;
+
+    let partial_sigs = partial_sigs
+        .into_vec_including_me(MsgRound4 { partial_sig })
+        .into_iter()
+        .map(|m| m.partial_sig)
+        .collect::<Vec<_>>();
+
+    // Following the protocol, party should broadcast additional proofs
+    // to convince others it didn't cheat. However, since identifiable
+    // abort is not implemented yet, this part of the protocol is missing
+    let sig = PartialSignature::combine(&partial_sigs, &commitments, message_to_sign)
+        .ok_or(SigningAborted::SignatureInvalid)?;
 
     tracer.protocol_ends();
     Ok(ProtocolOutput::Signature(sig))
@@ -1281,10 +1397,10 @@ where
     /// **Never reuse presignatures!** If you use the same presignatures to sign two different
     /// messages, it leaks the private key!
     pub fn issue_partial_signature(self, message_to_sign: DataToSign<E>) -> PartialSignature<E> {
-        let r = self.R.x().to_scalar();
+        let r = self.Gamma.x().to_scalar();
         let m = message_to_sign.to_scalar();
-        let sigma_i = self.k.as_ref() * m + r * self.chi.as_ref();
-        PartialSignature { r, sigma: sigma_i }
+        let sigma_i = self.tilde_k.as_ref() * m + r * self.tilde_chi.as_ref();
+        PartialSignature { sigma: sigma_i }
     }
 }
 
@@ -1340,8 +1456,8 @@ impl<E: Curve> Presignature<E> {
     {
         let additive_shift = derive_additive_shift::<E, Hd, _>(epub, derivation_path)?;
 
-        let mut chi = self.chi + additive_shift * &self.k;
-        self.chi = SecretScalar::new(&mut chi);
+        let mut chi = self.tilde_chi + additive_shift * &self.tilde_k;
+        self.tilde_chi = SecretScalar::new(&mut chi);
 
         Ok(self)
     }
@@ -1368,7 +1484,10 @@ where
     Ok(additive_shift)
 }
 
-impl<E: Curve> PartialSignature<E> {
+impl<E: Curve> PartialSignature<E>
+where
+    NonZero<Point<E>>: AlwaysHasAffineX<E>,
+{
     /// Combines threshold amount of partial signatures into regular signature
     ///
     /// Returns `None` if input is malformed.
@@ -1376,13 +1495,30 @@ impl<E: Curve> PartialSignature<E> {
     /// `combine` may return a signature that's invalid for public key and message it was issued for.
     /// This would mean that some of signers cheated and aborted the protocol. You need to validate
     /// resulting signature to be sure that no one aborted the protocol.
-    pub fn combine(partial_signatures: &[PartialSignature<E>]) -> Option<Signature<E>> {
-        if partial_signatures.is_empty() {
+    pub fn combine(
+        partial_signatures: &[PartialSignature<E>],
+        commitments: &PresignaturePublicData<E>,
+        m: DataToSign<E>,
+    ) -> Option<Signature<E>> {
+        if partial_signatures.is_empty()
+            || partial_signatures.len() != commitments.commitments.len()
+        {
             None
         } else {
-            let r = NonZero::from_scalar(partial_signatures[0].r)?;
-            let s = NonZero::from_scalar(partial_signatures.iter().map(|s| s.sigma).sum())?;
-            Some(Signature { r, s }.normalize_s())
+            let r = commitments.Gamma.x().to_scalar();
+            let r = NonZero::from_scalar(r)?;
+            let m = m.to_scalar();
+            for (partial_sig, commitment) in partial_signatures.iter().zip(&commitments.commitments)
+            {
+                if partial_sig.sigma * commitments.Gamma
+                    != m * commitment.tilde_Delta + r * commitment.tilde_S
+                {
+                    return None;
+                }
+            }
+            let sigma = partial_signatures.iter().map(|s| &s.sigma).sum();
+            let sigma = NonZero::from_scalar(sigma)?;
+            Some(Signature { r, s: sigma }.normalize_s())
         }
     }
 }
@@ -1471,7 +1607,7 @@ impl<E: Curve> Signature<E> {
 }
 
 enum ProtocolOutput<E: Curve> {
-    Presignature(Presignature<E>),
+    Presignature((Presignature<E>, PresignaturePublicData<E>)),
     Signature(Signature<E>),
 }
 
@@ -1526,13 +1662,11 @@ enum Reason {
 #[derive(Debug, Error)]
 enum SigningAborted {
     #[error("pi_enc::verify(K) failed")]
-    EncProofOfK(Vec<(PartyIndex, MsgId, MsgId)>),
-    #[error("ψ, ψˆ, or ψ' proofs are invalid")]
+    EncProofOfK(Vec<(utils::AbortBlame, paillier_zk::InvalidProof)>),
+    #[error("ψ_j, ψ_j,i or ψˆ_ji proofs are invalid: {0:?}")]
     InvalidPsi(
         Vec<(
-            PartyIndex,
-            MsgId,
-            MsgId,
+            utils::AbortBlame,
             (
                 Option<paillier_zk::InvalidProof>,
                 Option<paillier_zk::InvalidProof>,
@@ -1541,13 +1675,13 @@ enum SigningAborted {
         )>,
     ),
     #[error("ψ'' proof is invalid")]
-    InvalidPsiPrimePrime(Vec<(PartyIndex, MsgId, MsgId)>),
+    InvalidPsiPrimePrime(Vec<(utils::AbortBlame, paillier_zk::InvalidProof)>),
     #[error("Delta != G * delta")]
     MismatchedDelta,
     #[error("resulting signature is not valid")]
     SignatureInvalid,
     #[error("other parties received different broadcast messages at round1a")]
-    Round1aNotReliable(Vec<(PartyIndex, MsgId)>),
+    Round1aNotReliable(Vec<utils::AbortBlame>),
 }
 
 #[derive(Debug, Error)]
@@ -1570,18 +1704,18 @@ enum Bug {
     PaillierEnc(BugSource),
     #[error("paillier addition/multiplication failed: {0:?}")]
     PaillierOp(BugSource),
-    #[error("π enc failed to prove statement {0:?}: {1:?}")]
-    PiEnc(BugSource, paillier_zk::Error),
-    #[error("π aff-g failed to prove statement {0:?}: {1:?}")]
-    PiAffG(BugSource, paillier_zk::Error),
+    #[error("π enc elg failed to prove statement {0:?}")]
+    PiEncElg(BugSource, paillier_zk::Error),
+    #[error("π elog failed to prove statement {0:?}")]
+    PiElog(BugSource, #[source] paillier_zk::Error),
+    #[error("π aff-g failed to prove statement {0:?}")]
+    PiAffG(BugSource, #[source] paillier_zk::Error),
     #[error("π log* failed to prove statement: {0:?}")]
-    PiLog(BugSource, paillier_zk::Error),
+    PiLog(BugSource, #[source] paillier_zk::Error),
     #[error("couldn't decrypt a message: {0:?}")]
     PaillierDec(BugSource),
-    #[error("delta is zero")]
-    ZeroDelta,
-    #[error("R is zero")]
-    ZeroR,
+    #[error("{0:?} is zero")]
+    Zero(BugSource),
     #[error("unexpected protocol output")]
     UnexpectedProtocolOutput,
     #[error("derive lagrange coef")]
@@ -1608,12 +1742,15 @@ enum BugSource {
     hat_D,
     hat_F,
     psi0,
+    psi1,
     psi,
     hat_psi,
-    psi_prime,
     alpha,
     hat_alpha,
-    psi_prime_prime,
+    psi_prime,
+
+    delta,
+    Gamma,
 }
 
 /// Error indicating that signature is not valid for given public key and message

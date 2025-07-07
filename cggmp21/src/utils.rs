@@ -1,8 +1,8 @@
 use generic_ec::{Curve, Scalar};
 use paillier_zk::rug::{self, Integer};
 use paillier_zk::{
-    group_element_vs_paillier_encryption_in_range as pi_log,
-    paillier_affine_operation_in_range as pi_aff, paillier_encryption_in_range as pi_enc,
+    paillier_affine_operation_in_range as pi_aff,
+    paillier_encryption_in_range_with_el_gamal as pi_enc_elg,
 };
 use round_based::rounds_router::simple_store::RoundMsgs;
 use round_based::{MsgId, PartyIndex};
@@ -18,8 +18,7 @@ pub fn scalar_to_bignumber<E: Curve>(scalar: impl AsRef<Scalar<E>>) -> Integer {
 
 pub struct SecurityParams {
     pub pi_aff: pi_aff::SecurityParams,
-    pub pi_log: pi_log::SecurityParams,
-    pub pi_enc: pi_enc::SecurityParams,
+    pub pi_enc_elg: pi_enc_elg::SecurityParams,
 }
 
 impl SecurityParams {
@@ -29,17 +28,10 @@ impl SecurityParams {
                 l_x: L::ELL,
                 l_y: L::ELL_PRIME,
                 epsilon: L::EPSILON,
-                q: L::q(),
             },
-            pi_log: pi_log::SecurityParams {
+            pi_enc_elg: pi_enc_elg::SecurityParams {
                 l: L::ELL,
                 epsilon: L::EPSILON,
-                q: L::q(),
-            },
-            pi_enc: pi_enc::SecurityParams {
-                l: L::ELL,
-                epsilon: L::EPSILON,
-                q: L::q(),
             },
         }
     }
@@ -106,6 +98,24 @@ where
         .collect()
 }
 
+/// Filter returns `Some(data)` for every __faulty__ message pair
+pub fn collect_blame_with_data<D, P, T, F>(
+    data_messages: &RoundMsgs<D>,
+    proof_messages: &RoundMsgs<P>,
+    mut filter: F,
+) -> Vec<(AbortBlame, T)>
+where
+    F: FnMut(PartyIndex, &D, &P) -> Option<T>,
+{
+    data_messages
+        .iter_indexed()
+        .zip(proof_messages.iter_indexed())
+        .filter_map(|((j, data_msg_id, data), (_, proof_msg_id, proof))| {
+            filter(j, data, proof).map(|data| (AbortBlame::new(j, data_msg_id, proof_msg_id), data))
+        })
+        .collect()
+}
+
 /// Filter returns `true` for every __faulty__ message. Data and proof are set
 /// to the same message.
 pub fn collect_simple_blame<D, F>(messages: &RoundMsgs<D>, mut filter: F) -> Vec<AbortBlame>
@@ -124,40 +134,9 @@ where
         .collect()
 }
 
-/// Same as [`collect_blame`], but filter can fail, in which case whole blame
-/// collection will fail. So to not lose security the error type should be some
-/// kind of unrecoverable internal assertion failure.
-pub fn try_collect_blame<E, D, P, F>(
-    data_messages: &RoundMsgs<D>,
-    proof_messages: &RoundMsgs<P>,
-    mut filter: F,
-) -> Result<Vec<AbortBlame>, E>
-where
-    F: FnMut(PartyIndex, &D, &P) -> Result<bool, E>,
-{
-    let mut r = Vec::new();
-    for ((j, data_msg_id, data), (_, proof_msg_id, proof)) in data_messages
-        .iter_indexed()
-        .zip(proof_messages.iter_indexed())
-    {
-        if filter(j, data, proof)? {
-            r.push(AbortBlame::new(j, data_msg_id, proof_msg_id));
-        }
-    }
-    Ok(r)
-}
-
 /// Iterate peers of i-th party
 pub fn iter_peers(i: u16, n: u16) -> impl Iterator<Item = u16> {
     (0..n).filter(move |x| *x != i)
-}
-
-/// Drop n-th item from iteration
-pub fn but_nth<T, I: IntoIterator<Item = T>>(n: u16, iter: I) -> impl Iterator<Item = T> {
-    iter.into_iter()
-        .enumerate()
-        .filter(move |(i, _)| *i != usize::from(n))
-        .map(|(_, x)| x)
 }
 
 /// Binary search for rounded down square root. For non-positive numbers returns
@@ -168,22 +147,6 @@ pub fn sqrt(x: &Integer) -> Integer {
     } else {
         x.sqrt_ref().into()
     }
-}
-
-/// Partition into vector of errors and vector of values
-pub fn partition_results<I, A, B>(iter: I) -> (Vec<A>, Vec<B>)
-where
-    I: Iterator<Item = Result<A, B>>,
-{
-    let mut oks = Vec::new();
-    let mut errs = Vec::new();
-    for i in iter {
-        match i {
-            Ok(ok) => oks.push(ok),
-            Err(err) => errs.push(err),
-        }
-    }
-    (oks, errs)
 }
 
 /// Returns `[list[indexes[0]], list[indexes[1]], ..., list[indexes[n-1]]]`
@@ -213,6 +176,47 @@ pub fn generate_blum_prime(rng: &mut impl rand_core::RngCore, bits_size: u32) ->
             break n;
         }
     }
+}
+
+/// Takes safe primes p, q, generates and outputs [`PedersenParams`], `phi`, `lambda`
+pub fn generate_pedersen_params(
+    rng: &mut impl rand_core::CryptoRngCore,
+    p: Integer,
+    q: Integer,
+) -> Result<(crate::key_share::PedersenParams, Integer, Integer), GenPedersenError> {
+    use paillier_zk::IntegerExt;
+    use rug::Complete;
+
+    let crt = paillier_zk::fast_paillier::utils::CrtExp::build_n(&p, &q)
+        .ok_or(GenPedersenError::BuildCrt)?;
+    let N = (&p * &q).complete();
+    let phi_N = (&p - 1u8).complete() * (&q - 1u8).complete();
+
+    let r = Integer::gen_invertible(&N, rng);
+    let lambda = Integer::random_below(phi_N.clone() >> 2, &mut external_rand(rng));
+
+    let t = r.square().modulo(&N);
+    let s = crt
+        .exp(&t, &crt.prepare_exponent(&lambda))
+        .ok_or(GenPedersenError::PowMod)?;
+
+    let params = crate::key_share::PedersenParams {
+        hat_N: N,
+        s,
+        t,
+        multiexp: None,
+        crt: Some(crt),
+    };
+
+    Ok((params, phi_N, lambda))
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum GenPedersenError {
+    #[error("build crt")]
+    BuildCrt,
+    #[error("pow mod")]
+    PowMod,
 }
 
 /// Unambiguous encoding for different types for which it was not defined

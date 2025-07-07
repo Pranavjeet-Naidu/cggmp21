@@ -37,10 +37,15 @@ pub struct DirtyAuxInfo<L: SecurityLevel = crate::default_choice::SecurityLevel>
     pub p: Integer,
     /// Secret prime $q$
     pub q: Integer,
-    /// Public auxiliary data of all parties sharing the key
+    /// Paillier public keys $\vec N = (N_j)_{j \in \[n\]}$
+    pub N: Vec<Integer>,
+    /// Parties Pedersen parameters
     ///
-    /// `parties[i]` corresponds to public auxiliary data of $\ith$ party
-    pub parties: Vec<PartyAux>,
+    /// `pedersen_params[i]` corresponds to pedersen params of $\ith$ party
+    ///
+    /// Note that although this is supposed to only contain public information, when CRT
+    /// optimization is enabled, it may contain sensitive information!
+    pub pedersen_params: Vec<PedersenParams>,
     /// Security level that was used to generate aux info
     #[serde(skip)]
     pub security_level: std::marker::PhantomData<L>,
@@ -58,22 +63,27 @@ pub struct DirtyKeyShare<E: Curve, L: SecurityLevel = crate::default_choice::Sec
     pub aux: DirtyAuxInfo<L>,
 }
 
-/// Party public auxiliary data
+/// Party pedersen parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct PartyAux {
-    /// $N_i = p_i \cdot q_i$
-    pub N: Integer,
+pub struct PedersenParams {
+    /// Defines Pedersen Ring modulo $\hat N_i$
+    pub hat_N: Integer,
     /// Ring-Perdesten parameter $s_i$
     pub s: Integer,
     /// Ring-Perdesten parameter $t_i$
     pub t: Integer,
     /// Precomputed table for faster multiexponentiation
+    ///
+    /// It's used to compute $s_i^x t_i^y \bmod \hat N_i$ faster given $x,y$ in certain
+    /// range predefined by security level
     #[serde(default)]
     pub multiexp: Option<Arc<paillier_zk::multiexp::MultiexpTable>>,
     /// Enables faster modular exponentiation when factorization of `N` is known
     ///
     /// Note that it is extreamly sensitive! Leaking `crt` exposes Paillier private key.
+    ///
+    /// It's used to compute $x^y \bmod \hat N_i$ faster
     #[serde(default)]
     pub crt: Option<paillier_zk::fast_paillier::utils::CrtExp>,
 }
@@ -82,25 +92,38 @@ impl<L: SecurityLevel> Validate for DirtyAuxInfo<L> {
     type Error = InvalidKeyShare;
 
     fn is_valid(&self) -> Result<(), InvalidKeyShare> {
-        if self.parties.iter().any(|p| {
-            p.s.gcd_ref(&p.N).complete() != *Integer::ONE
-                || p.t.gcd_ref(&p.N).complete() != *Integer::ONE
+        if self.pedersen_params.iter().any(|p| {
+            p.s.gcd_ref(&p.hat_N).complete() != *Integer::ONE
+                || p.t.gcd_ref(&p.hat_N).complete() != *Integer::ONE
         }) {
             return Err(InvalidKeyShareReason::StGcdN.into());
         }
 
-        if !crate::security_level::validate_secret_paillier_key_size::<L>(&self.p, &self.q) {
+        if [&self.p, &self.q]
+            .iter()
+            .any(|prime| !crate::security_level::validate_secret_paillier_prime_size::<L>(prime))
+        {
             return Err(InvalidKeyShareReason::PaillierSkTooSmall.into());
         }
 
-        if let Some(invalid_aux) = self
-            .parties
+        if let Some(N) = self
+            .N
             .iter()
-            .find(|p| !crate::security_level::validate_public_paillier_key_size::<L>(&p.N))
+            .find(|N| !crate::security_level::validate_public_paillier_key_size::<L>(N))
         {
             return Err(InvalidKeyShareReason::PaillierPkTooSmall {
-                required: 8 * L::SECURITY_BITS - 1,
-                actual: invalid_aux.N.significant_bits(),
+                required: L::RSA_PUBKEY_BITLEN,
+                actual: N.significant_bits(),
+            }
+            .into());
+        }
+
+        if let Some(params) = self.pedersen_params.iter().find(|params| {
+            !crate::security_level::validate_public_paillier_key_size::<L>(&params.hat_N)
+        }) {
+            return Err(InvalidKeyShareReason::PedersenModuleTooSmall {
+                required: L::RSA_PUBKEY_BITLEN,
+                actual: params.hat_N.significant_bits(),
             }
             .into());
         }
@@ -120,7 +143,7 @@ impl<L: SecurityLevel> DirtyAuxInfo<L> {
     pub fn precompute_multiexp_tables(&mut self) -> Result<(), InvalidKeyShare> {
         let (x_bits, y_bits) = crate::security_level::max_exponents_size::<L>();
         let tables = self
-            .parties
+            .pedersen_params
             .iter()
             .map(|aux_i| {
                 paillier_zk::multiexp::MultiexpTable::build(
@@ -128,13 +151,13 @@ impl<L: SecurityLevel> DirtyAuxInfo<L> {
                     &aux_i.t,
                     x_bits,
                     y_bits,
-                    aux_i.N.clone(),
+                    aux_i.hat_N.clone(),
                 )
                 .map(Arc::new)
             })
             .collect::<Option<Vec<_>>>()
             .ok_or(InvalidKeyShareReason::BuildMultiexpTable)?;
-        self.parties
+        self.pedersen_params
             .iter_mut()
             .zip(tables)
             .for_each(|(aux_i, table_i)| aux_i.multiexp = Some(table_i));
@@ -143,7 +166,7 @@ impl<L: SecurityLevel> DirtyAuxInfo<L> {
 
     /// Returns size of all multiexp tables (in bytes) stored within key share
     pub fn multiexp_tables_size(&self) -> usize {
-        self.parties
+        self.pedersen_params
             .iter()
             .map(|aux_i| {
                 aux_i
@@ -157,17 +180,17 @@ impl<L: SecurityLevel> DirtyAuxInfo<L> {
 
     /// Precomputes CRT parameters
     ///
-    /// Refer to [`PartyAux::precompute_crt`] for the docs.
+    /// Refer to [`PedersenParams::precompute_crt`] for the docs.
     pub fn precompute_crt(&mut self, i: u16) -> Result<(), InvalidKeyShare> {
         let aux_i = self
-            .parties
+            .pedersen_params
             .get_mut(usize::from(i))
             .ok_or(InvalidKeyShareReason::CrtINotInRange)?;
         aux_i.precompute_crt(&self.p, &self.q)
     }
 }
 
-impl PartyAux {
+impl PedersenParams {
     /// Precompute multiexponentiation table
     ///
     /// Enables optimization that makes signing and presigning faster. Precomputation may take a while.
@@ -185,7 +208,7 @@ impl PartyAux {
             &self.t,
             x_bits,
             y_bits,
-            self.N.clone(),
+            self.hat_N.clone(),
         )
         .map(Arc::new)
         .ok_or(InvalidKeyShareReason::BuildMultiexpTable)?;
@@ -205,9 +228,9 @@ impl PartyAux {
     /// present, are overwritten)
     ///
     /// Note: CRT parameters contain secret information. Leaking them exposes secret Paillier key. Keep
-    /// [`AuxInfo::parties`](DirtyAuxInfo::parties) secret (as well as rest of the key share).
+    /// them secret (as well as rest of the key share).
     pub fn precompute_crt(&mut self, p: &Integer, q: &Integer) -> Result<(), InvalidKeyShare> {
-        if (p * q).complete() != self.N {
+        if (p * q).complete() != self.hat_N {
             return Err(InvalidKeyShareReason::CrtInvalidPq.into());
         }
         let crt = paillier_zk::fast_paillier::utils::CrtExp::build_n(p, q)
@@ -250,11 +273,11 @@ impl<E: Curve, L: SecurityLevel> DirtyKeyShare<E, L> {
         core: &DirtyIncompleteKeyShare<E>,
         aux: &DirtyAuxInfo<L>,
     ) -> Result<(), InvalidKeyShare> {
-        if core.public_shares.len() != aux.parties.len() {
+        if core.public_shares.len() != aux.pedersen_params.len() {
             return Err(InvalidKeyShareReason::AuxLen.into());
         }
 
-        let N_i = &aux.parties[usize::from(core.i)].N;
+        let N_i = &aux.N[usize::from(core.i)];
         if *N_i != (&aux.p * &aux.q).complete() {
             return Err(InvalidKeyShareReason::PrimesMul.into());
         }
@@ -273,7 +296,7 @@ impl<E: Curve> DirtyKeyShare<E> {
     /// CRT parameters are saved into the key share (old params, if present, are overwritten)
     ///
     /// Note: CRT parameters contain secret information. Leaking them exposes secret Paillier key. Keep
-    /// [`AuxInfo::parties`](DirtyAuxInfo::parties) secret (as well as rest of the key share).
+    /// them secret (as well as rest of the key share).
     pub fn precompute_crt(&mut self) -> Result<(), InvalidKeyShare> {
         let i = self.core.i;
         self.aux.precompute_crt(i)
@@ -347,15 +370,15 @@ impl<E: Curve, T: AsRef<IncompleteKeyShare<E>>> AnyKeyShare<E> for T {}
 pub fn reconstruct_secret_key<E: Curve>(
     key_shares: &[impl AnyKeyShare<E>],
 ) -> Result<generic_ec::SecretScalar<E>, ReconstructError> {
-    key_share::reconstruct_secret_key(key_shares)
+    cggmp21_keygen::key_share::reconstruct_secret_key(key_shares)
 }
 
-impl From<&PartyAux> for π_enc::Aux {
-    fn from(aux: &PartyAux) -> Self {
+impl From<&PedersenParams> for π_enc::Aux {
+    fn from(aux: &PedersenParams) -> Self {
         Self {
             s: aux.s.clone(),
             t: aux.t.clone(),
-            rsa_modulo: aux.N.clone(),
+            rsa_modulo: aux.hat_N.clone(),
             multiexp: aux.multiexp.clone(),
             crt: aux.crt.clone(),
         }
@@ -381,6 +404,8 @@ enum InvalidKeyShareReason {
     PaillierSkTooSmall,
     #[error("paillier public key of one of the signers doesn't match security level: required bit length = {required}, actual = {actual}")]
     PaillierPkTooSmall { required: u32, actual: u32 },
+    #[error("pedersen module of one of the signers doesn't match security level: required bit length = {required}, actual = {actual}")]
+    PedersenModuleTooSmall { required: u32, actual: u32 },
     #[error("couldn't build a multiexp table")]
     BuildMultiexpTable,
     #[error("provided index `i` does not correspond to an index of the signer at key generation")]
@@ -393,7 +418,7 @@ enum InvalidKeyShareReason {
 
 /// Error indicating that [key reconstruction](reconstruct_secret_key) failed
 #[cfg(feature = "spof")]
-pub use key_share::ReconstructError;
+pub use cggmp21_keygen::key_share::ReconstructError;
 
 impl From<InvalidIncompleteKeyShare> for InvalidKeyShare {
     fn from(err: InvalidIncompleteKeyShare) -> Self {
@@ -410,5 +435,28 @@ impl<T> From<ValidateError<T, InvalidIncompleteKeyShare>> for InvalidKeyShare {
 impl<T> From<ValidateError<T, InvalidKeyShare>> for InvalidKeyShare {
     fn from(err: cggmp21_keygen::key_share::ValidateError<T, InvalidKeyShare>) -> Self {
         err.into_error()
+    }
+}
+
+/// Tools for migrating key shares from cggmp21 to cggmp24
+///
+/// CGGMP24 revision of the protocol introduced changes in the structure of the key shares:
+/// * The core key share [`IncompleteKeyShare`] has not changed, you can use cggmp24 library
+///   to deserialize core key share from cggmp21
+/// * However, [`AuxInfo`] and [`KeyShare`] have changed: now each signer has distinct Paillier
+///   and Pedersen keys (previously, they both were one key)
+///
+/// If you have [`KeyShare`]s serialized by cggmp21, we advise you to discard auxiliary data
+/// stored within the key share, extract the core key share (that contains the most important
+/// part of the key share), and re-generate auxiliary data by carrying out
+/// [`aux_info_gen`](crate::aux_info_gen) protocol.
+pub mod cggmp21_compat {
+    /// Deserializes a key share from cggmp21, discards the auxiliary data and extracts the core share.
+    #[derive(serde::Deserialize, Clone)]
+    pub struct ExtractCoreShare<E: generic_ec::Curve> {
+        /// Extracted core share
+        pub core: super::IncompleteKeyShare<E>,
+        #[serde(rename = "aux")]
+        _aux: serde::de::IgnoredAny,
     }
 }

@@ -23,7 +23,7 @@ fn criterion_benchmark(c: &mut criterion::Criterion) {
         .iter::<SecurityLevel128>()
         .next()
         .unwrap();
-    let (p, q) = primes.split();
+    let [p, q, _, _] = primes.into_primes();
     let n = p * q;
 
     let bits = [

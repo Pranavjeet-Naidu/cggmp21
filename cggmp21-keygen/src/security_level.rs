@@ -13,13 +13,13 @@
 ///
 /// You should not implement this trait manually. Use [define_security_level] macro instead.
 pub trait SecurityLevel: Clone + Sync + Send + 'static {
-    /// $\kappa$ bits of security
-    const SECURITY_BITS: u32;
-    /// $\kappa/8$ bytes of security
-    const SECURITY_BYTES: usize;
+    /// $\kappa$ bits
+    const KAPPA_BITS: u32;
+    /// $\kappa/8$ bytes
+    const KAPPA_BYTES: usize;
 
-    /// Static array of $\kappa/8$ bytes
-    type Rid: AsRef<[u8]>
+    /// Byte array of [KAPPA_BYTES](Self::KAPPA_BYTES) bytes
+    type KappaBytes: AsRef<[u8]>
         + AsMut<[u8]>
         + Default
         + Clone
@@ -36,27 +36,27 @@ pub mod _internal {
     use hex::FromHex;
 
     #[derive(Clone)]
-    pub struct Rid<const N: usize>([u8; N]);
+    pub struct KappaBytes<const N: usize>([u8; N]);
 
-    impl<const N: usize> AsRef<[u8]> for Rid<N> {
+    impl<const N: usize> AsRef<[u8]> for KappaBytes<N> {
         fn as_ref(&self) -> &[u8] {
             &self.0
         }
     }
 
-    impl<const N: usize> AsMut<[u8]> for Rid<N> {
+    impl<const N: usize> AsMut<[u8]> for KappaBytes<N> {
         fn as_mut(&mut self) -> &mut [u8] {
             &mut self.0
         }
     }
 
-    impl<const N: usize> Default for Rid<N> {
+    impl<const N: usize> Default for KappaBytes<N> {
         fn default() -> Self {
             Self([0u8; N])
         }
     }
 
-    impl<const N: usize> FromHex for Rid<N>
+    impl<const N: usize> FromHex for KappaBytes<N>
     where
         [u8; N]: FromHex,
     {
@@ -79,18 +79,18 @@ pub mod _internal {
 /// #[derive(Clone)]
 /// pub struct MyLevel;
 /// define_security_level!(MyLevel{
-///     security_bits = 1024,
+///     kappa_bits: 1024,
 /// });
 /// ```
 #[macro_export]
 macro_rules! define_security_level {
     ($struct_name:ident {
-        security_bits = $k:expr$(,)?
+        kappa_bits: $k:expr$(,)?
     }) => {
         impl $crate::security_level::SecurityLevel for $struct_name {
-            const SECURITY_BITS: u32 = $k;
-            const SECURITY_BYTES: usize = $k / 8;
-            type Rid = $crate::security_level::_internal::Rid<{ $k / 8 }>;
+            const KAPPA_BITS: u32 = $k;
+            const KAPPA_BYTES: usize = $k / 8;
+            type KappaBytes = $crate::security_level::_internal::KappaBytes<{ $k / 8 }>;
         }
     };
 }
@@ -103,6 +103,4 @@ pub use define_security_level;
 /// This security level is intended to provide 128 bits of security for the protocol when run with up to 128 participants.
 #[derive(Clone)]
 pub struct SecurityLevel128;
-define_security_level!(SecurityLevel128{
-    security_bits = 384,
-});
+define_security_level!(SecurityLevel128 { kappa_bits: 256 });

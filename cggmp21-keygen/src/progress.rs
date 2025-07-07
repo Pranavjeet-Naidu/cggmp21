@@ -485,4 +485,33 @@ mod requires_std {
 
         Percentage(part, total)
     }
+
+    /// Prints progress of the protocol to stderr
+    #[derive(Default)]
+    pub struct Stderr {
+        prefix: Option<std::string::String>,
+    }
+
+    impl Stderr {
+        /// Constructs an stderr tracer
+        pub fn new() -> Self {
+            Self::default()
+        }
+
+        /// Sets a prefix to be printed for each event
+        pub fn with_prefix(mut self, prefix: impl std::string::ToString) -> Self {
+            self.prefix = Some(prefix.to_string());
+            self
+        }
+    }
+
+    impl Tracer for Stderr {
+        fn trace_event(&mut self, event: Event) {
+            if let Some(prefix) = &self.prefix {
+                std::eprintln!("{prefix}: {event:?}")
+            } else {
+                std::eprintln!("{event:?}")
+            }
+        }
+    }
 }

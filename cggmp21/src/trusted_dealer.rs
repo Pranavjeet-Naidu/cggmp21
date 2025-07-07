@@ -25,19 +25,14 @@
 use std::{iter, marker::PhantomData};
 
 use generic_ec::{Curve, NonZero, SecretScalar};
-use paillier_zk::{
-    rug::{Complete, Integer},
-    IntegerExt,
-};
+use paillier_zk::rug::Complete;
 use rand_core::{CryptoRng, RngCore};
 use thiserror::Error;
 
 use crate::{
-    key_share::{
-        AuxInfo, DirtyAuxInfo, IncompleteKeyShare, InvalidKeyShare, KeyShare, PartyAux, Validate,
-    },
+    key_share::{AuxInfo, DirtyAuxInfo, IncompleteKeyShare, InvalidKeyShare, KeyShare, Validate},
     security_level::SecurityLevel,
-    utils,
+    utils, PregeneratedPrimes,
 };
 
 /// Construct a trusted dealer builder
@@ -49,15 +44,14 @@ pub fn builder<E: Curve, L: SecurityLevel>(n: u16) -> TrustedDealerBuilder<E, L>
     TrustedDealerBuilder::new(n)
 }
 
-type CoreBuilder<E> = key_share::trusted_dealer::TrustedDealerBuilder<E>;
+type CoreBuilder<E> = cggmp21_keygen::key_share::trusted_dealer::TrustedDealerBuilder<E>;
 
 /// Trusted dealer builder
 pub struct TrustedDealerBuilder<E: Curve, L: SecurityLevel> {
     inner: CoreBuilder<E>,
     n: u16,
-    pregenerated_primes: Option<Vec<(Integer, Integer)>>,
+    pregenerated_primes: Option<Vec<PregeneratedPrimes<L>>>,
     enable_mulitexp: bool,
-    enable_crt: bool,
     _ph: PhantomData<L>,
 }
 
@@ -71,7 +65,6 @@ impl<E: Curve, L: SecurityLevel> TrustedDealerBuilder<E, L> {
             n,
             pregenerated_primes: None,
             enable_mulitexp: false,
-            enable_crt: false,
             _ph: PhantomData,
         }
     }
@@ -108,7 +101,7 @@ impl<E: Curve, L: SecurityLevel> TrustedDealerBuilder<E, L> {
     /// Sets pregenerated primes to use
     ///
     /// `primes` should have exactly `n` pairs of primes.
-    pub fn set_pregenerated_primes(self, primes: Vec<(Integer, Integer)>) -> Self {
+    pub fn set_pregenerated_primes(self, primes: Vec<PregeneratedPrimes<L>>) -> Self {
         Self {
             pregenerated_primes: Some(primes),
             ..self
@@ -122,16 +115,6 @@ impl<E: Curve, L: SecurityLevel> TrustedDealerBuilder<E, L> {
     pub fn enable_multiexp(self, v: bool) -> Self {
         Self {
             enable_mulitexp: v,
-            ..self
-        }
-    }
-
-    /// Enables CRT optimization
-    ///
-    /// CRT optimization makes ZK proofs verification faster, and by doing so it makes the overall performance better
-    pub fn enable_crt(self, v: bool) -> Self {
-        Self {
-            enable_crt: v,
             ..self
         }
     }
@@ -169,14 +152,13 @@ impl<E: Curve, L: SecurityLevel> TrustedDealerBuilder<E, L> {
     ) -> Result<Vec<KeyShare<E, L>>, TrustedDealerError> {
         let n = self.n;
         let enable_multiexp = self.enable_mulitexp;
-        let enable_crt = self.enable_crt;
 
         let primes = self.pregenerated_primes.take();
         let core_key_shares = self.inner.generate_shares(rng).map_err(Reason::CoreError)?;
         let aux_data = if let Some(primes) = primes {
-            generate_aux_data_with_primes(rng, primes, enable_multiexp, enable_crt)?
+            generate_aux_data_with_primes(rng, primes, enable_multiexp)?
         } else {
-            generate_aux_data(rng, n, enable_multiexp, enable_crt)?
+            generate_aux_data(rng, n, enable_multiexp)?
         };
 
         let key_shares = core_key_shares
@@ -194,77 +176,67 @@ impl<E: Curve, L: SecurityLevel> TrustedDealerBuilder<E, L> {
 ///
 /// Auxiliary data can be used to "complete" core key share using [`KeyShare::from_parts`] constructor.
 ///
-/// `enable_multiexp` and `enable_crt` flags configure whether to enable [multiexp](TrustedDealerBuilder::enable_multiexp)
-/// and [CRT](TrustedDealerBuilder::enable_crt) optimizations.
+/// `enable_multiexp` flag configures whether to enable [multiexp](TrustedDealerBuilder::enable_multiexp)
+/// optimization.
 pub fn generate_aux_data<L: SecurityLevel, R: RngCore + CryptoRng>(
     rng: &mut R,
     n: u16,
     enable_multiexp: bool,
-    enable_crt: bool,
 ) -> Result<Vec<AuxInfo<L>>, TrustedDealerError> {
-    let primes =
-        iter::repeat_with(|| crate::key_refresh::PregeneratedPrimes::<L>::generate(rng).split())
-            .take(n.into())
-            .collect::<Vec<_>>();
+    let primes = iter::repeat_with(|| crate::key_refresh::PregeneratedPrimes::<L>::generate(rng))
+        .take(n.into())
+        .collect::<Vec<_>>();
 
-    generate_aux_data_with_primes(rng, primes, enable_multiexp, enable_crt)
+    generate_aux_data_with_primes(rng, primes, enable_multiexp)
 }
 
 /// Generates auxiliary data for `n` signers using provided pregenerated primes
 ///
 /// `pregenerated_primes` should have exactly `n` pairs of primes.
 ///
-/// `enable_multiexp` and `enable_crt` flags configure whether to enable [multiexp](TrustedDealerBuilder::enable_multiexp)
-/// and [CRT](TrustedDealerBuilder::enable_crt) optimizations.
+/// `enable_multiexp` flag configures whether to enable [multiexp](TrustedDealerBuilder::enable_multiexp)
+/// optimization.
 pub fn generate_aux_data_with_primes<L: SecurityLevel, R: RngCore + CryptoRng>(
     rng: &mut R,
-    pregenerated_primes: Vec<(Integer, Integer)>,
+    pregenerated_primes: Vec<crate::PregeneratedPrimes<L>>,
     enable_multiexp: bool,
-    enable_crt: bool,
 ) -> Result<Vec<AuxInfo<L>>, TrustedDealerError> {
-    let public_aux_data = pregenerated_primes
+    let (N, pedersen_params) = pregenerated_primes
         .iter()
-        .map(|(p, q)| {
+        .map(|primes| {
+            let [p, q, hat_p, hat_q] = primes.primes_ref();
             let N = (p * q).complete();
 
-            let φ_N = (p - 1u8).complete() * (q - 1u8).complete();
+            let (mut params, _phi, _lambda) =
+                utils::generate_pedersen_params(rng, hat_p.clone(), hat_q.clone())?;
 
-            let r = Integer::gen_invertible(&N, rng);
-            let λ = φ_N.random_below_ref(&mut utils::external_rand(rng)).into();
-
-            let t = r.square().modulo(&N);
-            let s = t.pow_mod_ref(&λ, &N).ok_or(Reason::PowMod)?.into();
-
-            let mut aux = PartyAux {
-                N,
-                s,
-                t,
-                multiexp: None,
-                crt: None,
-            };
             if enable_multiexp {
-                aux.precompute_multiexp_table::<L>()
+                params
+                    .precompute_multiexp_table::<L>()
                     .map_err(Reason::BuildMultiexp)?;
             }
-            Ok(aux)
+            Ok((N, params))
         })
-        .collect::<Result<Vec<_>, Reason>>()?;
+        .collect::<Result<(Vec<_>, Vec<_>), Reason>>()?;
 
     pregenerated_primes
         .into_iter()
         .enumerate()
-        .map(|(i, (p, q))| {
-            let mut public_aux_data = public_aux_data.clone();
-            if enable_crt {
-                public_aux_data[i]
-                    .precompute_crt(&p, &q)
-                    .map_err(Reason::BuildCrt)?;
+        .map(|(i, primes)| {
+            let mut pedersen_params = pedersen_params.clone();
+            for (j, params) in pedersen_params.iter_mut().enumerate() {
+                if i != j {
+                    params.crt = None;
+                }
             }
+
+            let [p, q, _, _] = primes.into_primes();
 
             DirtyAuxInfo {
                 p,
                 q,
-                parties: public_aux_data,
+                N: N.clone(),
+                pedersen_params,
                 security_level: PhantomData,
             }
             .validate()
@@ -283,12 +255,10 @@ pub struct TrustedDealerError(#[from] Reason);
 enum Reason {
     #[error("trusted dealer failed to generate shares due to internal error")]
     InvalidKeyShare(#[source] InvalidKeyShare),
-    #[error("pow mod undefined")]
-    PowMod,
-    #[error("couldn't build a CRT")]
-    BuildCrt(#[source] InvalidKeyShare),
     #[error("couldn't build multiexp tables")]
     BuildMultiexp(#[source] InvalidKeyShare),
     #[error(transparent)]
-    CoreError(#[from] key_share::trusted_dealer::TrustedDealerError),
+    CoreError(#[from] cggmp21_keygen::key_share::trusted_dealer::TrustedDealerError),
+    #[error("generate pedersen params")]
+    GenPedersen(#[from] utils::GenPedersenError),
 }

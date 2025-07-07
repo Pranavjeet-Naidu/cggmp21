@@ -56,7 +56,8 @@ fn args() -> Args {
 fn main() {
     let args = args();
     if args.custom_sec_level {
-        do_becnhmarks::<CustomSecLevel>(args)
+        // do_becnhmarks::<CustomSecLevel>(args)
+        panic!("you need to manually set a sec level you want in the code and uncomment the line above")
     } else {
         do_becnhmarks::<SecurityLevel128>(args)
     }
@@ -267,13 +268,13 @@ fn do_becnhmarks<L: SecurityLevel>(args: Args) {
     }
 }
 
-#[derive(Clone, Copy)]
-struct CustomSecLevel;
-cggmp21::define_security_level!(CustomSecLevel {
-    security_bits = 384,
-    epsilon = 220,
-    ell = 256,
-    ell_prime = 824,
-    m = 128,
-    q = cggmp21::rug::Integer::ONE.clone() << 128,
-});
+// #[derive(Clone, Copy)]
+// struct CustomSecLevel;
+// cggmp21::define_security_level!(CustomSecLevel {
+//     security_bits = 384,
+//     epsilon = 220,
+//     ell = 256,
+//     ell_prime = 824,
+//     m = 128,
+//     q = cggmp21::rug::Integer::ONE.clone() << 128,
+// });

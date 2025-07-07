@@ -72,6 +72,7 @@
 \newcommand{\sid}{\ensuremath{\mathtt{sid}}}
 \newcommand{\fn}[1]{\ensuremath{\mathtt{#1}}}
 \newcommand{\var}[1]{\ensuremath{\mathtt{#1}}}
+\newcommand{\rsa}{\ensuremath{\mathtt{rsa}}}
 \newcommand{\proof}[1]{\ensuremath{\Pi^{\mathtt{#1}}}}
 \newcommand{\commit}[1]{\ensuremath{\mathtt{Commit}_{\mathtt{#1}}}}
 \newcommand{\challenge}[1]{\ensuremath{\mathtt{Challenge}_{\mathtt{#1}}}}
@@ -324,14 +325,15 @@ We let $\lambda$ denote the bit length of the curve order (so $2^\lambda \leq q 
 The security parameters of the protocol are denoted collectively by $L = (\kappa, \varepsilon, \ell, \ell', m, Q)$. 
 These parameters are used in the following ways:
 \begin{itemize}
-    \item $\kappa$ determines the length of the primes used for Paillier private keys. Specifically, the primes are chosen to be of length~$4\kappa$ and so the Paillier modulus has length~$8\kappa$.
+    \item $\kappa$ is set to $\log_2 q$, bit-length of curve prime order. E.g. for secp256k1, $\kappa = 256$.
+
+    \item $n_\rsa$ is minimal length of the Paillier public key, private key of which has $\kappa_\rsa$ bits. It's chosen to match target security level. E.g. for 128-bits security, NIST recommends~\cite{NIST-RSA-keylen} 3072 bits public key.
+    \item $\kappa_\rsa$ is a bit-length of the primes used for Paillier private keys. Product of two such primes must be at least $n_\rsa$ bits long.
 
     \item $\ell, \ell'$ correspond to bounds on the ranges of certain plaintexts that are encrypted, while %Parameters should be set so that $2^\ell \leq 2^{8\kappa-1}$.
     $\eps$ is a slack parameter. (Honest parties choose plaintexts in a range determined by $\ell$ or $\ell'$; the zero-knowledge proofs, however, only prove that a party chose plaintexts in a range determined by $\ell+\eps$ or $\ell'+\eps$.)
 
     \item $m$ denotes the number of iterations of some underlying zero-knowledge protocol to run; the soundness error will be~$2^{-m}$.
-
-    \item $Q$ determines the challenge space for some of the zero-knowledge proofs.
 \end{itemize}
 For correctness, we require
 $\ell \geq \lambda$,
@@ -590,7 +592,7 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 % N_0 => N_j
 % N_1 => N_i
 
-We assume the prover and verifier agree on shared state $\state$, auxiliary data\footnote{In \cite{cggmp21}, the auxiliary data is an arbitrary modulus $\hat N$. In the protocol, however, it always holds that $\hat N=N_j$.} $R_j = (N_j, s_j, t_j)$ with $s_j, t_j \in \Z^*_{N_j}$,
+We assume the prover and verifier agree on shared state $\state$, auxiliary data $R_j = (\hat N_j, s_j, t_j)$ with $s_j, t_j \in \Z^*_{N_j}$,
 an elliptic curve~$\E$ of prime order~$q$ with generator~$G$,
 and a security level~$L$.
 For this proof, the prover and verifier have common input 
@@ -607,7 +609,8 @@ $D = (x \odot C) \oplus \enc_{N_j}(y; \rho)$,
 $Y = \enc_{N_i}(y; \rho_y)$,
 and $X = x \cdot G$.
 In all the cases where this proof is used in the protocol, the prover knows the factorization of~$N_i$ (and hence knows~$\sk_i$) and the verifier knows the factorization of~$N_j$ (and hence knows~$\sk_j$).
-%    \item Proof guarantees: $x \in \pm 2^{\ell + \varepsilon}$ and $y \in \pm 2^{\ell' + \varepsilon}$
+
+Proof guarantees: $x \in \pm 2^{\ell + \varepsilon}$ and $y \in \pm 2^{\ell' + \varepsilon}$
 %    \item Implicit constraints: $2^{\ell' + \varepsilon} < N_0/2, N_1/2$
 
 \subsubsection{Interactive Version of the Proof}
@@ -635,27 +638,27 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 \State Sample:
 
     $\begin{aligned}
-    \alpha &\gets \pm 2^{\ell+\varepsilon},   & r   &\gets \Z^*_{N_j}, & \gamma, \delta &\gets \pm (2^{\ell + \varepsilon} \cdot N_j)\\
-    \beta &\gets \pm 2^{\ell' + \varepsilon}, & r_y &\gets \Z^*_{N_i}, & m, \mu         &\gets \pm (2^\ell \cdot N_j).
+    \alpha &\gets \pm 2^{\ell+\varepsilon},   & r   &\gets \Z^*_{N_j}, & \gamma, \delta &\gets \pm (2^{\ell + \varepsilon} \cdot \hat N_j)^2\\
+    \beta &\gets \pm 2^{\ell' + \varepsilon}, & r_y &\gets \Z^*_{N_i}, & m, \mu         &\gets \pm (2^\ell \cdot \hat N_j)^2.
     \end{aligned}$
 \State $A = (\alpha \odot C) \oplus \enc_{N_j}(\beta; r)$
 \State $B_x = \alpha \cdot G $
 \State $B_y = \enc_{N_i}(\beta; r_y)$ \Comment{this is computed as $\enc^\crt_{\sk_i}(\beta; r_y)$ if $\sk_i$ is known}
-\State $E = s_j^\alpha t_j^\gamma \bmod N_j$ \Comment{\parbox[t]{.6\linewidth}{this and below can be computed via pregenerated table for fixed-base multiexp}}
-\State $S = s_j^x t_j^m \bmod N_j$ 
-\State $F = s_j^\beta t_j^\delta \bmod N_j$
-\State $T = s_j^y t_j^\mu \bmod N_j$
+\State $E = s_j^\alpha t_j^\gamma \bmod \hat N_j$ \Comment{\parbox[t]{.6\linewidth}{this and below can be computed via pregenerated table for fixed-base multiexp}}
+\State $S = s_j^x t_j^m \bmod \hat N_j$ 
+\State $F = s_j^\beta t_j^\delta \bmod \hat N_j$
+\State $T = s_j^y t_j^\mu \bmod \hat N_j$
 \State \Return $((A, B_x, B_y, E, S, F, T); (\alpha, \beta, r, r_y, \gamma, \delta, m, \mu))$
 \end{algorithmic}
 \end{inlineAlgorithm}
 
 \item
 \begin{inlineAlgorithm}
-\algoName{$\challenge{aff\mbox{-}g}^L() \to e$}
-\algoInputs{security level $L = (Q, \dots)$}
-\algoOutputs{challenge $e \in \pm Q$}
+\algoName{$\challenge{aff\mbox{-}g}() \to e$}
+\algoInputs{none}
+\algoOutputs{challenge $e \in \pm q$}
 \begin{algorithmic}[1]
-\State Sample $e \gets \pm Q$
+\State Sample $e \gets \pm q$ \Comment{$q = |\E|$}
 \State \Return $e$
 \end{algorithmic}
 \end{inlineAlgorithm}
@@ -710,8 +713,10 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 \State $A \oplus (e \odot D) \? = (z_1 \odot C) \oplus \enc^\crt_{\sk_j}(z_2; w)\bmod N_j^2$
 \State $z_1 \cdot G \? = B_x + e \cdot X$
 \State $B_y \oplus (e \odot Y) \? = \enc_{N_i}(z_2; w_y) \bmod N_i^2$
-\State $s_j^{z_1} t_j^{z_3} \? = E \cdot S^e \bmod N_j$ \Comment{left part is computed via pregenerated fixed-base mulitexp table}
-\State $s_j^{z_2} t_j^{z_4} \? = F \cdot T^e \bmod N_j$
+\State $s_j^{z_1} t_j^{z_3} \? = E \cdot S^e \bmod \hat N_j$
+    \Comment{\parbox[t]{.5\linewidth}{left part is computed via pregenerated fixed-base mulitexp table}}
+\State $s_j^{z_2} t_j^{z_4} \? = F \cdot T^e \bmod \hat N_j$
+    \Comment{\parbox[t]{.5\linewidth}{right part is computed via CRT exponentiation}}
 \State $z_1 \? \in \pm 2^{\ell + \varepsilon}$
 \State $z_2 \? \in \pm 2^{\ell' + \varepsilon}$
 \end{algorithmic}
@@ -735,7 +740,7 @@ In all the cases where this proof is used in the protocol, the prover knows the 
     (z_1, z_2, z_3, z_4, w, w_y)
 )$}
 \algoInputsList{
-    \item security level $L = (Q, \dots) \in (\Z, \dots)$,
+    \item security level $L$,
     \item shared state $\state \in \Byte^*$,
     \item auxiliary data $R_j$,
     \item public data $(N_j, N_i, C, D, Y, X) \in (\Z, \Z, \Z, \Z, \Z, \E)$,
@@ -749,12 +754,14 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 \State $(A, B_x, B_y, E, S, F, T);
         (\alpha, \beta, r, r_y, \gamma, \delta, m, \mu)
         \gets \commit{aff\mbox{-}g}^L(R_j, (N_i, C); (x, y))$
-\State $e \in \pm Q = \challengeni{aff\mbox{-}g}^L(
+\State $e \in \pm q = \challengeni{aff\mbox{-}g}^L(
     \state,
     R_j,
     (N_j, N_i, C, D, Y, X),
     (A, B_x, B_y, E, S, F, T)
 )$
+
+\Comment{$q = |\E|$}
 \State $(z_1, z_2, z_3, z_4, w, w_y) = \prove{aff\mbox{-}g}(
     (N_j, N_i, C, D, Y, X),
     e;
@@ -781,7 +788,7 @@ In all the cases where this proof is used in the protocol, the prover knows the 
     [\sk_j]
 )$}
 \algoInputsList{
-    \item security level $L = (Q, \dots) \in (\Z, \dots)$,
+    \item security level $L$,
     \item auxiliary data $R_j$,
     \item public data $(N_j, N_i, C, D, Y, X) \in (\Z, \Z, \Z, \Z, \Z, \E)$,
     \item non-interactive proof consisting of:
@@ -793,12 +800,14 @@ In all the cases where this proof is used in the protocol, the prover knows the 
 }
 \algoOutputs{aborts if proof is invalid}
 \begin{algorithmic}[1]
-\State $e \in \pm Q = \challengeni{aff\mbox{-}g}^L(
+\State $e \in \pm q = \challengeni{aff\mbox{-}g}^L(
     \state,
     R_j,
     (N_j, N_i, C, D, Y, X),
     (A, B_x, B_y, E, S, F, T)
 )$
+
+\Comment{$q = |\E|$}
 \State Assert $\verify{aff\mbox{-}g}^L(
     R_j,
     (N_j, N_i, C, D, Y, X),
@@ -1532,6 +1541,10 @@ We describe the standard Schnorr proof of knowledge, and also set up notation th
 
 \subsection{\proof{elog}: Dlog with El-Gamal Commitment}
 
+Common (public) inputs: elliptic points $L, M, X, Y, H \in \E^5$
+
+Prover has secret input $(y, \lambda) \in \Z_q^2$ such that $L = \lambda G, M = y G + \lambda X$, and $Y = y H$
+
 \subsubsection{Interactive Version of the Proof}
 
 \begin{description}
@@ -1843,6 +1856,43 @@ Since we have not yet implemented a $t$-out-of-$n$ version of key refresh, and d
 
 This protocol is run to generate auxiliary information for each signer in a cluster.  
 
+\subsubsection{Utility functions}
+
+\begin{description}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\fn{generate\_paillier\_key}^L() \to (N; p, q)$}
+\algoInputs{security level $L = (\kappa_\rsa, \dots)$}
+\algoOutputsList{
+    \item Paillier public key $N \in \Z$ of $n_\rsa$ bits or more
+    \item safe primes $p, q \in \Z^2$, each of $\kappa_\rsa$ bits or more
+}
+\begin{algorithmic}[1]
+\State Generate $\kappa_\rsa$-bit safe primes $p, q$ using the algorithm from Section~\ref{sec:safe-prime}.
+\State Compute Pailier public key $N = pq$
+\State \Return $(N; p, q)$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\item
+\begin{inlineAlgorithm}
+\algoName{$\fn{generate\_pedersen\_params}^L() \to (N, s, t; \phi, \lambda)$}
+\algoInputs{security level $L = (\kappa_\rsa, \dots)$}
+\algoOutputs{Pedersen public parameters $N, s, t \in \Z^3$, and secret parameters $\phi = \phi(N)$ and $\lambda \in \Z$}
+\begin{algorithmic}[1]
+\State $(N; p, q) \gets \fn{generate\_paillier\_key}^L()$
+\State Set $\phi = (p-1)(q-1)$
+\State Sample $r \gets \Z^*_N$, and $\lambda \gets [\phi/4]$
+\State Set $t = r^2 \bmod N$, and $s = t^\lambda \bmod N$
+    \Comment{\parbox[t]{.5\linewidth}{$s$ is computed via CRT exponentiation as described in \ref{sec:CRT}}}
+\State \Return $(N, s, t; \phi, \lambda)$
+\end{algorithmic}
+\end{inlineAlgorithm}
+
+\end{description}
+
+\subsubsection{Protocol}
 
 \begin{description}
     \item[\textbf{Input.}] \
@@ -1850,56 +1900,54 @@ This protocol is run to generate auxiliary information for each signer in a clus
     \item party index $i$, $0 \le i < n$,
     \item amount of parties in the protocol $n \ge 2$,
     \item context separation string $\sid \in \Byte^*$,
-    \item security level $L$ (see Section~\ref{sec:security-params}),
+    \item security level $L = (\kappa, \kappa_\rsa, n_\rsa, \dots)$ (see Section~\ref{sec:security-params}),
     \item flag $\var{echo\_enabled} \in \Bit$ indicating whether reliability check is enabled
     \end{itemize}
 
     \item[\textbf{Round 1.}] \
     \begin{algorithmic}[1]
-        \State Generate $4\kappa$-bit safe primes $p_i, q_i$ using the algorithm from Section~\ref{sec:safe-prime}.
-        \State Compute $N_i = p_iq_i$ and $\phi = (p_i - 1)(q_i - 1)$, and create a Paillier decryption key $\sk_i$ using those values.
-        \State Sample  $r \gets \Z_{N_i}^{*}$ and $\lambda \gets \Z_\phi$,
-        and compute $t_i = r_i^2 \bmod N_i$ and $s_i = t_i^\lambda \bmod N_i$.
-        \State Compute $\hat{\psi}_i = \proveni{prm}^L(\Encode(\sid, i), N_i, s_i, t_i; \phi, \lambda)$.
+        \State Generate Paillier key $(N_i; p_i, q_i) \gets \fn{generate\_paillier\_key}^L()$
+        \State Generate Pedersen parameters $(\hat N_i, s_i, t_i; \hat \phi_i, \lambda_i) \gets \fn{generate\_pedersen\_params}^L()$
+        \State Compute $\hat{\psi}_i = \proveni{prm}^L(\Encode(\sid, i), \hat N_i, s_i, t_i; \hat \phi_i, \lambda_i)$.
         \State Sample $\rho_i, u_i \leftarrow \Bit^\kappa$, 
         and compute $V_i =
-        H(\Encode[hash\_com](\sid, i, N_i, s_i, t_i, \hat{\psi}_i, \rho_i, u_i))$.
+        H(\Encode[hash\_com](\sid, i, N_i, \hat N_i, s_i, t_i, \hat{\psi}_i, \rho_i, u_i))$.
         \State Send $V_i$ to all parties.
     \end{algorithmic}
     
 
     \item[\textbf{Round 2.}] \
     \begin{algorithmic}[1]
-        \State Receive $V_j \in \Bit^\kappa$ from all parties
+        \State Receive $V_j \in \Byte^*$ from all parties
         \If{$\var{echo\_enabled}$} \Comment{Reliability check}
             \State Compute $h_i = H(\Encode[echo](\sid, V_0, \dots, V_{n-1}))$ and 
             send $h_i$ to all parties
             \State Upon receiving $h_j \in \Bit^\kappa$ from all parties, abort if $h_i \neq h_j$ for some $j \in [n]$
         \EndIf
-        \State Send $(N_i, s_i, t_i, \hat{\psi}_i, \rho_i, u_i)$ to all parties
+        \State Send $(N_i, \hat N_i, s_i, t_i, \hat{\psi}_i, \rho_i, u_i)$ to all parties
     \end{algorithmic}
 
     \item[\textbf{Round 3.}] \
 
     \begin{algorithmic}[1]
-        \State Receive $(N_j, s_j, t_j, \hat{\psi}_j, \rho_j, u_j)$
+        \State Receive $(N_j, \hat N_j, s_j, t_j, \hat{\psi}_j, \rho_j, u_j)$
         from all parties
-        \State For all $j \in [n]$, set $R_j = (N_j, s_j, t_j)$; let
-        $\vec{R} = (R_j)_{j \in [n]}$
+        \State For all $j \in [n]$, set $R_j = (\hat N_j, s_j, t_j)$; let
+        $\vec{R} = (R_j)_{j \in [n]}$, and $\vec N = (N_j)_{j \in [n]}$
 
         \For{$j \in [n] \setminus \{i\}$}
-            \State Assert $(N_j, s_j, t_j, \rho_j, u_j) \? \in
+            \State Assert $(N_j, \hat N_j, s_j, t_j, \rho_j, u_j) \? \in
                 (\Z, \Z, \Z, \Bit^\kappa, \Bit^\kappa)$
             \State Assert $V_j \? =
-                H(\Encode[hash\_com](\sid, j, N_j, s_j, t_j, \hat{\psi}_j, \rho_j, u_j))$
-            \State Assert $N_j$ is at least $8 \cdot \kappa - 1$ bits in length
-            \State Assert $\verifyni{prm}^L(\Encode(\sid, j), N_j, s_j, t_j, \hat{\psi}_j)$
+                H(\Encode[hash\_com](\sid, j, N_j, \hat N_j, s_j, t_j, \hat{\psi}_j, \rho_j, u_j))$
+            \State Assert that $N_j, \hat N_j$ are at least $n_\rsa$ bits in length
+            \State Assert $\verifyni{prm}^L(\Encode(\sid, j), \hat N_j, s_j, t_j, \hat{\psi}_j)$
         \EndFor
         \State Compute $\rho=\bigoplus_j \rho_j$
         \State Compute $\psi_i = \proveni{mod}^L(\Encode(\sid, i, \rho), N_i; (p_i, q_i))$
         \For{$j \in [n] \setminus \{i\}$}
-            \State Compute $\phi_i^j = \proveni{fac}^{L}(\Encode(\sid, i, \rho), R_j, N_i; (p_i, q_i))$
-            \State Send $(\psi_i, \phi_i^j)$ to $P_j$
+            \State Compute $\psi'_{i,j} = \proveni{fac}^{L}(\Encode(\sid, i, \rho), R_j, N_i; (p_i, q_i))$
+            \State Send $(\psi_i, \psi'_{i,j})$ to $P_j$
         \EndFor
     \end{algorithmic}
 
@@ -1907,13 +1955,13 @@ This protocol is run to generate auxiliary information for each signer in a clus
     \item[\textbf{Output.}] \
 
     \begin{algorithmic}[1]
-        \State Receive $(\psi_j, \phi_j^i)$ from all parties
+        \State Receive $(\psi_j, \psi'_{j,i})$ from all parties
         \For{$j \in [n] \setminus \{i\}$}
             \State Assert $\verifyni{mod}^L(\Encode(\sid, j, \rho), N_j, \psi_j)$
-            \State Assert $\verifyni{fac}^{L}(\Encode(\sid, j, \rho), R_i, N_j, \phi_j^i)$
+            \State Assert $\verifyni{fac}^{L}(\Encode(\sid, j, \rho), R_i, N_j, \psi'_{j,i})$
         \EndFor
         \State For $j \in [n]$ (including $j=i$), precompute a fixed-based multiexponentiation table $T_j$ as described in Section~\ref{sec:multiexp}. Let $\vec{T} = (T_j)_{j \in [n]}$
-        \State \Return $(p_i, q_i, \vec{R}, \vec{T})$
+        \State \Return $(p_i, q_i, \vec N, \vec{R}, \vec{T})$
     \end{algorithmic}
 
 \end{description}
@@ -2109,11 +2157,18 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
     \item (additive) secret share $x_i \in \Z_q$,
     \item list of signers' public key shares $\vec X = \{X_j\}_{j\in[n]} \in \E^n$,
     \item Paillier private key $\sk_i$,
-    \item list of signers' auxiliary data $\vec R = \{(s_j, t_j, N_j)\}_{j\in[n]} \in \{\Z^3\}^n$,
+    \item list of signers' Paillier public keys $\vec N = (N_j)_{j\in[n]} \in \Z^n$
+    \item list of signers' pedersen parameters $\vec R = \{(s_j, t_j, \hat N_j)\}_{j\in[n]} \in \{\Z^3\}^n$,
     \item context separation string $\sid \in \Byte^*$,
     \item security level $L$ (see Section~\ref{sec:security-params}),
     \item flag $\var{echo\_enabled} \in \Bit$ indicating whether reliability check is enabled,
     \item curve $\E$ with generator $G$ of prime order $q$
+    \end{itemize}
+
+    \item[\bf Outputs.] \
+    \begin{itemize}[noitemsep,topsep=0pt]
+    \item secret presignature $(\Gamma, \tilde k_i, \tilde \chi_i) \in (\E, \Z_q, \Z_q)$,
+    \item public presignature commitments $(\Gamma, (\tilde \Delta_j, \tilde S_j)_{j\in[n]}) \in (\E, (\E, \E)^n)$
     \end{itemize}
 
     \item[\textbf{Round 1.}] \
@@ -2122,25 +2177,44 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
                   $\rho_i, v_i \gets (\Z^*_{N_i})^2$
     \State Set $G_i = \enc^\crt_{\sk_i}(\gamma_i; v_i)$,
                $K_i = \enc^\crt_{\sk_i}(k_i; \rho_i)$. 
+    \State Sample $Y_i \gets \E$, and $a_i, b_i \gets \Z_q^2$
+    \State Set $A_{i,1} = a_i G$,
+               $A_{i,2} = a_i Y_i + k_i G$
+    \State Set $B_{i,1} = b_i G$,
+               $B_{i,2} = b_i Y_i + \gamma_i G$
     \For{$j \in [n] \setminus \{i\}$}
-        \State Compute $\psi^0_{j,i} = \proveni{enc}^{L}(\Encode(\sid, i), R_j, (N_i, K_i); k_i, \rho_i, \sk_i)$. 
+        \State $\psi^0_{j,i} = \proveni{enc\mbox{-}elg}^L(\Encode(\sid, i), R_j, (N_i, K_i, Y_i, A_{i,1}, A_{i,2}); (k_i, \rho_i, a_i))$
+        \State $\psi^1_{j,i} = \proveni{enc\mbox{-}elg}^L(\Encode(\sid, i), R_j, (N_i, G_i, Y_i, B_{i,1}, B_{i,2}); (\gamma_i, v_i, b_i))$
     \EndFor
-    \State Send $(K_i, G_i)$ to all parties, and for $j \neq i$ send $\psi^0_{j,i}$ to $P_j$
+    \State Send $(K_i, G_i, Y_i, A_{i,1}, A_{i,2}, B_{i,1}, B_{i,2})$ to all parties, and for $j \neq i$ send $(\psi^0_{j,i}, \psi^1_{j,i})$ to $P_j$
     \end{algorithmic}
 
 
     \item[\textbf{Round 2.}] \
     \begin{algorithmic}[1]
-        \State Receive $(K_j, G_j, \psi^0_{i,j}) \in (\Z, \Z, *)$ from all parties
-            \Comment{\parbox[t]{.4\linewidth}{domain of $\psi^0_{i,j}$ is specified within ZK proof verify function}}
+        \State Receive $(K_j, G_j, Y_j, A_{j,1}, A_{j,2}, B_{j,1}, B_{j,2}, \psi^0_{i,j}, \psi^1_{i,j}) \in (\Z, \Z, \E, \E, \E, \E, \E, *, *)$ from all parties
+
+            \Comment{\parbox[t]{.4\linewidth}{domain of $\psi^0_{i,j}$ and $\psi^1_{i,j}$ is specified within ZK proof verify function}}
         \If{$\var{echo\_enabled}$} \Comment{Reliability check}
-            \State Compute $h_i = H(\Encode[echo](\sid, K_0, G_0, \cdots, K_{n-1}, G_{n-1}))$
+            \State Compute
+
+            \begin{align*}
+                h_i = H(\Encode[echo](&\sid, \\
+                       & K_0, G_0, Y_0, A_{0,1}, A_{0,2}, B_{0,1}, B_{0,2}, \\
+                       & \dots, \\
+                       & K_{n-1}, G_{n-1}, Y_{n-1}, A_{{n-1},1}, A_{{n-1},2}, B_{{n-1},1}, B_{{n-1},2}))
+            \end{align*}
+
                    and send $h_i$ to all parties
             \State Upon receiving $h_j$ from all parties, abort if 
                    $h_i \neq h_j$ for some $j \in [n]$
         \EndIf
-        \State For $j \in [n] \setminus \{i\}$, assert $\verifyni{enc}^{L}(\Encode(\sid, j), R_i, (N_j, K_j), \psi^0_{i,j})$
+        \For{$j \in [n] \setminus \{i\}$}
+            \State $\verifyni{enc\mbox{-}elg}^L(\Encode(\sid, j), R_i, (N_j, K_j, Y_j, A_{j,1}, A_{j,2}), \psi^0_{i,j})$
+            \State $\verifyni{enc\mbox{-}elg}^L(\Encode(\sid, j), R_i, (N_j, G_j, Y_j, B_{j,1}, B_{j,2}), \psi^1_{i,j})$
+        \EndFor
         \State Compute $\Gamma_i = \gamma_i \cdot G$
+        \State Set $\tilde \psi_i = \proveni{elog}(\Encode(\sid, i), (B_{i,1}, B_{i,2}, Y_i, \Gamma_i, G); (\gamma_i, b_i))$
         \For{$j \in [n] \setminus \{i\}$}
             \State Sample $r_{i,j}, \hat{r}_{i,j} \gets \Z_{N_i}^2$,
                           $s_{i,j}, \hat{s}_{i,j} \gets \Z_{N_j}^2$, and
@@ -2153,45 +2227,50 @@ The following protocol is based on \cite[Figure~7]{cggmp21}, although we have co
             \State Compute $\psi_{j,i} = \proveni{aff\mbox{-}g}^L(\Encode(\sid, i), R_j, (N_j, N_i, K_j, D_{j,i}, F_{j,i}, \Gamma_i); (\gamma_i, -\beta_{i,j}, s_{i,j}, r_{i,j}))$
             \State Compute $\hat{\psi}_{j,i} = \proveni{aff\mbox{-}g}^L(\Encode(\sid, i), R_j, (N_j, N_i, K_j, \hat{D}_{j,i}, \hat{F}_{j,i}, X_i); (x_i, -\hat{\beta}_{i,j}, \hat{s}_{i,j}, \hat{r}_{i,j}))$
             %\jnote{To consider later: this and the previous could possibly be combined for better efficiency}
-            \State Compute $\psi'_{j,i} = \proveni{log*}^L(\Encode(\sid, i), R_j, (N_i, G_i, \Gamma_i, G); (\gamma_i, v_i), \sk_i)$
-            \State Send $(\Gamma_i, D_{j,i}, F_{j,i}, \hat{D}_{j,i}, \hat{F}_{j,i}, \psi_{j,i}, \hat{\psi}_{j,i}, \psi'_{j,i})$ to $P_j$
+            \State Send $(\Gamma_i, \tilde \psi_i, D_{j,i}, F_{j,i}, \hat{D}_{j,i}, \hat{F}_{j,i}, \psi_{j,i}, \hat{\psi}_{j,i})$ to $P_j$
         \EndFor
     \end{algorithmic}
 
     \item[\textbf{Round 3.}] \ 
     \begin{algorithmic}[1]
-        \State Receive $(\Gamma_j, D_{i,j}, F_{i,j}, \hat{D}_{i,j}, \hat{F}_{i,j}, \psi_{i,j}, \hat{\psi}_{i,j}, \psi'_{i,j})
-            \in (\E, \Z, \Z, \Z, \Z, *, *, *)$ from all parties
+        \State Receive $(\Gamma_j, \tilde \psi_j, D_{i,j}, F_{i,j}, \hat{D}_{i,j}, \hat{F}_{i,j}, \psi_{i,j}, \hat{\psi}_{i,j})
+            \in (\E, *, \Z, \Z, \Z, \Z, *, *)$ from all parties
 
             \Comment{domains of the proofs are specified within ZK proofs verify functions}
 
         \For{$j \in [n] \setminus \{i\}$}
+            \State Assert $\verifyni{elog}(\Encode(\sid, j), (B_{j,1}, B_{j,2}, Y_j, \Gamma_j, G), \tilde \psi_j)$
             \State Assert $\verifyni{aff\mbox{-}g}^L(\Encode(\sid, j), R_i, (N_i, N_j, K_i, D_{i,j}, F_{i,j}, \Gamma_j), \psi_{i,j}; \sk_i)$
             \State Assert $\verifyni{aff\mbox{-}g}^L(\Encode(\sid, j), R_i, (N_i, N_j, K_i, \hat{D}_{i,j}, \hat{F}_{i,j}, X_j), \hat{\psi}_{i,j}; \sk_i)$
-            \State Assert $\verifyni{log*}^L(\Encode(\sid, j), R_i, (N_j, G_j, \Gamma_j, G), \psi'_{i,j})$
         \EndFor
         \Statex
 
         \State Compute $\Gamma = \sum_{j\in [n]} \Gamma_j$ and $\Delta_i = k_i \cdot \Gamma$
         \For{$j \in [n] \setminus \{i\}$}
             \State Compute $\alpha_{i,j} = \dec_{\sk_i}(D_{i,j})$ and $\hat{\alpha}_{i,j} = \dec_{\sk_i}(\hat{D}_{i,j})$
-            \State Compute $\psi''_{j,i} = \proveni{log*}^L(\Encode(\sid, i), R_j, (N_i, K_i, \Delta_i, \Gamma); (k_i, \rho_i), \sk_i)$
         \EndFor
-        \State  Compute $\delta_i = \gamma_i k_i + \sum_{j \ne i}(\alpha_{i,j} + \beta_{i,j}) \bmod q$
+        \State Compute $\psi'_i = \proveni{elog}(\Encode(\sid, i), (A_{i,1}, A_{i,2}, Y_i, \Delta_i, \Gamma); (k_i, a_i))$
+        \State Compute $\delta_i = \gamma_i k_i + \sum_{j \ne i}(\alpha_{i,j} + \beta_{i,j}) \bmod q$
         \State Compute $\chi_i = x_i k_i + \sum_{j \ne i}(\hat{\alpha}_{i,j} + \hat{\beta}_{i,j}) \bmod q$
+        \State Compute $S_i = \chi_i \cdot \Gamma$
         \Statex
-        \State Send $(\delta_i, \Delta_i, \psi''_{j,i})$ to each $P_j$
+        \State Send $(\delta_i, S_i, \Delta_i, \psi'_i)$ to all
     \end{algorithmic}
 
     \item[\textbf{Output}] \
     \begin{algorithmic}[1]
-        \State Receive $(\delta_j, \Delta_j, \psi''_{i,j}) \in (\Z_q, \E, *)$ from all parties
-            \Comment{\parbox[t]{.4\linewidth}{domain of $\psi''_{i,j}$ is specified within ZK proof verify function}}
-        \State Assert $\verifyni{log*}^L(\Encode(\sid, j), R_i, (N_j, K_j, \Delta_j, \Gamma), \psi''_{i,j})$
+        \State Receive $(\delta_j, S_j, \Delta_j, \psi'_j) \in (\Z_q, \E, \E, *)$ from all parties
+
+            \Comment{\parbox[t]{.4\linewidth}{domain of $\psi'_j$ is specified within ZK proof verify function}}
+        \State Assert $\verifyni{elog}(\Encode(\sid, j), (A_{j,1}, A_{j,2}, Y_j, \Delta_j, \Gamma), \psi'_j)$
             for all $j \in [n] \setminus \{i\}$
         \State Compute $\delta = \sum_j \delta_j$
-        \State Assert $\delta \cdot G = \sum_j \Delta_j$
-        \State Set $R = \delta^{-1} \cdot \Gamma$ and \Return $(R, k_i, \chi_i)$
+        \State Assert $\delta \cdot G \? = \sum_j \Delta_j$
+        \State Assert $\delta \cdot X \? = \sum_j S_j$
+            \Comment{\parbox[t]{.6\linewidth}{in case of failure, we are supposed to run sub-protocol to identify aborting parties, but it's not yet implemented}}
+        \State Set $\tilde k_i = k_i / \delta$, and $\tilde \chi_i = \chi_i / \delta$
+        \State Set $\tilde \Delta_j = \delta^{-1} \Delta_j$ and $\tilde S_j = \delta^{-1} S_j$ for all $j \in [n]$
+        \State \Return $((\Gamma, \tilde k_i, \tilde \chi_i), (\Gamma, (\tilde \Delta_j, \tilde S_j)_{j \in [n]}))$
     \end{algorithmic}
 \end{description}
 
@@ -2270,36 +2349,39 @@ The signing protocol has two parts: one that takes the output from the presignat
 
 \item
 \begin{inlineAlgorithm}
-\algoName{$\fn{issue\_partial\_signature}((R, k_i, \chi_i), m, \var{shift}) \to (r, \sigma_i)$}
+\algoName{$\fn{issue\_partial\_signature}((\Gamma, \tilde k_i, \tilde \chi_i), m, \var{shift}) \to (r, \sigma_i)$}
 \algoInputsList{
-    \item presignature $(R, k_i, \chi_i)$,
+    \item presignature $(\Gamma, \tilde k_i, \tilde \chi_i) \in (\E, \Z_q, \Z_q)$,
     \item a hashed message $m \in \Z_q$,
     \item if HD wallets support is enabled, additive $\var{shift} \in \Z_q$ ($\var{shift} = 0$ disables HD derivation)
 }
 \algoOutputs{partial signature $(r, \sigma_i) \in (\Z_q, \Z_q)$}
 \begin{algorithmic}[1]
 \If{HD-wallets support enabled}
-    \State Set $\chi_i := \chi_i + k_i \cdot \var{shift} \bmod q$
+    \State Set $\tilde \chi_i := \tilde \chi_i + \tilde k_i \cdot \var{shift} \bmod q$
 \EndIf
-\State Set $r = \affineX{R}$ and $\sigma_i = k_i m + r \chi_i$
+\State Set $r = \affineX{\Gamma}$ and $\sigma_i = \tilde k_i m + r \tilde \chi_i \bmod q$
 \State \Return $(r, \sigma_i)$
 \end{algorithmic}
 \end{inlineAlgorithm}
 
 \item
 \begin{inlineAlgorithm}
-\algoName{$\fn{combine\_partial\_signatures}(Y, \{(r_i, \sigma_i)\}_{i=0}^{n-1}, m) \to (r, \sigma)$}
+\algoName{$\fn{combine\_partial\_signatures}(
+    (\Gamma, (\tilde \Delta_j, \tilde S_j)_{j=0}^{n-1}),
+    (\sigma_j)_{j=0}^{n-1},
+    m
+) \to (r, \sigma)$}
 \algoInputsList{
-    \item public key $Y \in \E$,
-    \item partial signatures $\{(r_i, \sigma_i)\}_{i=0}^{n-1} \in (\Z_q, \Z_q)^n$,
+    \item presignature commitments $(\Gamma, (\tilde \Delta_j, \tilde S_j)_{j=0}^{n-1}) \in (\E, (\E, \E)^n)$
+    \item partial signatures $(\sigma_j)_{j=0}^{n-1} \in \Z_q^n$,
     \item a hashed message $m \in \Z_q$
 }
 \algoOutputs{signature $(r, \sigma) \in (\Z_q, \Z_q)$}
 \begin{algorithmic}[1]
-\State Assert $r_0 \? = r_0 \? = \dots \? = r_{n-1}$
-\State Set $r := r_0$
+\State Set $r := \affineX{\Gamma}$
+\State Verify that $\sigma_j \Gamma \? = m \tilde \Delta_j + r \tilde S_j$ for all $j \in [n]$
 \State Let $\sigma = \sum_j \sigma_j \bmod q$
-\State Assert that $(r, \sigma)$ is a valid ECDSA signature on hashed message $m$ with respect to public key $Y$
 \State \Return $(r, \sigma)$
 \end{algorithmic}
 \end{inlineAlgorithm}

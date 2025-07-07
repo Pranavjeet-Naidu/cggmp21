@@ -9,12 +9,13 @@ use cggmp21::trusted_dealer;
 #[derive(Clone)]
 struct DummyLevel;
 define_security_level!(DummyLevel {
-    security_bits = 32,
-    epsilon = 64,
-    ell = 128,
-    ell_prime = 128,
-    m = 128,
-    q = (cggmp21::rug::Integer::ONE.clone() << 128) - 1,
+    kappa_bits: 32,
+    rsa_prime_bitlen: 100,
+    rsa_pubkey_bitlen: 100,
+    epsilon: 64,
+    ell: 128,
+    ell_prime: 128,
+    m: 128,
 });
 
 cggmp21_tests::test_suite! {
