@@ -743,7 +743,6 @@ where
 
     let B_i1 = &b_i * Point::generator();
     let B_i2 = &b_i * Y_i + &gamma_i * Point::generator();
-    runtime.yield_now().await;
 
     tracer.send_msg();
     outgoings
