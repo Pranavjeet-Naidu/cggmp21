@@ -177,6 +177,16 @@ pub trait IntegerExt: Sized {
     /// Checks whether `self` is in interval `[-range; range]`
     fn is_in_pm(&self, range: &Self) -> bool;
 
+    /// Generates a random integer in interval 
+    /// `[-range/2; range/2]` if range is even
+    /// `[-(range-1)/2; (range-1)/2]` if range is odd
+    fn from_rng_half_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self;
+
+    /// Checks whether `self` is in interval 
+    /// `[-range/2; range/2]` when range is even
+    /// `[-(range-1)/2; (range-1)/2]` when range is odd
+    // fn is_in_half_pm(&self, range: &Self) -> bool;
+
     /// Returns `self smod n`
     ///
     /// For odd `n`, result is in `{-n/2, .., n/2}`. For even `n`, result is in
@@ -232,6 +242,25 @@ impl IntegerExt for Integer {
         let minus_range = -range.clone();
         minus_range <= *self && self <= range
     }
+    
+    fn from_rng_half_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self {
+        let mut rng = fast_paillier::utils::external_rand(rng);
+        
+        if range.clone().is_even() {
+            let half_range = range.clone() >> 1u32;
+            let range_plus_one= range.clone() + Integer::ONE.clone();
+            return range_plus_one.random_below(&mut rng) - half_range
+        }
+        
+        let range_minus_one = range.clone() - Integer::ONE.clone();
+        let half_range_minus_one = range_minus_one >> 1u32;
+        range.clone().random_below(&mut rng) - half_range_minus_one
+    }
+
+    // fn is_in_half_pm(&self, range: &Self) -> bool {
+    //     let minus_range = -range.clone();
+    //     minus_range <= *self && self <= range
+    // }
 
     fn signed_modulo(&self, n: &Self) -> Self {
         let self_mod_n = self.modulo_ref(n).complete();
@@ -465,46 +494,61 @@ mod _test {
     }
 
     #[test]
-    fn test_from_rng_pm_upper_bound() {
+    fn test_from_rng_pm_bounds() {
         let mut rng = rand_dev::DevRng::new();
         let range = Integer::from(10);
-        let mut found_upper = false;
+        let mut min = Integer::from(0);
+        let mut max = Integer::from(0);
 
-        // Testing if 'range' is  produced
+        // Obtaining lower and upper bounds
         for _ in 0..10000 {
             let value = Integer::from_rng_pm(&range, &mut rng);
-            if value == range {
-                found_upper = true;
-                break;
-            }
+            if &value > &max { max = value.clone(); }
+            if &value < &min { min = value.clone(); }
         }
 
-        assert!(
-            found_upper,
-            "from_rng_pm did not produced the upper bound value {}, so the interval is not inclusive",
-            range
-        );
+        assert_eq!(min, -range.clone(), "Minimum value {} did not match expected lower bound {}", min, -range.clone());
+        assert_eq!(max, range, "Maximum value {} did not match expected upper bound {}", max, range);
+
     }
 
     #[test]
-    fn test_from_rng_pm_lower_bound() {
+    fn test_from_rng_half_pm_bounds() {
         let mut rng = rand_dev::DevRng::new();
+        // Testing even case
         let range = Integer::from(10);
-        let mut found_lower = false;
+        let upper_bound = range.clone() >> 1u32;
+        let lower_bound = -upper_bound.clone();
+        let mut min = Integer::from(0);
+        let mut max = Integer::from(0);
 
-        // Testing if '-range' is produced
+        // Obtaining lower and upper bounds
         for _ in 0..10000 {
-            let value = Integer::from_rng_pm(&range, &mut rng);
-            if value == -range.clone() {
-                found_lower = true;
-                break;
-            }
+            let value = Integer::from_rng_half_pm(&range, &mut rng);
+            if &value > &max { max = value.clone(); }
+            if &value < &min { min = value.clone(); }
         }
 
-        assert!(
-            found_lower,
-            "from_rng_pm did not produced the lower bound value {}, so the interval is not inclusive",
-            -range
-        );
+        assert_eq!(min, lower_bound, "Minimum value {} did not match expected lower bound {}", min, lower_bound);
+        assert_eq!(max, upper_bound, "Maximum value {} did not match expected upper bound {}", max, upper_bound);
+
+        // Testing odd case
+        let range = Integer::from(9);
+        let range_minus_one = range.clone() - Integer::ONE.clone();
+        let upper_bound = range_minus_one >> 1u32;
+        let lower_bound = -upper_bound.clone();
+        let mut min = Integer::from(0);
+        let mut max = Integer::from(0);
+
+        // Obtaining lower and upper bounds
+        for _ in 0..10000 {
+            let value = Integer::from_rng_half_pm(&range, &mut rng);
+            if &value > &max { max = value.clone(); }
+            if &value < &min { min = value.clone(); }
+        }
+
+        assert_eq!(min, lower_bound, "Minimum value {} did not match expected lower bound {}", min, lower_bound);
+        assert_eq!(max, upper_bound, "Maximum value {} did not match expected upper bound {}", max, upper_bound);
+
     }
 }
