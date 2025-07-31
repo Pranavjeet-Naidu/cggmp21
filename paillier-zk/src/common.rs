@@ -224,7 +224,8 @@ impl IntegerExt for Integer {
     fn from_rng_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self {
         let mut rng = fast_paillier::utils::external_rand(rng);
         let range_twice = range.clone() << 1u32;
-        range_twice.random_below(&mut rng) - range
+        let range_twice_plus_one  = range_twice + Integer::ONE.clone();
+        range_twice_plus_one.random_below(&mut rng) - range
     }
 
     fn is_in_pm(&self, range: &Self) -> bool {
@@ -461,5 +462,49 @@ mod _test {
             let expected = aux.rsa_modulo.combine(&aux.s, &x, &aux.t, &y).unwrap();
             assert_eq!(actual, expected);
         }
+    }
+
+    #[test]
+    fn test_from_rng_pm_upper_bound() {
+        let mut rng = rand_dev::DevRng::new();
+        let range = Integer::from(10);
+        let mut found_upper = false;
+
+        // Testing if 'range' is  produced
+        for _ in 0..10000 {
+            let value = Integer::from_rng_pm(&range, &mut rng);
+            if value == range {
+                found_upper = true;
+                break;
+            }
+        }
+
+        assert!(
+            found_upper,
+            "from_rng_pm did not produced the upper bound value {}, so the interval is not inclusive",
+            range
+        );
+    }
+
+    #[test]
+    fn test_from_rng_pm_lower_bound() {
+        let mut rng = rand_dev::DevRng::new();
+        let range = Integer::from(10);
+        let mut found_lower = false;
+
+        // Testing if '-range' is produced
+        for _ in 0..10000 {
+            let value = Integer::from_rng_pm(&range, &mut rng);
+            if value == -range.clone() {
+                found_lower = true;
+                break;
+            }
+        }
+
+        assert!(
+            found_lower,
+            "from_rng_pm did not produced the lower bound value {}, so the interval is not inclusive",
+            -range
+        );
     }
 }
