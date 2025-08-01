@@ -188,13 +188,13 @@ pub mod interactive {
         let aux_n_at_two_to_l_plus_e = (&two_to_l_plus_e * &aux.rsa_modulo).complete();
         let n_at_aux_n = (&aux.rsa_modulo * data.n).complete();
 
-        let alpha = Integer::from_rng_pm(&n_root_at_two_to_l_plus_e, &mut rng);
-        let beta = Integer::from_rng_pm(&n_root_at_two_to_l_plus_e, &mut rng);
-        let mu = Integer::from_rng_pm(&aux_n_at_two_to_l, &mut rng);
-        let nu = Integer::from_rng_pm(&aux_n_at_two_to_l, &mut rng);
-        let r = Integer::from_rng_pm(&(&two_to_l_plus_e * &n_at_aux_n).complete(), &mut rng);
-        let x = Integer::from_rng_pm(&aux_n_at_two_to_l_plus_e, &mut rng);
-        let y = Integer::from_rng_pm(&aux_n_at_two_to_l_plus_e, &mut rng);
+        let alpha = Integer::from_rng_half_pm(&n_root_at_two_to_l_plus_e, &mut rng);
+        let beta = Integer::from_rng_half_pm(&n_root_at_two_to_l_plus_e, &mut rng);
+        let mu = Integer::from_rng_half_pm(&aux_n_at_two_to_l, &mut rng);
+        let nu = Integer::from_rng_half_pm(&aux_n_at_two_to_l, &mut rng);
+        let r = Integer::from_rng_half_pm(&(&two_to_l_plus_e * &n_at_aux_n).complete(), &mut rng);
+        let x = Integer::from_rng_half_pm(&aux_n_at_two_to_l_plus_e, &mut rng);
+        let y = Integer::from_rng_half_pm(&aux_n_at_two_to_l_plus_e, &mut rng);
 
         let p = aux.combine(pdata.p, &mu)?;
         let q = aux.combine(pdata.q, &nu)?;
@@ -219,7 +219,7 @@ pub mod interactive {
     ///
     /// `security` parameter is used to generate challenge in correct range
     pub fn challenge<R: RngCore>(security: &SecurityParams, rng: &mut R) -> Challenge {
-        Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), rng)
+        Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), rng)
     }
 
     /// Compute proof for given data and prior protocol values
@@ -294,9 +294,9 @@ pub mod interactive {
         }
         let range = (Integer::from(1) << (security.l + security.epsilon)) * data.n_root;
         // range check for z1
-        fail_if(InvalidProofReason::RangeCheck(1), proof.z1.is_in_pm(&range))?;
+        fail_if(InvalidProofReason::RangeCheck(1), proof.z1.is_in_half_pm(&range))?;
         // range check for z2
-        fail_if(InvalidProofReason::RangeCheck(2), proof.z2.is_in_pm(&range))?;
+        fail_if(InvalidProofReason::RangeCheck(2), proof.z2.is_in_half_pm(&range))?;
 
         Ok(())
     }
