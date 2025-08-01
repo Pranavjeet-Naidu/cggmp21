@@ -987,8 +987,8 @@ where
             .random_below_ref(&mut utils::external_rand(rng))
             .into();
 
-        let beta_ij = Integer::from_rng_pm(&J, rng);
-        let hat_beta_ij = Integer::from_rng_pm(&J, rng);
+        let beta_ij = Integer::from_rng_half_pm(&J, rng);
+        let hat_beta_ij = Integer::from_rng_half_pm(&J, rng);
 
         beta_sum += beta_ij.to_scalar();
         hat_beta_sum += hat_beta_ij.to_scalar();
