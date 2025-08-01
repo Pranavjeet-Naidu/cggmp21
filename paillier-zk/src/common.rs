@@ -185,7 +185,7 @@ pub trait IntegerExt: Sized {
     /// Checks whether `self` is in interval 
     /// `[-range/2; range/2]` when range is even
     /// `[-(range-1)/2; (range-1)/2]` when range is odd
-    // fn is_in_half_pm(&self, range: &Self) -> bool;
+    fn is_in_half_pm(&self, range: &Self) -> bool;
 
     /// Returns `self smod n`
     ///
@@ -252,15 +252,24 @@ impl IntegerExt for Integer {
             return range_plus_one.random_below(&mut rng) - half_range
         }
         
-        let range_minus_one = range.clone() - Integer::ONE.clone();
+        let range_minus_one = range.clone() - Integer::ONE;
         let half_range_minus_one = range_minus_one >> 1u32;
         range.clone().random_below(&mut rng) - half_range_minus_one
     }
 
-    // fn is_in_half_pm(&self, range: &Self) -> bool {
-    //     let minus_range = -range.clone();
-    //     minus_range <= *self && self <= range
-    // }
+    fn is_in_half_pm(&self, range: &Self) -> bool {
+
+        if range.clone().is_even() {
+            let upper_bound = range.clone() >> 1u32;
+            let lower_bound= -upper_bound.clone();
+            return lower_bound <= *self && *self <= upper_bound
+        }
+
+        let range_minus_one = range.clone() - Integer::ONE;
+        let upper_bound = range_minus_one >> 1u32;
+        let lower_bound= -upper_bound.clone();
+        lower_bound <= *self && *self <= upper_bound
+    }
 
     fn signed_modulo(&self, n: &Self) -> Self {
         let self_mod_n = self.modulo_ref(n).complete();
@@ -549,6 +558,32 @@ mod _test {
 
         assert_eq!(min, lower_bound, "Minimum value {} did not match expected lower bound {}", min, lower_bound);
         assert_eq!(max, upper_bound, "Maximum value {} did not match expected upper bound {}", max, upper_bound);
+
+    }
+    
+    #[test]
+    fn test_is_in_half_pm() {
+        // Testing even case
+        let range = Integer::from(10);
+        let a_1 = Integer::from(-6);
+        let a_2 = Integer::from(-5);
+        let a_3 = Integer::from(5);
+        let a_4 = Integer::from(6);
+        assert!(!a_1.is_in_half_pm(&range), "{} should be outside [-range/2,range/2]",a_1);
+        assert!(a_2.is_in_half_pm(&range), "{} should be in [-range/2,range/2]", a_2);
+        assert!(a_3.is_in_half_pm(&range), "{} should be in [-range/2,range/2]", a_3);
+        assert!(!a_4.is_in_half_pm(&range), "{} should be outside [-range/2,range/2]", a_4);
+
+        // Testing odd case
+        let range = Integer::from(9);
+        let a_1 = Integer::from(-5);
+        let a_2 = Integer::from(-4);
+        let a_3 = Integer::from(4);
+        let a_4 = Integer::from(5);
+        assert!(!a_1.is_in_half_pm(&range), "{} should be outside [-(range-1)/2,(range-1)/2]",a_1);
+        assert!(a_2.is_in_half_pm(&range), "{} should be in [-(range-1)/2,(range-1)/2]", a_2);
+        assert!(a_3.is_in_half_pm(&range), "{} should be in [-(range-1)/2,(range-1)/2]", a_3);
+        assert!(!a_4.is_in_half_pm(&range), "{} should be outside [-(range-1)/2,(range-1)/2]", a_4);
 
     }
 }
