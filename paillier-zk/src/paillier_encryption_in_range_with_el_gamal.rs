@@ -50,7 +50,7 @@
 //! // Prover knows its secret `pdata` and `a`
 //! let a = Scalar::random(&mut rng);
 //! let pdata = p::PrivateData {
-//!     plaintext: &Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng),
+//!     plaintext: &Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), &mut rng),
 //!     nonce: &Integer::gen_invertible(key.n(), &mut rng),
 //!     b: &Scalar::random(&mut rng),
 //! };
@@ -217,11 +217,11 @@ pub mod interactive {
         let n_j_at_two_to_l = (Integer::ONE << security.l).complete() * &aux.rsa_modulo;
         let n_j_at_two_to_l_plus_e = (&two_to_l_plus_e * &aux.rsa_modulo).complete();
 
-        let alpha = Integer::from_rng_pm(&two_to_l_plus_e, rng);
-        let mu = Integer::from_rng_pm(&n_j_at_two_to_l, rng);
+        let alpha = Integer::from_rng_half_pm(&two_to_l_plus_e, rng);
+        let mu = Integer::from_rng_half_pm(&n_j_at_two_to_l, rng);
         let r = Integer::gen_invertible(data.key.n(), rng);
         let beta = Scalar::random(rng);
-        let gamma = Integer::from_rng_pm(&n_j_at_two_to_l_plus_e, rng);
+        let gamma = Integer::from_rng_half_pm(&n_j_at_two_to_l_plus_e, rng);
 
         let s = aux.combine(pdata.plaintext, &mu)?;
         let t = aux.combine(&alpha, &gamma)?;
@@ -310,7 +310,7 @@ pub mod interactive {
             InvalidProofReason::RangeCheck(5),
             proof
                 .z1
-                .is_in_pm(&(Integer::ONE << (security.l + security.epsilon)).complete()),
+                .is_in_half_pm(&(Integer::ONE << (security.l + security.epsilon)).complete()),
         )?;
 
         Ok(())
@@ -320,7 +320,7 @@ pub mod interactive {
     ///
     /// `security` parameter is used to generate challenge in correct range
     pub fn challenge<E: Curve>(rng: &mut impl RngCore) -> Challenge {
-        Integer::from_rng_pm(&Integer::curve_order::<E>(), rng)
+        Integer::from_rng_half_pm(&Integer::curve_order::<E>(), rng)
     }
 }
 
@@ -439,7 +439,7 @@ mod test {
             l: 1024,
             epsilon: 300,
         };
-        let plaintext = Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng);
+        let plaintext = Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), &mut rng);
         run_with::<C, D>(&mut rng, security, plaintext).expect("proof failed");
     }
 
@@ -449,7 +449,7 @@ mod test {
             l: 1024,
             epsilon: 300,
         };
-        let plaintext = (Integer::ONE << (security.l + security.epsilon)).complete() + 1;
+        let plaintext = (Integer::ONE << (security.l + security.epsilon-1)).complete() + 1;
         let r = run_with::<C, D>(&mut rng, security, plaintext).expect_err("proof should not pass");
         match r.reason() {
             InvalidProofReason::RangeCheck(5) => (),
