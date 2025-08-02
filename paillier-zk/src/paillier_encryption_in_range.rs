@@ -1,4 +1,4 @@
-//! ZK-proof of paillier encryption in range. Called Пenc or Renc in the CGGMP21
+//! ZK-proof of paillier encryption in range. Called Пenc or Renc in the CGGMP24
 //! paper.
 //!
 //! ## Description
