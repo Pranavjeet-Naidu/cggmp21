@@ -584,7 +584,7 @@ mod test {
             epsilon: 300,
         };
         let x = Integer::from_rng_half_pm(&(Integer::ONE << security.l_x).complete(), &mut rng);
-        let y = (Integer::ONE << (security.l_y + security.epsilon)).complete() + 1;
+        let y = (Integer::ONE << (security.l_y + security.epsilon - 1)).complete() + 1;
         let r = run::<_, C, D>(&mut rng, security, x, y).expect_err("proof should not pass");
         match r.reason() {
             InvalidProofReason::RangeCheck(7) => (),
@@ -599,7 +599,7 @@ mod test {
             l_y: 1024,
             epsilon: 300,
         };
-        let x = (Integer::ONE << (security.l_x + security.epsilon)).complete() + 1;
+        let x = (Integer::ONE << (security.l_x + security.epsilon - 1)).complete() + 1;
         let y = Integer::from_rng_half_pm(&(Integer::ONE << security.l_y).complete(), &mut rng);
         let r = run::<_, C, D>(&mut rng, security, x, y).expect_err("proof should not pass");
         match r.reason() {
