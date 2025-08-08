@@ -426,9 +426,9 @@ mod requires_std {
         ) -> fmt::Result {
             let total_duration = computation + io.map(|(s, r)| s + r).unwrap_or_default();
             if let Some(round_name) = round_name {
-                writeln!(f, "  - {round_name}: {:.2?}", total_duration)?
+                writeln!(f, "  - {round_name}: {total_duration:.2?}")?
             } else {
-                writeln!(f, "  - Round {}: {:.2?}", i, total_duration)?
+                writeln!(f, "  - Round {i}: {total_duration:.2?}")?
             }
 
             Self::fmt_stages(f, total_duration, stages)?;
@@ -441,8 +441,8 @@ mod requires_std {
                     total_io,
                     percent(total_io, total_duration)
                 )?;
-                writeln!(f, "      - Send: {:.2?}", sending)?;
-                writeln!(f, "      - Recv: {:.2?}", receiving)?;
+                writeln!(f, "      - Send: {sending:.2?}")?;
+                writeln!(f, "      - Recv: {receiving:.2?}")?;
             }
 
             if !stages.is_empty() || io.is_some() {

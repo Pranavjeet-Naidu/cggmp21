@@ -294,9 +294,15 @@ pub mod interactive {
         }
         let range = (Integer::from(1) << (security.l + security.epsilon)) * data.n_root;
         // range check for z1
-        fail_if(InvalidProofReason::RangeCheck(1), proof.z1.is_in_half_pm(&range))?;
+        fail_if(
+            InvalidProofReason::RangeCheck(1),
+            proof.z1.is_in_half_pm(&range),
+        )?;
         // range check for z2
-        fail_if(InvalidProofReason::RangeCheck(2), proof.z2.is_in_half_pm(&range))?;
+        fail_if(
+            InvalidProofReason::RangeCheck(2),
+            proof.z2.is_in_half_pm(&range),
+        )?;
 
         Ok(())
     }

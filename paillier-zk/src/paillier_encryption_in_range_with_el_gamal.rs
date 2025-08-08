@@ -439,7 +439,8 @@ mod test {
             l: 1024,
             epsilon: 300,
         };
-        let plaintext = Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), &mut rng);
+        let plaintext =
+            Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), &mut rng);
         run_with::<C, D>(&mut rng, security, plaintext).expect("proof failed");
     }
 
@@ -449,7 +450,7 @@ mod test {
             l: 1024,
             epsilon: 300,
         };
-        let plaintext = (Integer::ONE << (security.l + security.epsilon-1)).complete() + 1;
+        let plaintext = (Integer::ONE << (security.l + security.epsilon - 1)).complete() + 1;
         let r = run_with::<C, D>(&mut rng, security, plaintext).expect_err("proof should not pass");
         match r.reason() {
             InvalidProofReason::RangeCheck(5) => (),

@@ -177,12 +177,12 @@ pub trait IntegerExt: Sized {
     /// Checks whether `self` is in interval `[-range; range]`
     fn is_in_pm(&self, range: &Self) -> bool;
 
-    /// Generates a random integer in interval 
+    /// Generates a random integer in interval
     /// `[-range/2; range/2]` if range is even
     /// `[-(range-1)/2; (range-1)/2]` if range is odd
     fn from_rng_half_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self;
 
-    /// Checks whether `self` is in interval 
+    /// Checks whether `self` is in interval
     /// `[-range/2; range/2]` when range is even
     /// `[-(range-1)/2; (range-1)/2]` when range is odd
     fn is_in_half_pm(&self, range: &Self) -> bool;
@@ -234,7 +234,7 @@ impl IntegerExt for Integer {
     fn from_rng_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self {
         let mut rng = fast_paillier::utils::external_rand(rng);
         let range_twice = range.clone() << 1u32;
-        let range_twice_plus_one  = range_twice + Integer::ONE.clone();
+        let range_twice_plus_one = range_twice + Integer::ONE.clone();
         range_twice_plus_one.random_below(&mut rng) - range
     }
 
@@ -242,32 +242,31 @@ impl IntegerExt for Integer {
         let minus_range = -range.clone();
         minus_range <= *self && self <= range
     }
-    
+
     fn from_rng_half_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self {
         let mut rng = fast_paillier::utils::external_rand(rng);
-        
+
         if range.clone().is_even() {
             let half_range = range.clone() >> 1u32;
-            let range_plus_one= range.clone() + Integer::ONE.clone();
-            return range_plus_one.random_below(&mut rng) - half_range
+            let range_plus_one = range.clone() + Integer::ONE.clone();
+            return range_plus_one.random_below(&mut rng) - half_range;
         }
-        
+
         let range_minus_one = range.clone() - Integer::ONE;
         let half_range_minus_one = range_minus_one >> 1u32;
         range.clone().random_below(&mut rng) - half_range_minus_one
     }
 
     fn is_in_half_pm(&self, range: &Self) -> bool {
-
         if range.clone().is_even() {
             let upper_bound = range.clone() >> 1u32;
-            let lower_bound= -upper_bound.clone();
-            return lower_bound <= *self && *self <= upper_bound
+            let lower_bound = -upper_bound.clone();
+            return lower_bound <= *self && *self <= upper_bound;
         }
 
         let range_minus_one = range.clone() - Integer::ONE;
         let upper_bound = range_minus_one >> 1u32;
-        let lower_bound= -upper_bound.clone();
+        let lower_bound = -upper_bound.clone();
         lower_bound <= *self && *self <= upper_bound
     }
 
@@ -512,13 +511,25 @@ mod _test {
         // Obtaining lower and upper bounds
         for _ in 0..10000 {
             let value = Integer::from_rng_pm(&range, &mut rng);
-            if &value > &max { max = value.clone(); }
-            if &value < &min { min = value.clone(); }
+            if value > max {
+                max = value.clone();
+            }
+            if value < min {
+                min = value.clone();
+            }
         }
 
-        assert_eq!(min, -range.clone(), "Minimum value {} did not match expected lower bound {}", min, -range.clone());
-        assert_eq!(max, range, "Maximum value {} did not match expected upper bound {}", max, range);
-
+        assert_eq!(
+            min,
+            -range.clone(),
+            "Minimum value {} did not match expected lower bound {}",
+            min,
+            -range.clone()
+        );
+        assert_eq!(
+            max, range,
+            "Maximum value {max} did not match expected upper bound {range}"
+        );
     }
 
     #[test]
@@ -534,12 +545,22 @@ mod _test {
         // Obtaining lower and upper bounds
         for _ in 0..10000 {
             let value = Integer::from_rng_half_pm(&range, &mut rng);
-            if &value > &max { max = value.clone(); }
-            if &value < &min { min = value.clone(); }
+            if value > max {
+                max = value.clone();
+            }
+            if value < min {
+                min = value.clone();
+            }
         }
 
-        assert_eq!(min, lower_bound, "Minimum value {} did not match expected lower bound {}", min, lower_bound);
-        assert_eq!(max, upper_bound, "Maximum value {} did not match expected upper bound {}", max, upper_bound);
+        assert_eq!(
+            min, lower_bound,
+            "Minimum value {min} did not match expected lower bound {lower_bound}"
+        );
+        assert_eq!(
+            max, upper_bound,
+            "Maximum value {max} did not match expected upper bound {upper_bound}"
+        );
 
         // Testing odd case
         let range = Integer::from(9);
@@ -552,15 +573,24 @@ mod _test {
         // Obtaining lower and upper bounds
         for _ in 0..10000 {
             let value = Integer::from_rng_half_pm(&range, &mut rng);
-            if &value > &max { max = value.clone(); }
-            if &value < &min { min = value.clone(); }
+            if value > max {
+                max = value.clone();
+            }
+            if value < min {
+                min = value.clone();
+            }
         }
 
-        assert_eq!(min, lower_bound, "Minimum value {} did not match expected lower bound {}", min, lower_bound);
-        assert_eq!(max, upper_bound, "Maximum value {} did not match expected upper bound {}", max, upper_bound);
-
+        assert_eq!(
+            min, lower_bound,
+            "Minimum value {min} did not match expected lower bound {lower_bound}"
+        );
+        assert_eq!(
+            max, upper_bound,
+            "Maximum value {max} did not match expected upper bound {upper_bound}"
+        );
     }
-    
+
     #[test]
     fn test_is_in_half_pm() {
         // Testing even case
@@ -569,10 +599,22 @@ mod _test {
         let a_2 = Integer::from(-5);
         let a_3 = Integer::from(5);
         let a_4 = Integer::from(6);
-        assert!(!a_1.is_in_half_pm(&range), "{} should be outside [-range/2,range/2]",a_1);
-        assert!(a_2.is_in_half_pm(&range), "{} should be in [-range/2,range/2]", a_2);
-        assert!(a_3.is_in_half_pm(&range), "{} should be in [-range/2,range/2]", a_3);
-        assert!(!a_4.is_in_half_pm(&range), "{} should be outside [-range/2,range/2]", a_4);
+        assert!(
+            !a_1.is_in_half_pm(&range),
+            "{a_1} should be outside [-range/2,range/2]"
+        );
+        assert!(
+            a_2.is_in_half_pm(&range),
+            "{a_2} should be in [-range/2,range/2]"
+        );
+        assert!(
+            a_3.is_in_half_pm(&range),
+            "{a_3} should be in [-range/2,range/2]"
+        );
+        assert!(
+            !a_4.is_in_half_pm(&range),
+            "{a_4} should be outside [-range/2,range/2]"
+        );
 
         // Testing odd case
         let range = Integer::from(9);
@@ -580,10 +622,21 @@ mod _test {
         let a_2 = Integer::from(-4);
         let a_3 = Integer::from(4);
         let a_4 = Integer::from(5);
-        assert!(!a_1.is_in_half_pm(&range), "{} should be outside [-(range-1)/2,(range-1)/2]",a_1);
-        assert!(a_2.is_in_half_pm(&range), "{} should be in [-(range-1)/2,(range-1)/2]", a_2);
-        assert!(a_3.is_in_half_pm(&range), "{} should be in [-(range-1)/2,(range-1)/2]", a_3);
-        assert!(!a_4.is_in_half_pm(&range), "{} should be outside [-(range-1)/2,(range-1)/2]", a_4);
-
+        assert!(
+            !a_1.is_in_half_pm(&range),
+            "{a_1} should be outside [-(range-1)/2,(range-1)/2]"
+        );
+        assert!(
+            a_2.is_in_half_pm(&range),
+            "{a_1} should be in [-(range-1)/2,(range-1)/2]"
+        );
+        assert!(
+            a_3.is_in_half_pm(&range),
+            "{a_3} should be in [-(range-1)/2,(range-1)/2]"
+        );
+        assert!(
+            !a_4.is_in_half_pm(&range),
+            "{a_4} should be outside [-(range-1)/2,(range-1)/2]"
+        );
     }
 }

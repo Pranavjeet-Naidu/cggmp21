@@ -401,7 +401,8 @@ mod test {
             epsilon: 256,
             q: (Integer::ONE << 128_u32).complete() - 1,
         };
-        let plaintext = Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), &mut rng);
+        let plaintext =
+            Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), &mut rng);
         let r = run_with::<sha2::Sha256>(&mut rng, security, plaintext);
         match r {
             Ok(()) => (),
