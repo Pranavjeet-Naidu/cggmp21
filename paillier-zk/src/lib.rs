@@ -9,7 +9,6 @@ use thiserror::Error;
 
 mod common;
 pub mod dlog_with_el_gamal_commitment;
-pub mod group_element_vs_paillier_encryption_in_range;
 pub mod multiexp;
 pub mod no_small_factor;
 pub mod paillier_affine_operation_in_range;
