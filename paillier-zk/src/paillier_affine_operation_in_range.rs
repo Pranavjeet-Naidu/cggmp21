@@ -88,12 +88,12 @@
 //! // Y and ρ_y in paper
 //! let (ciphertext_y, nonce_y) = key_i.encrypt_with_random(
 //!     &mut rng,
-//!     &(plaintext_y.signed_modulo(key_i.n())),
+//!     &(plaintext_y),
 //! )?;
 //! // nonce is ρ in paper
 //! let (ciphertext_y_by_key_j, nonce) = key_j.encrypt_with_random(
 //!     &mut rng,
-//!     &(plaintext_y.signed_modulo(key_j.n()))
+//!     &(plaintext_y)
 //! )?;
 //! // D in paper
 //! let ciphertext_d = key_j

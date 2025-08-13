@@ -171,12 +171,6 @@ pub trait IntegerExt: Sized {
     /// Returns prime order of curve C
     fn curve_order<C: generic_ec::Curve>() -> Self;
 
-    /// Generates a random integer in interval `[-range; range]`
-    fn from_rng_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self;
-
-    /// Checks whether `self` is in interval `[-range; range]`
-    fn is_in_pm(&self, range: &Self) -> bool;
-
     /// Generates a random integer in interval
     /// `[-range/2; range/2]` if range is even
     /// `[-(range-1)/2; (range-1)/2]` if range is odd
@@ -231,24 +225,12 @@ impl IntegerExt for Integer {
         i + 1
     }
 
-    fn from_rng_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self {
-        let mut rng = fast_paillier::utils::external_rand(rng);
-        let range_twice = range.clone() << 1u32;
-        let range_twice_plus_one = range_twice + Integer::ONE.clone();
-        range_twice_plus_one.random_below(&mut rng) - range
-    }
-
-    fn is_in_pm(&self, range: &Self) -> bool {
-        let minus_range = -range.clone();
-        minus_range <= *self && self <= range
-    }
-
     fn from_rng_half_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self {
         let mut rng = fast_paillier::utils::external_rand(rng);
 
         if range.clone().is_even() {
             let half_range = range.clone() >> 1u32;
-            let range_plus_one = range.clone() + Integer::ONE.clone();
+            let range_plus_one = range.clone() + Integer::ONE;
             return range_plus_one.random_below(&mut rng) - half_range;
         }
 
@@ -499,37 +481,6 @@ mod _test {
             let expected = aux.rsa_modulo.combine(&aux.s, &x, &aux.t, &y).unwrap();
             assert_eq!(actual, expected);
         }
-    }
-
-    #[test]
-    fn test_from_rng_pm_bounds() {
-        let mut rng = rand_dev::DevRng::new();
-        let range = Integer::from(10);
-        let mut min = Integer::from(0);
-        let mut max = Integer::from(0);
-
-        // Obtaining lower and upper bounds
-        for _ in 0..10000 {
-            let value = Integer::from_rng_pm(&range, &mut rng);
-            if value > max {
-                max = value.clone();
-            }
-            if value < min {
-                min = value.clone();
-            }
-        }
-
-        assert_eq!(
-            min,
-            -range.clone(),
-            "Minimum value {} did not match expected lower bound {}",
-            min,
-            -range.clone()
-        );
-        assert_eq!(
-            max, range,
-            "Maximum value {max} did not match expected upper bound {range}"
-        );
     }
 
     #[test]

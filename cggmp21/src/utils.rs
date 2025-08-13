@@ -1,5 +1,6 @@
 use generic_ec::{Curve, Scalar};
 use paillier_zk::rug::{self, Integer};
+use paillier_zk::IntegerExt;
 use paillier_zk::{
     paillier_affine_operation_in_range as pi_aff,
     paillier_encryption_in_range_with_el_gamal as pi_enc_elg,
@@ -12,8 +13,15 @@ use crate::security_level::SecurityLevel;
 pub use paillier_zk::fast_paillier::utils::external_rand;
 
 /// Converts `&Scalar<E>` into Integer
-pub fn scalar_to_bignumber<E: Curve>(scalar: impl AsRef<Scalar<E>>) -> Integer {
-    Integer::from_digits(&scalar.as_ref().to_be_bytes(), rug::integer::Order::Msf)
+pub fn scalar_to_pm_bignumber<E: Curve>(scalar: impl AsRef<Scalar<E>>) -> Integer {
+    let q = Integer::curve_order::<E>();
+    let x = Integer::from_digits(&scalar.as_ref().to_be_bytes(), rug::integer::Order::Msf);
+    let half_q = (q.clone() - 1) / 2;
+    if x <= half_q {
+        x
+    } else {
+        x - q
+    }
 }
 
 pub struct SecurityParams {
