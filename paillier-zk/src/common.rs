@@ -3,7 +3,7 @@ pub mod sqrt;
 use std::sync::Arc;
 
 use generic_ec::Scalar;
-use rug::{Complete, Integer};
+use rug::Integer;
 
 /// Auxiliary data known to both prover and verifier
 #[cfg_attr(
@@ -180,12 +180,6 @@ pub trait IntegerExt: Sized {
     /// `[-range/2; range/2]` when range is even
     /// `[-(range-1)/2; (range-1)/2]` when range is odd
     fn is_in_half_pm(&self, range: &Self) -> bool;
-
-    /// Returns `self smod n`
-    ///
-    /// For odd `n`, result is in `{-n/2, .., n/2}`. For even `n`, result is in
-    /// `{-n/2, .., n/2 - 1}`
-    fn signed_modulo(&self, n: &Self) -> Self;
 }
 
 impl IntegerExt for Integer {
@@ -228,7 +222,7 @@ impl IntegerExt for Integer {
     fn from_rng_half_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self {
         let mut rng = fast_paillier::utils::external_rand(rng);
 
-        if range.clone().is_even() {
+        if range.is_even() {
             let half_range = range.clone() >> 1u32;
             let range_plus_one = range.clone() + Integer::ONE;
             return range_plus_one.random_below(&mut rng) - half_range;
@@ -240,7 +234,7 @@ impl IntegerExt for Integer {
     }
 
     fn is_in_half_pm(&self, range: &Self) -> bool {
-        if range.clone().is_even() {
+        if range.is_even() {
             let upper_bound = range.clone() >> 1u32;
             let lower_bound = -upper_bound.clone();
             return lower_bound <= *self && *self <= upper_bound;
@@ -250,16 +244,6 @@ impl IntegerExt for Integer {
         let upper_bound = range_minus_one >> 1u32;
         let lower_bound = -upper_bound.clone();
         lower_bound <= *self && *self <= upper_bound
-    }
-
-    fn signed_modulo(&self, n: &Self) -> Self {
-        let self_mod_n = self.modulo_ref(n).complete();
-        let half_n = (n >> 1_u32).complete();
-        if half_n.is_odd() && self_mod_n <= half_n || self_mod_n < half_n {
-            self_mod_n
-        } else {
-            self_mod_n - n
-        }
     }
 }
 
@@ -411,27 +395,6 @@ mod _test {
             (curve_order - 1u8).to_scalar(),
             -generic_ec::Scalar::<E>::one()
         );
-    }
-
-    #[test]
-    fn signed_modulo() {
-        let n = Integer::from(7);
-
-        assert_eq!(Integer::from(0).signed_modulo(&n), 0);
-        assert_eq!(Integer::from(1).signed_modulo(&n), 1);
-        assert_eq!(Integer::from(2).signed_modulo(&n), 2);
-        assert_eq!(Integer::from(3).signed_modulo(&n), 3);
-        assert_eq!(Integer::from(4).signed_modulo(&n), -3);
-        assert_eq!(Integer::from(5).signed_modulo(&n), -2);
-        assert_eq!(Integer::from(6).signed_modulo(&n), -1);
-        assert_eq!(Integer::from(7).signed_modulo(&n), 0);
-        assert_eq!(Integer::from(8).signed_modulo(&n), 1);
-
-        let n = Integer::from(4);
-        assert_eq!(Integer::from(0).signed_modulo(&n), 0);
-        assert_eq!(Integer::from(1).signed_modulo(&n), 1);
-        assert_eq!(Integer::from(2).signed_modulo(&n), -2);
-        assert_eq!(Integer::from(3).signed_modulo(&n), -1);
     }
 
     #[test]
