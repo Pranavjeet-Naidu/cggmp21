@@ -141,7 +141,7 @@ where
                 signing
             };
 
-            signing.sign(&mut party_rng, party, message_to_sign).await
+            signing.sign(&mut party_rng, party, &message_to_sign).await
         }
     })
     .unwrap()

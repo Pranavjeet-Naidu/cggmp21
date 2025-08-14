@@ -26,34 +26,102 @@ use crate::{security_level::SecurityLevel, utils, ExecutionId};
 
 use self::msg::*;
 
-/// A (prehashed) data to be signed
+/// A message digest that is guaranteed to have a known preimage, making it safe for signing.
 ///
-/// `DataToSign` holds a scalar that represents data to be signed. Different ECDSA schemes define different
-/// ways to map an original data to be signed (slice of bytes) into the scalar, but it always must involve
-/// cryptographic hash functions. Most commonly, original data is hashed using SHA2-256, then output is parsed
-/// as big-endian integer and taken modulo curve order. This exact functionality is implemented in
-/// [DataToSign::digest] and [DataToSign::from_digest] constructors.
+/// This struct wraps a scalar value (Scalar<E>) that represents the cryptographic hash of a
+/// message. It is the primary and recommended type for all signing operations in this library.
+///
+/// ## Purpose and Safety
+///
+/// The key security feature of `DataToSign` is its construction method. An instance of this struct
+/// can only be created by providing the original message bytes to the library's API. The library
+/// then performs the hashing internally.
+///
+/// This design acts as a type-safe guard, ensuring that the system will only ever sign a hash for
+/// which the original message (the "preimage") is known and has been processed by the library.
+/// This prevents a critical class of signature forgery attacks where an attacker provides a raw,
+/// maliciously crafted hash (refer to [`PrehashedDataToSign`] docs to learn more about this attack).
 #[derive(Debug, Clone, Copy)]
 pub struct DataToSign<E: Curve>(Scalar<E>);
 
 impl<E: Curve> DataToSign<E> {
     /// Construct a `DataToSign` by hashing `data` with algorithm `D`
-    ///
-    /// `data_to_sign = hash(data) mod q`
     pub fn digest<D: Digest>(data: &[u8]) -> Self {
         DataToSign(Scalar::from_be_bytes_mod_order(D::digest(data)))
     }
 
     /// Constructs a `DataToSign` from output of given digest
-    ///
-    /// `data_to_sign = hash(data) mod q`
     pub fn from_digest<D: Digest>(hash: D) -> Self {
         DataToSign(Scalar::from_be_bytes_mod_order(hash.finalize()))
     }
 
-    /// Constructs a `DataToSign` from scalar
-    ///
-    /// ** Note: [DataToSign::digest] and [DataToSign::from_digest] are preferred way to construct the `DataToSign` **
+    /// Returns a scalar that represents a data to be signed
+    pub fn to_scalar(self) -> Scalar<E> {
+        self.0
+    }
+}
+
+/// A pre-hashed message digest intended for signing, where the original message (preimage) may
+/// be unknown.
+///
+/// This struct wraps a scalar value representing a message digest. Unlike its safer counterpart,
+/// [`DataToSign`], this struct can be constructed directly from a raw scalar, bypassing the safety
+/// check that ensures the original message is known.
+///
+/// ## Context: `PrehashedDataToSign` vs. `DataToSign`
+/// This library provides two types for data to be signed:
+///
+/// * [`DataToSign`] **(Recommended)**: This is the safe, default option. Its API requires you to
+///   provide the original message bytes. The library then handles the hashing internally. This acts
+///   as a type-safe guard, guaranteeing that the signature corresponds to a known message.
+/// * `PrehashedDataToSign` **(Advanced)**: This is a low-level type for specific, advanced use
+///   cases. It contains a hash that was computed externally.
+///
+/// This `PrehashedDataToSign` struct is only accepted by library functions where it is safe to do
+/// so—specifically, in the full interactive signing protocol where the forgery attacks described
+/// below are not applicable.
+///
+/// ## ⚠️ Assume Preimage Known: Advanced Use Only
+/// This library offers a feature flag named `insecure-assume-preimage-known` for
+/// highly specialized use cases. When enabled, this feature exposes the method
+/// [`PrehashedDataToSign::insecure_assume_preimage_known`] which allows you to convert a
+/// `PrehashedDataToSign` directly into a [`DataToSign`]. This is a powerful but extremely dangerous
+/// operation. It overrides the library's type safety, telling the system to trust that a known
+/// original message exists for the given hash, even if one does not.
+///
+/// This feature **completely bypasses** the security guarantees provided by the [`DataToSign`] type
+/// and should almost never be used.
+///
+/// ### Potential Attack: Signature Forgery via Raw Hash Signing
+///
+/// This attack, detailed in [this paper](https://eprint.iacr.org/2021/1330.pdf) (Section 1.1.2, “An
+/// attack on ECDSA with presignatures”), enables signature forgery when a system signs raw hashes
+/// in combination with presignatures.
+///
+/// The core idea is that an attacker can forge a signature for a message of their choice, `m'`, by
+/// tricking the system into signing a different, maliciously crafted hash, `h`.
+///
+/// Here’s a simplified breakdown of how it works:
+///
+/// * **Message Selection**: The attacker first chooses a target message, `m'`, that they want a
+///   forged signature for
+/// * **Malicious Hash Construction**: Instead of submitting `h' = H(m')`, the attacker uses the
+///   hash of their target message, `H(m')`, and public data from the presignature to compute a new,
+///   malicious hash value, `h`. This `h` has no known preimage and appears random.
+/// * **Signing Request**: The attacker submits this raw hash `h` to the signing protocol.
+/// * **Forgery**: The protocol signs `h` and returns a signature component. The attacker then uses
+///   this component to mathematically compute the final, valid signature for their original target
+///   message, `m'`.
+///
+/// Essentially, the attacker exploits the signing algorithm's structure. By carefully crafting
+/// the hash input, they can predict and manipulate the output to forge a signature for an entirely
+/// different message. This is why **signing a hash without knowing its original message (preimage)
+/// is extremely dangerous** in this context.
+#[derive(Clone, Copy, Debug)]
+pub struct PrehashedDataToSign<E: Curve>(Scalar<E>);
+
+impl<E: Curve> PrehashedDataToSign<E> {
+    /// Constructs a `PrehashedDataToSign` from scalar
     ///
     /// `scalar` must be output of cryptographic hash function applied to original message to be signed
     pub fn from_scalar(scalar: Scalar<E>) -> Self {
@@ -62,6 +130,48 @@ impl<E: Curve> DataToSign<E> {
 
     /// Returns a scalar that represents a data to be signed
     pub fn to_scalar(self) -> Scalar<E> {
+        self.0
+    }
+
+    /// Converts a `PrehashedDataToSign` directly into a [`DataToSign`]
+    ///
+    /// **⚠️ Extremely dangerous operation.** It overrides the library's type safety, telling the
+    /// system to trust that a known original message exists for the given hash, even if one does
+    /// not. Read [`PrehashedDataToSign`] docs to learn why it's dangerous.
+    ///
+    /// It's **only** safe to use this method if you have either:
+    ///
+    /// 1. Hashed the original message yourself to generate this scalar (prefer directly using
+    ///    [`DataToSign`] when possible).
+    /// 2. Can otherwise completely verify and trust the source of the prehashed data.
+    #[cfg(feature = "insecure-assume-preimage-known")]
+    pub fn insecure_assume_preimage_known(self) -> DataToSign<E> {
+        DataToSign(self.0)
+    }
+}
+
+mod internal {
+    pub trait Sealed {}
+}
+
+/// Data to be signed, regardless of whether original message to be signed is known or not
+///
+/// This library accepts `&dyn AnyDataToSign` **only if** it doesn't matter for security whether
+/// original message is known or not.
+pub trait AnyDataToSign<E: Curve>: internal::Sealed {
+    /// Returns a scalar that represents a data to be signed
+    fn to_scalar(&self) -> Scalar<E>;
+}
+impl<E: Curve> internal::Sealed for DataToSign<E> {}
+impl<E: Curve> internal::Sealed for PrehashedDataToSign<E> {}
+
+impl<E: Curve> AnyDataToSign<E> for DataToSign<E> {
+    fn to_scalar(&self) -> Scalar<E> {
+        self.0
+    }
+}
+impl<E: Curve> AnyDataToSign<E> for PrehashedDataToSign<E> {
+    fn to_scalar(&self) -> Scalar<E> {
         self.0
     }
 }
@@ -372,10 +482,6 @@ where
 
     /// Specifies HD derivation path
     ///
-    /// Note: when generating a presignature, derivation path doesn't need to be known in advance. Instead
-    /// of using this method, [`Presignature::set_derivation_path`] could be used to set derivation path
-    /// after presignature was generated.
-    ///
     /// ## Example
     /// Set derivation path to m/1/999
     ///
@@ -408,10 +514,6 @@ where
     }
 
     /// Specifies HD derivation path, using HD derivation algorithm [`hd_wallet::HdWallet`]
-    ///
-    /// Note: when generating a presignature, derivation path doesn't need to be known in advance. Instead
-    /// of using this method, [`Presignature::set_derivation_path`] could be used to set derivation path
-    /// after presignature was generated.
     #[cfg(feature = "hd-wallet")]
     pub fn set_derivation_path_with_algo<Hd: hd_wallet::HdWallet<E>, Index>(
         mut self,
@@ -484,11 +586,15 @@ where
     }
 
     /// Starts signing protocol
+    ///
+    /// `message_to_sign` can be either [`DataToSign`] or [`PrehashedDataToSign`]. It should be safe (i.e.
+    /// it doesn't lead to known attacks) to sign a digest when signer don't know original message that's
+    /// being signed. Prefer using [`DataToSign`] whenever possible.
     pub async fn sign<R, M>(
         self,
         rng: &mut R,
         party: M,
-        message_to_sign: DataToSign<E>,
+        message_to_sign: &dyn AnyDataToSign<E>,
     ) -> Result<Signature<E>, SigningError>
     where
         R: RngCore + CryptoRng,
@@ -502,7 +608,7 @@ where
             self.i,
             self.key_share,
             self.parties_indexes_at_keygen,
-            Some(message_to_sign),
+            Some(message_to_sign.to_scalar()),
             self.enforce_reliable_broadcast,
             #[cfg(feature = "hd-wallet")]
             self.additive_shift,
@@ -519,11 +625,15 @@ where
     /// Returns a state machine that can be used to carry out the signing protocol
     ///
     /// See [`round_based::state_machine`] for details on how that can be done.
+    ///
+    /// `message_to_sign` can be either [`DataToSign`] or [`PrehashedDataToSign`]. It should be safe (i.e.
+    /// it doesn't lead to known attacks) to sign a digest when signer don't know original message that's
+    /// being signed. Prefer using [`DataToSign`] whenever possible.
     #[cfg(feature = "state-machine")]
     pub fn sign_sync<R>(
         self,
         rng: &'r mut R,
-        message_to_sign: DataToSign<E>,
+        message_to_sign: &'r dyn AnyDataToSign<E>,
     ) -> impl round_based::state_machine::StateMachine<
         Output = Result<Signature<E>, SigningError>,
         Msg = Msg<E, D>,
@@ -551,7 +661,7 @@ async fn signing_t_out_of_n<M, E, L, D, R>(
     i: PartyIndex,
     key_share: &KeyShare<E, L>,
     S: &[PartyIndex],
-    message_to_sign: Option<DataToSign<E>>,
+    message_to_sign: Option<Scalar<E>>,
     enforce_reliable_broadcast: bool,
     additive_shift: Option<Scalar<E>>,
 ) -> Result<ProtocolOutput<E>, SigningError>
@@ -676,7 +786,7 @@ async fn signing_n_out_of_n<M, E, L, D, R>(
     q_i: &Integer,
     N: &[fast_paillier::EncryptionKey],
     R: &[PedersenParams],
-    message_to_sign: Option<DataToSign<E>>,
+    message_to_sign: Option<Scalar<E>>,
     enforce_reliable_broadcast: bool,
 ) -> Result<ProtocolOutput<E>, SigningError>
 where
@@ -1352,6 +1462,13 @@ where
     tracer.named_round_begins("Partial signing");
 
     // Round 1
+
+    // SECURITY: we can safely sign a digest even if its preimage is unknown, because the attack
+    // described in [`PrehashedDataToSign`] can only be done if message to be signed is chosen
+    // after presignature is generated. Since we do a full signing, we know that message was
+    // chosen before presig was generated.
+    let message_to_sign = DataToSign(message_to_sign);
+
     let partial_sig = presig.issue_partial_signature(message_to_sign);
 
     tracer.send_msg();
@@ -1396,6 +1513,12 @@ where
     ///
     /// **Never reuse presignatures!** If you use the same presignatures to sign two different
     /// messages, it leaks the private key!
+    ///
+    /// When signing using a presignature, it's important that you know a message that's being
+    /// signed (not just its hash!). For this reason, this function only accepts [`DataToSign`] that
+    /// can only be constructed when original message is known. Refer to [`PrehashedDataToSign`]
+    /// docs to learn more about possible attack when signing a hash of the message without knowing
+    /// the preimage.
     pub fn issue_partial_signature(self, message_to_sign: DataToSign<E>) -> PartialSignature<E> {
         let r = self.Gamma.x().to_scalar();
         let m = message_to_sign.to_scalar();
@@ -1531,7 +1654,7 @@ where
     pub fn verify(
         &self,
         public_key: &Point<E>,
-        message: &DataToSign<E>,
+        message: &dyn AnyDataToSign<E>,
     ) -> Result<(), InvalidSignature> {
         let r = (Point::generator() * message.to_scalar() + public_key * self.r) * self.s.invert();
         let r = NonZero::from_point(r).ok_or(InvalidSignature)?;

@@ -83,7 +83,7 @@ where
             signing
         };
 
-        async move { signing.sign(&mut party_rng, party, message_to_sign).await }
+        async move { signing.sign(&mut party_rng, party, &message_to_sign).await }
     })
     .unwrap()
     .expect_ok()
@@ -294,7 +294,7 @@ where
                 signing
             };
 
-            signing.sign_sync(signer_rng, message_to_sign)
+            signing.sign_sync(signer_rng, &message_to_sign)
         })
     }
 

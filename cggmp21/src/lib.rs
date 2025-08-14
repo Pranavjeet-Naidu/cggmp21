@@ -355,7 +355,9 @@ pub use self::{
     key_refresh::{KeyRefreshError, PregeneratedPrimes},
     key_share::{IncompleteKeyShare, KeyShare},
     keygen::KeygenError,
-    signing::{DataToSign, PartialSignature, Presignature, Signature, SigningError},
+    signing::{
+        DataToSign, PartialSignature, PrehashedDataToSign, Presignature, Signature, SigningError,
+    },
 };
 
 /// Protocol for finalizing the keygen by generating aux info.
