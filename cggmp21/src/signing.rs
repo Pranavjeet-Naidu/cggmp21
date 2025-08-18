@@ -28,8 +28,8 @@ use self::msg::*;
 
 /// A message digest that is guaranteed to have a known preimage, making it safe for signing.
 ///
-/// This struct wraps a scalar value (Scalar<E>) that represents the cryptographic hash of a
-/// message. It is the primary and recommended type for all signing operations in this library.
+/// This struct wraps a scalar value ([`Scalar<E>`](Scalar)) that represents the cryptographic hash
+/// of a message. It is the primary and recommended type for all signing operations in this library.
 ///
 /// ## Purpose and Safety
 ///
