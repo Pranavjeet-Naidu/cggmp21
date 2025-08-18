@@ -626,9 +626,9 @@ where
     ///
     /// See [`round_based::state_machine`] for details on how that can be done.
     ///
-    /// `message_to_sign` can be either [`DataToSign`] or [`PrehashedDataToSign`]. It should be safe (i.e.
-    /// it doesn't lead to known attacks) to sign a digest when signer don't know original message that's
-    /// being signed. Prefer using [`DataToSign`] whenever possible.
+    /// `message_to_sign` can be either [`DataToSign`] (original message being signed is known) or
+    /// [`PrehashedDataToSign`] (only hash of the message being signed is known), protocol is secure
+    /// regardless. However, the best practice is to use [`DataToSign`] whenever possible.
     #[cfg(feature = "state-machine")]
     pub fn sign_sync<R>(
         self,
