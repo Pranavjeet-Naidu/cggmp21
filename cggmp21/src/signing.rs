@@ -1527,65 +1527,6 @@ where
     }
 }
 
-impl<E: Curve> Presignature<E> {
-    /// Specifies HD derivation path
-    ///
-    /// Outputs a presignature that can be used to sign a message with a child
-    /// key derived from master `epub` using `derivation_path`. Note that all
-    /// signers need to set the same derivation path, otherwise output signature
-    /// will be invalid.
-    ///
-    /// `epub` must be an [extended public
-    /// key](crate::key_share::DirtyIncompleteKeyShare::extended_public_key)
-    /// assoicated with the key share that was used to generate presignature.
-    /// Using wrong `epub` will simply lead to invalid signature.
-    ///
-    /// ## Derivation algorithm
-    /// This method uses [`hd_wallet::Slip10`] derivation algorithm, which can only be used with secp256k1
-    /// and secp256r1 curves. If you need to use another one, see
-    /// [`set_derivation_path_with_algo`](Self::set_derivation_path_with_algo)
-    #[cfg(all(feature = "hd-wallet", feature = "hd-slip10"))]
-    pub fn set_derivation_path<Index>(
-        self,
-        epub: hd_wallet::ExtendedPublicKey<E>,
-        derivation_path: impl IntoIterator<Item = Index>,
-    ) -> Result<Self, <Index as TryInto<hd_wallet::NonHardenedIndex>>::Error>
-    where
-        hd_wallet::Slip10: hd_wallet::HdWallet<E>,
-        hd_wallet::NonHardenedIndex: TryFrom<Index>,
-    {
-        self.set_derivation_path_with_algo::<hd_wallet::Slip10, _>(epub, derivation_path)
-    }
-
-    /// Specifies HD derivation path
-    ///
-    /// Outputs a presignature that can be used to sign a message with a child
-    /// key derived from master `epub` using `derivation_path`. Note that all
-    /// signers need to set the same derivation path, otherwise output signature
-    /// will be invalid.
-    ///
-    /// `epub` must be an [extended public
-    /// key](crate::key_share::DirtyIncompleteKeyShare::extended_public_key)
-    /// assoicated with the key share that was used to generate presignature.
-    /// Using wrong `epub` will simply lead to invalid signature.
-    #[cfg(feature = "hd-wallet")]
-    pub fn set_derivation_path_with_algo<Hd: hd_wallet::HdWallet<E>, Index>(
-        mut self,
-        epub: hd_wallet::ExtendedPublicKey<E>,
-        derivation_path: impl IntoIterator<Item = Index>,
-    ) -> Result<Self, <Index as TryInto<hd_wallet::NonHardenedIndex>>::Error>
-    where
-        hd_wallet::NonHardenedIndex: TryFrom<Index>,
-    {
-        let additive_shift = derive_additive_shift::<E, Hd, _>(epub, derivation_path)?;
-
-        let mut chi = self.tilde_chi + additive_shift * &self.tilde_k;
-        self.tilde_chi = SecretScalar::new(&mut chi);
-
-        Ok(self)
-    }
-}
-
 #[cfg(feature = "hd-wallet")]
 fn derive_additive_shift<E: Curve, Hd: hd_wallet::HdWallet<E>, Index>(
     mut epub: hd_wallet::ExtendedPublicKey<E>,
