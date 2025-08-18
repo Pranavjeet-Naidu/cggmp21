@@ -189,7 +189,7 @@ let key_share = /* completed key share */;
 let data_to_sign = cggmp21::DataToSign::digest::<Sha256>(b"data to be signed");
 
 let signature = cggmp21::signing(eid, i, &parties_indexes_at_keygen, &key_share)
-    .sign(&mut OsRng, party, data_to_sign)
+    .sign(&mut OsRng, party, &data_to_sign)
     .await?;
 ```
 
