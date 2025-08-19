@@ -10,7 +10,7 @@ path = "../../key-share"
 default-features = false
 features = ["serde", "hd-wallet", "spof", "udigest"]
 
-[dependencies.cggmp21-keygen]
-path = "../../cggmp21-keygen"
+[dependencies.cggmp24-keygen]
+path = "../../cggmp24-keygen"
 default-features = false
 features = ["hd-wallet", "state-machine"]

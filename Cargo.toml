@@ -1,8 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
-    "cggmp21",
-    "cggmp21-keygen",
+    "cggmp24",
+    "cggmp24-keygen",
     "key-share",
     "paillier-zk",
     "tests",
@@ -12,8 +12,8 @@ exclude = [
 ]
 
 [workspace.dependencies]
-cggmp21 = { version = "0.6", path = "cggmp21" }
-cggmp21-keygen = { version = "0.5", path = "cggmp21-keygen" }
+cggmp24 = { version = "0.6", path = "cggmp24" }
+cggmp24-keygen = { version = "0.5", path = "cggmp24-keygen" }
 key-share = { version = "0.6", path = "key-share", default-features = false }
 paillier-zk = { version = "0.4.1", path = "paillier-zk", default-features = false }
 

@@ -27,7 +27,7 @@ use super::{Bug, KeyRefreshError, PregeneratedPrimes, ProtocolAborted};
 
 macro_rules! prefixed {
     ($name:tt) => {
-        concat!("dfns.cggmp21.aux_gen.", $name)
+        concat!("dfns.cggmp24.aux_gen.", $name)
     };
 }
 

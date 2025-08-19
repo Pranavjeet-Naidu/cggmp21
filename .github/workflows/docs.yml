@@ -1,4 +1,4 @@
-name: Build CGGMP21 Spec & Docs
+name: Build CGGMP24 Spec & Docs
 
 on:
   pull_request:
@@ -24,13 +24,13 @@ jobs:
         root_file: main.tex
         working_directory: spec
     - name: Rename PDF
-      run: mv spec/main.pdf spec/cggmp21-spec.pdf
+      run: mv spec/main.pdf spec/cggmp24-spec.pdf
     - name: Upload artifacts
       id: upload-pdf
       uses: actions/upload-artifact@v4
       with:
         name: spec-pdf
-        path: spec/cggmp21-spec.pdf
+        path: spec/cggmp24-spec.pdf
     - name: Leave PR comment
       continue-on-error: true
       uses: marocchino/sticky-pull-request-comment@v2
@@ -72,7 +72,7 @@ jobs:
         name: spec-pdf
         path: spec
     - name: Move the spec
-      run: mv spec/cggmp21-spec.pdf website
+      run: mv spec/cggmp24-spec.pdf website
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v3
       with:

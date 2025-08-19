@@ -10,16 +10,16 @@
 //! ```rust,no_run
 //! # use rand::rngs::OsRng;
 //! # let mut rng = OsRng;
-//! use cggmp21::{supported_curves::Secp256k1, security_level::SecurityLevel128};
-//! use cggmp21::generic_ec::{SecretScalar, NonZero};
+//! use cggmp24::{supported_curves::Secp256k1, security_level::SecurityLevel128};
+//! use cggmp24::generic_ec::{SecretScalar, NonZero};
 //!
 //! let secret_key_to_be_imported = NonZero::<SecretScalar<Secp256k1>>::random(&mut rng);
 //!
-//! let key_shares = cggmp21::trusted_dealer::builder::<Secp256k1, SecurityLevel128>(5)
+//! let key_shares = cggmp24::trusted_dealer::builder::<Secp256k1, SecurityLevel128>(5)
 //!     .set_threshold(Some(3))
 //!     .set_shared_secret_key(secret_key_to_be_imported)
 //!     .generate_shares(&mut rng)?;
-//! # Ok::<_, cggmp21::trusted_dealer::TrustedDealerError>(())
+//! # Ok::<_, cggmp24::trusted_dealer::TrustedDealerError>(())
 //! ```
 
 use std::{iter, marker::PhantomData};
@@ -44,7 +44,7 @@ pub fn builder<E: Curve, L: SecurityLevel>(n: u16) -> TrustedDealerBuilder<E, L>
     TrustedDealerBuilder::new(n)
 }
 
-type CoreBuilder<E> = cggmp21_keygen::key_share::trusted_dealer::TrustedDealerBuilder<E>;
+type CoreBuilder<E> = cggmp24_keygen::key_share::trusted_dealer::TrustedDealerBuilder<E>;
 
 /// Trusted dealer builder
 pub struct TrustedDealerBuilder<E: Curve, L: SecurityLevel> {
@@ -258,7 +258,7 @@ enum Reason {
     #[error("couldn't build multiexp tables")]
     BuildMultiexp(#[source] InvalidKeyShare),
     #[error(transparent)]
-    CoreError(#[from] cggmp21_keygen::key_share::trusted_dealer::TrustedDealerError),
+    CoreError(#[from] cggmp24_keygen::key_share::trusted_dealer::TrustedDealerError),
     #[error("generate pedersen params")]
     GenPedersen(#[from] utils::GenPedersenError),
 }

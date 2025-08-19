@@ -6,3 +6,5 @@
 
 !spec/main.tex
 spec/main.*
+
+/node_modules

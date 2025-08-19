@@ -67,14 +67,14 @@ pub mod _internal {
     }
 }
 
-/// Defines security level of CGGMP21 DKG protocol
+/// Defines security level of CGGMP24 DKG protocol
 ///
 /// ## Example
 ///
 /// This code defines security level corresponding to $\kappa=1024$ (note: choice of parameters is random,
 /// it does not correspond to meaningful security level):
 /// ```rust
-/// use cggmp21_keygen::security_level::define_security_level;
+/// use cggmp24_keygen::security_level::define_security_level;
 ///
 /// #[derive(Clone)]
 /// pub struct MyLevel;

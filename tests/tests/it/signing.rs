@@ -1,17 +1,17 @@
 use std::iter;
 
-use cggmp21_tests::external_verifier::ExternalVerifier;
+use cggmp24_tests::external_verifier::ExternalVerifier;
 use generic_ec::{coords::HasAffineX, Curve, Point};
 use rand::seq::SliceRandom;
 use rand::{Rng, RngCore};
 use rand_dev::DevRng;
 use sha2::Sha256;
 
-use cggmp21::key_share::AnyKeyShare;
-use cggmp21::signing::DataToSign;
-use cggmp21::ExecutionId;
+use cggmp24::key_share::AnyKeyShare;
+use cggmp24::signing::DataToSign;
+use cggmp24::ExecutionId;
 
-cggmp21_tests::test_suite! {
+cggmp24_tests::test_suite! {
     test: signing_works,
     generics: all_curves,
     suites: {
@@ -33,7 +33,7 @@ cggmp21_tests::test_suite! {
 
 fn signing_works<E>(t: Option<u16>, n: u16, reliable_broadcast: bool, hd_wallet: bool)
 where
-    E: Curve + cggmp21_tests::CurveParams,
+    E: Curve + cggmp24_tests::CurveParams,
     Point<E>: HasAffineX<E>,
 {
     #[cfg(not(feature = "hd-wallet"))]
@@ -41,7 +41,7 @@ where
 
     let mut rng = DevRng::new();
 
-    let shares = cggmp21_tests::CACHED_SHARES
+    let shares = cggmp24_tests::CACHED_SHARES
         .get_shares::<E>(t, n, hd_wallet)
         .expect("retrieve cached shares");
 
@@ -54,7 +54,7 @@ where
 
     #[cfg(feature = "hd-wallet")]
     let derivation_path = if hd_wallet {
-        Some(cggmp21_tests::random_derivation_path(&mut rng))
+        Some(cggmp24_tests::random_derivation_path(&mut rng))
     } else {
         None
     };
@@ -68,10 +68,10 @@ where
     let participants_shares = participants.iter().map(|i| &shares[usize::from(*i)]);
 
     let sig = round_based::sim::run_with_setup(participants_shares, |i, party, share| {
-        let party = cggmp21_tests::buffer_outgoing(party);
+        let party = cggmp24_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
 
-        let signing = cggmp21::signing(eid, i, participants, share)
+        let signing = cggmp24::signing(eid, i, participants, share)
             .enforce_reliable_broadcast(reliable_broadcast);
 
         #[cfg(feature = "hd-wallet")]
@@ -111,7 +111,7 @@ where
         .expect("external verification failed")
 }
 
-cggmp21_tests::test_suite! {
+cggmp24_tests::test_suite! {
     test: signing_with_presigs,
     generics: all_curves,
     suites: {
@@ -123,7 +123,7 @@ cggmp21_tests::test_suite! {
 
 fn signing_with_presigs<E>(t: Option<u16>, n: u16, hd_wallet: bool)
 where
-    E: Curve + cggmp21_tests::CurveParams,
+    E: Curve + cggmp24_tests::CurveParams,
     Point<E>: HasAffineX<E>,
 {
     #[cfg(not(feature = "hd-wallet"))]
@@ -131,7 +131,7 @@ where
 
     let mut rng = DevRng::new();
 
-    let shares = cggmp21_tests::CACHED_SHARES
+    let shares = cggmp24_tests::CACHED_SHARES
         .get_shares::<E>(t, n, hd_wallet)
         .expect("retrieve cached shares");
 
@@ -148,11 +148,11 @@ where
     let participants_shares = participants.iter().map(|i| &shares[usize::from(*i)]);
 
     let presigs = round_based::sim::run_with_setup(participants_shares, |i, party, share| {
-        let party = cggmp21_tests::buffer_outgoing(party);
+        let party = cggmp24_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
 
         async move {
-            cggmp21::signing(eid, i, participants, share)
+            cggmp24::signing(eid, i, participants, share)
                 .generate_presignature(&mut party_rng, party)
                 .await
         }
@@ -169,7 +169,7 @@ where
 
     #[cfg(feature = "hd-wallet")]
     let derivation_path = if hd_wallet {
-        Some(cggmp21_tests::random_derivation_path(&mut rng))
+        Some(cggmp24_tests::random_derivation_path(&mut rng))
     } else {
         None
     };
@@ -200,7 +200,7 @@ where
         .collect::<Vec<_>>();
 
     let signature =
-        cggmp21::PartialSignature::combine(&partial_signatures, &commitments, message_to_sign)
+        cggmp24::PartialSignature::combine(&partial_signatures, &commitments, message_to_sign)
             .expect("invalid partial sigantures");
 
     #[cfg(feature = "hd-wallet")]
@@ -226,7 +226,7 @@ where
         .expect("external verification failed")
 }
 
-cggmp21_tests::test_suite! {
+cggmp24_tests::test_suite! {
     test: signing_sync,
     generics: all_curves,
     suites: {
@@ -241,7 +241,7 @@ cggmp21_tests::test_suite! {
 
 fn signing_sync<E>(t: Option<u16>, n: u16, hd_wallet: bool)
 where
-    E: Curve + cggmp21_tests::CurveParams,
+    E: Curve + cggmp24_tests::CurveParams,
     Point<E>: HasAffineX<E>,
 {
     #[cfg(not(feature = "hd-wallet"))]
@@ -249,7 +249,7 @@ where
 
     let mut rng = DevRng::new();
 
-    let shares = cggmp21_tests::CACHED_SHARES
+    let shares = cggmp24_tests::CACHED_SHARES
         .get_shares::<E>(t, n, hd_wallet)
         .expect("retrieve cached shares");
 
@@ -262,7 +262,7 @@ where
 
     #[cfg(feature = "hd-wallet")]
     let derivation_path = if hd_wallet {
-        Some(cggmp21_tests::random_derivation_path(&mut rng))
+        Some(cggmp24_tests::random_derivation_path(&mut rng))
     } else {
         None
     };
@@ -283,7 +283,7 @@ where
 
     for ((i, share), signer_rng) in (0..).zip(participants_shares).zip(&mut signer_rng) {
         simulation.add_party({
-            let signing = cggmp21::signing(eid, i, participants, share);
+            let signing = cggmp24::signing(eid, i, participants, share);
 
             #[cfg(feature = "hd-wallet")]
             let signing = if let Some(derivation_path) = derivation_path.clone() {

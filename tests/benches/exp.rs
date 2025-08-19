@@ -1,4 +1,4 @@
-use cggmp21::{
+use cggmp24::{
     fast_paillier::utils::external_rand,
     rug::{self, Complete},
     security_level::{SecurityLevel, SecurityLevel128},
@@ -19,7 +19,7 @@ fn criterion_benchmark(c: &mut criterion::Criterion) {
         )
     });
 
-    let primes = cggmp21_tests::CACHED_PRIMES
+    let primes = cggmp24_tests::CACHED_PRIMES
         .iter::<SecurityLevel128>()
         .next()
         .unwrap();

@@ -1,7 +1,7 @@
-use cggmp21::signing::Signature;
+use cggmp24::signing::Signature;
 use generic_ec::{Curve, Point};
 
-/// Verifies signature produced by cggmp21 implemenation using external library
+/// Verifies signature produced by cggmp24 implemenation using external library
 pub trait ExternalVerifier<E: Curve> {
     fn verify(
         public_key: &Point<E>,
@@ -25,7 +25,7 @@ impl<E: Curve> ExternalVerifier<E> for Noop {
 
 pub mod blockchains {
     use anyhow::Context;
-    use cggmp21::supported_curves::{Secp256k1, Stark};
+    use cggmp24::supported_curves::{Secp256k1, Stark};
 
     use crate::{convert_stark_scalar, external_verifier::ExternalVerifier};
 
@@ -35,7 +35,7 @@ pub mod blockchains {
     impl ExternalVerifier<Secp256k1> for Bitcoin {
         fn verify(
             public_key: &generic_ec::Point<Secp256k1>,
-            signature: &cggmp21::signing::Signature<Secp256k1>,
+            signature: &cggmp24::signing::Signature<Secp256k1>,
             message: &[u8],
         ) -> anyhow::Result<()> {
             let public_key = secp256k1::PublicKey::from_slice(&public_key.to_bytes(true))
@@ -59,11 +59,11 @@ pub mod blockchains {
     impl ExternalVerifier<Stark> for StarkNet {
         fn verify(
             public_key: &generic_ec::Point<Stark>,
-            signature: &cggmp21::Signature<Stark>,
+            signature: &cggmp24::Signature<Stark>,
             message: &[u8],
         ) -> anyhow::Result<()> {
             use generic_ec::coords::HasAffineX;
-            let message_to_sign = cggmp21::DataToSign::<Stark>::digest::<sha2::Sha256>(message);
+            let message_to_sign = cggmp24::DataToSign::<Stark>::digest::<sha2::Sha256>(message);
             let public_key_x = public_key
                 .x()
                 .ok_or(anyhow::Error::msg("No affine x for public key"))?

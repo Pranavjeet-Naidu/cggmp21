@@ -129,7 +129,7 @@ pub struct PrivateData<'a> {
     pub nonce: &'a Nonce,
 }
 
-// As described in cggmp21 at page 33
+// As described in cggmp24 at page 33
 /// Prover's first message, obtained by [`interactive::commit`]
 #[derive(Debug, Clone, udigest::Digestable)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -156,7 +156,7 @@ pub struct PrivateCommitment {
 /// [`non_interactive::challenge`] or randomly by [`interactive::challenge`]
 pub type Challenge = Integer;
 
-// As described in cggmp21 at page 33
+// As described in cggmp24 at page 33
 /// The ZK proof. Computed by [`interactive::prove`] or
 /// [`non_interactive::prove`]
 #[derive(Debug, Clone)]

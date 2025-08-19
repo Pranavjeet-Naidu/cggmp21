@@ -124,7 +124,7 @@ pub struct Signature<E: Curve> {
 
 macro_rules! prefixed {
     ($name:tt) => {
-        concat!("dfns.cggmp21.signing.", $name)
+        concat!("dfns.cggmp24.signing.", $name)
     };
 }
 
@@ -380,10 +380,10 @@ where
     /// Set derivation path to m/1/999
     ///
     /// ```rust,no_run
-    /// # let eid = cggmp21::ExecutionId::new(b"protocol nonce");
-    /// # let (i, parties_indexes_at_keygen, key_share): (u16, Vec<u16>, cggmp21::KeyShare<cggmp21::supported_curves::Secp256k1>)
+    /// # let eid = cggmp24::ExecutionId::new(b"protocol nonce");
+    /// # let (i, parties_indexes_at_keygen, key_share): (u16, Vec<u16>, cggmp24::KeyShare<cggmp24::supported_curves::Secp256k1>)
     /// # = unimplemented!();
-    /// cggmp21::signing(eid, i, &parties_indexes_at_keygen, &key_share)
+    /// cggmp24::signing(eid, i, &parties_indexes_at_keygen, &key_share)
     ///     .set_derivation_path([1, 999])?
     /// # ; Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
