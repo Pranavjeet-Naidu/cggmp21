@@ -1,3 +1,10 @@
+# CGGMP24 releases
+
+## v0.5.0
+Proofs are updated to follow the latest CGGMP24 paper revision.
+
+# CGGMP21 releases
+
 ## v0.4.2
 * Update links in the crate settings, update readme [#53]
 
