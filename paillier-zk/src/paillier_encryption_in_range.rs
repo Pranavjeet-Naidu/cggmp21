@@ -1,4 +1,4 @@
-//! ZK-proof of paillier encryption in range. Called Пenc or Renc in the CGGMP21
+//! ZK-proof of paillier encryption in range. Called Пenc or Renc in the CGGMP24
 //! paper.
 //!
 //! ## Description
@@ -46,7 +46,7 @@
 //!
 //! // 2. Setup: prover has some plaintext and encrypts it
 //!
-//! let plaintext = Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng);
+//! let plaintext = Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), &mut rng);
 //! let (ciphertext, nonce) = key.encrypt_with_random(&mut rng, &plaintext)?;
 //!
 //! // 3. Prover computes a non-interactive proof that plaintext is at most 1024 bits:
@@ -198,10 +198,10 @@ pub mod interactive {
         let hat_n_at_two_to_l_plus_e =
             (Integer::ONE << (security.l + security.epsilon)).complete() * &aux.rsa_modulo;
 
-        let alpha = Integer::from_rng_pm(&two_to_l_plus_e, rng);
-        let mu = Integer::from_rng_pm(&hat_n_at_two_to_l, rng);
+        let alpha = Integer::from_rng_half_pm(&two_to_l_plus_e, rng);
+        let mu = Integer::from_rng_half_pm(&hat_n_at_two_to_l, rng);
         let r = Integer::gen_invertible(data.key.n(), rng);
-        let gamma = Integer::from_rng_pm(&hat_n_at_two_to_l_plus_e, rng);
+        let gamma = Integer::from_rng_half_pm(&hat_n_at_two_to_l_plus_e, rng);
 
         let s = aux.combine(pdata.plaintext, &mu)?;
         let a = data.key.encrypt_with(&alpha, &r)?;
@@ -280,7 +280,7 @@ pub mod interactive {
             InvalidProofReason::RangeCheck(4),
             proof
                 .z1
-                .is_in_pm(&(Integer::ONE << (security.l + security.epsilon)).complete()),
+                .is_in_half_pm(&(Integer::ONE << (security.l + security.epsilon)).complete()),
         )?;
 
         Ok(())
@@ -290,7 +290,7 @@ pub mod interactive {
     ///
     /// `security` parameter is used to generate challenge in correct range
     pub fn challenge<R: RngCore>(security: &SecurityParams, rng: &mut R) -> Challenge {
-        Integer::from_rng_pm(&security.q, rng)
+        Integer::from_rng_half_pm(&security.q, rng)
     }
 }
 
@@ -401,7 +401,8 @@ mod test {
             epsilon: 256,
             q: (Integer::ONE << 128_u32).complete() - 1,
         };
-        let plaintext = Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng);
+        let plaintext =
+            Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), &mut rng);
         let r = run_with::<sha2::Sha256>(&mut rng, security, plaintext);
         match r {
             Ok(()) => (),

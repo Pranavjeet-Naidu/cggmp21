@@ -127,9 +127,11 @@ We provide a specification for our implementation of the CGGMP threshold signing
 $\E$ denotes an elliptic-curve group of prime order\footnote{The curve order is denoted by {\tt curve}\_{\tt order} in the code. Note that $q$ is also used for the verifier's challenge space in~\cite{cggmp21}, but we use $Q$ for that instead.}~$q$ with generator $G$. %(Note we write $\E$ additively, whereas multiplicative notation is used in~\cite{cggmp21}.) 
 If $P \in \E$ is a point on the curve, then $\affineX{P}$ denotes the $x$-coordinate of~$P$. We let $\Z_n=[n]=\{0, \dots, n-1\}$, and let $\Z_n^*$ be the subset of elements of~$\Z_n$ co-prime to~$n$, i.e., $\Z^*_n=\{i \mid i \in \Z_n \land \gcd(i, n) = 1\}$. 
 For integers $a, b, \ell$, we set 
-$[a; b)=\{a, \ldots, b-1\}$
-and
-$\pm \ell=\{-\ell, \dots, 0, \dots, \ell\}$. 
+$[a; b)=\{a, \ldots, b-1\}$,
+$\pm \ell=\{-\ell/2, \dots, 0, \dots, \ell/2\}$
+if $\ell$ is even, and
+$\pm \ell=\{-(\ell-1)/2, \dots, 0, \dots, (\ell-1)/2\}$
+if $\ell$ is odd.
 Let $\Byte = [256] = \{0, 1, \dots, 255\}$, i.e. $\Byte$ is all possible values of a byte, so $\Byte^*$ denotes a space of all bytestrings of any size, and $\Byte^n$ denotes a space of all bytestrings of length $n$. 
 We write $x \gets X$ to denote sampling a uniform element $x$ from a set~$X$.
 %, and $x \stackrel{s}{\gets} X$ to denote the process of deterministically mapping a seed $s$ to an element of $X$ that is computationally indistinguishable from uniform (assuming $s$ is uniform and unknown).
@@ -230,7 +232,7 @@ We include a description of the algorithms that constitute the Paillier encrypti
     
     \item 
     $\enc_N(M; r)$ 
-    encrypts a message $M \in \{-(N-1)/2, \ldots,  (N-1)/2\}$ 
+    encrypts a message $M \in \pm N$ 
     using randomness $r \in \Z_N^*$ 
     and Paillier public key~$N$. 
     This produces a ciphertext $C \in \Z^*_{N^2}$.
@@ -243,7 +245,7 @@ We include a description of the algorithms that constitute the Paillier encrypti
     Functions $\enc^{{\sf crt}}_{\sk}(M;r)$ and $\enc^{{\sf crt}}_{\sk}(M)$ are analogous but achieve better performance by using the technique from Section~\ref{sec:CRT} when the factorization of $N$
     is known.
 
-    \item $\dec_{\sk}(C)$ decrypts a ciphertext $C \in \Z^*_{N^2}$ to a plaintext $M \in \{-(N-1)/2, \ldots,  (N-1)/2\}$.
+    \item $\dec_{\sk}(C)$ decrypts a ciphertext $C \in \Z^*_{N^2}$ to a plaintext $M \in \pm N $.
 
     \item $C_1 \oplus C_2$ denotes homomorphic addition of ciphertexts $C_1, C_2 \in \Z^*_{N^2}$ encrypted under the same Paillier public key~$N$. It is computed as $C_1 \oplus C_2 = C_1 \cdot C_2 \bmod N^2$. Note that 
 $\dec(C_1 \oplus C_2) = [\dec(C_1) + \dec(C_2) \bmod N]$. 

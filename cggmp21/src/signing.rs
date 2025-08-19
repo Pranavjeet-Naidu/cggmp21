@@ -724,10 +724,10 @@ where
 
     tracer.stage("Encrypt G_i and K_i");
     let G_i = dec_i
-        .encrypt_with(&utils::scalar_to_bignumber(&gamma_i), &v_i)
+        .encrypt_with(&utils::scalar_to_pm_bignumber(&gamma_i), &v_i)
         .map_err(|_| Bug::PaillierEnc(BugSource::G_i))?;
     let K_i = dec_i
-        .encrypt_with(&utils::scalar_to_bignumber(&k_i), &rho_i)
+        .encrypt_with(&utils::scalar_to_pm_bignumber(&k_i), &rho_i)
         .map_err(|_| Bug::PaillierEnc(BugSource::K_i))?;
 
     tracer.stage("Generate a_i, b_i, A_i1, A_i2, B_i1, B_i2");
@@ -778,7 +778,7 @@ where
                 x: &A_i2,
             },
             pi_enc_elg::PrivateData {
-                plaintext: &utils::scalar_to_bignumber(&k_i),
+                plaintext: &utils::scalar_to_pm_bignumber(&k_i),
                 nonce: &rho_i,
                 b: a_i.as_ref(),
             },
@@ -802,7 +802,7 @@ where
                 x: &B_i2,
             },
             pi_enc_elg::PrivateData {
-                plaintext: &utils::scalar_to_bignumber(&gamma_i),
+                plaintext: &utils::scalar_to_pm_bignumber(&gamma_i),
                 nonce: &v_i,
                 b: b_i.as_ref(),
             },
@@ -987,8 +987,8 @@ where
             .random_below_ref(&mut utils::external_rand(rng))
             .into();
 
-        let beta_ij = Integer::from_rng_pm(&J, rng);
-        let hat_beta_ij = Integer::from_rng_pm(&J, rng);
+        let beta_ij = Integer::from_rng_half_pm(&J, rng);
+        let hat_beta_ij = Integer::from_rng_half_pm(&J, rng);
 
         beta_sum += beta_ij.to_scalar();
         hat_beta_sum += hat_beta_ij.to_scalar();
@@ -997,7 +997,7 @@ where
         // D_ji = (gamma_i * K_j) + enc_j(-beta_ij, s_ij)
         let D_ji = {
             let gamma_i_times_K_j = enc_j
-                .omul(&utils::scalar_to_bignumber(&gamma_i), &ciphertext_j.K)
+                .omul(&utils::scalar_to_pm_bignumber(&gamma_i), &ciphertext_j.K)
                 .map_err(|_| Bug::PaillierOp(BugSource::gamma_i_times_K_j))?;
             let neg_beta_ij_enc = enc_j
                 .encrypt_with(&(-&beta_ij).complete(), &s_ij)
@@ -1016,7 +1016,7 @@ where
         // Dˆ_ji = (x_i * K_j) + enc_j(-hat_beta_ij, hat_s_ij)
         let hat_D_ji = {
             let x_i_times_K_j = enc_j
-                .omul(&utils::scalar_to_bignumber(x_i), &ciphertext_j.K)
+                .omul(&utils::scalar_to_pm_bignumber(x_i), &ciphertext_j.K)
                 .map_err(|_| Bug::PaillierOp(BugSource::x_i_times_K_j))?;
             let neg_hat_beta_ij_enc = enc_j
                 .encrypt_with(&(-&hat_beta_ij).complete(), &hat_s_ij)
@@ -1049,7 +1049,7 @@ where
                 x: &Gamma_i,
             },
             pi_aff::PrivateData {
-                x: &utils::scalar_to_bignumber(&gamma_i),
+                x: &utils::scalar_to_pm_bignumber(&gamma_i),
                 y: &(-&beta_ij).complete(),
                 nonce: &s_ij,
                 nonce_y: &r_ij,
@@ -1077,7 +1077,7 @@ where
                 x: &(Point::generator() * x_i),
             },
             pi_aff::PrivateData {
-                x: &utils::scalar_to_bignumber(x_i),
+                x: &utils::scalar_to_pm_bignumber(x_i),
                 y: &(-&hat_beta_ij).complete(),
                 nonce: &hat_s_ij,
                 nonce_y: &hat_r_ij,

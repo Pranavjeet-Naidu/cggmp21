@@ -286,7 +286,7 @@ pub fn convert_stark_scalar(
     let mut buffer = [0u8; 32];
     buffer.copy_from_slice(bytes.as_bytes());
     starknet_crypto::FieldElement::from_bytes_be(&buffer)
-        .map_err(|e| anyhow::Error::msg(format!("Can't convert scalar: {}", e)))
+        .map_err(|e| anyhow::Error::msg(format!("Can't convert scalar: {e}")))
 }
 
 pub fn convert_from_stark_scalar(

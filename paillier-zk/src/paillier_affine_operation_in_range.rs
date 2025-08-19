@@ -1,5 +1,5 @@
 //! ZK-proof of paillier operation with group commitment in range. Called Пaff-g
-//! or Raff-g in the CGGMP21 paper.
+//! or Raff-g in the CGGMP24 paper.
 //!
 //! ## Description
 //!
@@ -71,12 +71,12 @@
 //! // 2. Setup: prover prepares all plaintexts
 //!
 //! // x in paper
-//! let plaintext_x = Integer::from_rng_pm(
+//! let plaintext_x = Integer::from_rng_half_pm(
 //!     &(Integer::ONE << security.l_x).complete(),
 //!     &mut rng,
 //! );
 //! // y in paper
-//! let plaintext_y = Integer::from_rng_pm(
+//! let plaintext_y = Integer::from_rng_half_pm(
 //!     &(Integer::ONE << security.l_y).complete(),
 //!     &mut rng,
 //! );
@@ -88,12 +88,12 @@
 //! // Y and ρ_y in paper
 //! let (ciphertext_y, nonce_y) = key_i.encrypt_with_random(
 //!     &mut rng,
-//!     &(plaintext_y.signed_modulo(key_i.n())),
+//!     &(plaintext_y),
 //! )?;
 //! // nonce is ρ in paper
 //! let (ciphertext_y_by_key_j, nonce) = key_j.encrypt_with_random(
 //!     &mut rng,
-//!     &(plaintext_y.signed_modulo(key_j.n()))
+//!     &(plaintext_y)
 //! )?;
 //! // D in paper
 //! let ciphertext_d = key_j
@@ -289,14 +289,14 @@ pub mod interactive {
         let hat_n_at_two_to_l_e = (&aux.rsa_modulo * &two_to_l_e).complete();
         let hat_n_at_two_to_l = (&aux.rsa_modulo * &two_to_l).complete();
 
-        let alpha = Integer::from_rng_pm(&two_to_l_e, &mut rng);
-        let beta = Integer::from_rng_pm(&two_to_l_prime_e, &mut rng);
+        let alpha = Integer::from_rng_half_pm(&two_to_l_e, &mut rng);
+        let beta = Integer::from_rng_half_pm(&two_to_l_prime_e, &mut rng);
         let r = Integer::gen_invertible(data.key_j.n(), &mut rng);
         let r_y = Integer::gen_invertible(data.key_i.n(), &mut rng);
-        let gamma = Integer::from_rng_pm(&hat_n_at_two_to_l_e, &mut rng);
-        let delta = Integer::from_rng_pm(&hat_n_at_two_to_l_e, &mut rng);
-        let m = Integer::from_rng_pm(&hat_n_at_two_to_l, &mut rng);
-        let mu = Integer::from_rng_pm(&hat_n_at_two_to_l, &mut rng);
+        let gamma = Integer::from_rng_half_pm(&hat_n_at_two_to_l_e, &mut rng);
+        let delta = Integer::from_rng_half_pm(&hat_n_at_two_to_l_e, &mut rng);
+        let m = Integer::from_rng_half_pm(&hat_n_at_two_to_l, &mut rng);
+        let mu = Integer::from_rng_half_pm(&hat_n_at_two_to_l, &mut rng);
 
         let commitment = Commitment {
             a: {
@@ -420,13 +420,13 @@ pub mod interactive {
             InvalidProofReason::RangeCheck(6),
             proof
                 .z1
-                .is_in_pm(&(Integer::ONE << (security.l_x + security.epsilon)).complete()),
+                .is_in_half_pm(&(Integer::ONE << (security.l_x + security.epsilon)).complete()),
         )?;
         fail_if(
             InvalidProofReason::RangeCheck(7),
             proof
                 .z2
-                .is_in_pm(&(Integer::ONE << (security.l_y + security.epsilon)).complete()),
+                .is_in_half_pm(&(Integer::ONE << (security.l_y + security.epsilon)).complete()),
         )?;
         Ok(())
     }
@@ -434,7 +434,7 @@ pub mod interactive {
     /// Generate random challenge
     pub fn challenge<C: Curve>(rng: &mut impl rand_core::RngCore) -> Integer {
         let q = Integer::curve_order::<C>();
-        Integer::from_rng_pm(&q, rng)
+        Integer::from_rng_half_pm(&q, rng)
     }
 }
 
@@ -522,7 +522,7 @@ mod test {
         let ek1 = dk1.encryption_key().clone();
 
         let (c, _) = {
-            let plaintext = Integer::from_rng_pm(ek0.half_n(), rng);
+            let plaintext = Integer::from_rng_half_pm(ek0.n(), rng);
             ek0.encrypt_with_random(rng, &plaintext).unwrap()
         };
 
@@ -571,8 +571,8 @@ mod test {
             l_y: 1024,
             epsilon: 300,
         };
-        let x = Integer::from_rng_pm(&(Integer::ONE << security.l_x).complete(), &mut rng);
-        let y = Integer::from_rng_pm(&(Integer::ONE << security.l_y).complete(), &mut rng);
+        let x = Integer::from_rng_half_pm(&(Integer::ONE << security.l_x).complete(), &mut rng);
+        let y = Integer::from_rng_half_pm(&(Integer::ONE << security.l_y).complete(), &mut rng);
         run::<_, C, D>(&mut rng, security, x, y).expect("proof failed");
     }
 
@@ -583,8 +583,8 @@ mod test {
             l_y: 1024,
             epsilon: 300,
         };
-        let x = Integer::from_rng_pm(&(Integer::ONE << security.l_x).complete(), &mut rng);
-        let y = (Integer::ONE << (security.l_y + security.epsilon)).complete() + 1;
+        let x = Integer::from_rng_half_pm(&(Integer::ONE << security.l_x).complete(), &mut rng);
+        let y = (Integer::ONE << (security.l_y + security.epsilon - 1)).complete() + 1;
         let r = run::<_, C, D>(&mut rng, security, x, y).expect_err("proof should not pass");
         match r.reason() {
             InvalidProofReason::RangeCheck(7) => (),
@@ -599,8 +599,8 @@ mod test {
             l_y: 1024,
             epsilon: 300,
         };
-        let x = (Integer::ONE << (security.l_x + security.epsilon)).complete() + 1;
-        let y = Integer::from_rng_pm(&(Integer::ONE << security.l_y).complete(), &mut rng);
+        let x = (Integer::ONE << (security.l_x + security.epsilon - 1)).complete() + 1;
+        let y = Integer::from_rng_half_pm(&(Integer::ONE << security.l_y).complete(), &mut rng);
         let r = run::<_, C, D>(&mut rng, security, x, y).expect_err("proof should not pass");
         match r.reason() {
             InvalidProofReason::RangeCheck(6) => (),
