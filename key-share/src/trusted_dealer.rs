@@ -95,9 +95,6 @@ impl<E: Curve> TrustedDealerBuilder<E> {
 
     /// Generates [`CoreKeyShare`]s
     ///
-    /// Returns error if provided inputs are invalid, or if internal
-    /// error has occurred.
-    ///
     /// For Shamir secret sharing, it's shared at points `1` to `n`
     ///
     /// Returns error if provided inputs are invalid, or if internal
@@ -114,9 +111,6 @@ impl<E: Curve> TrustedDealerBuilder<E> {
     }
 
     /// Generates [`CoreKeyShare`]s shared at random points
-    ///
-    /// Returns error if provided inputs are invalid, or if internal
-    /// error has occurred.
     ///
     /// For Shamir secret sharing, the points at which the value is shared at
     /// are chosen at random between `1` and `u16::MAX`. For additive shares,

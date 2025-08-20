@@ -47,14 +47,13 @@ keys. This makes it a one-time setup cost.
 
 ### Recovering Existing Key Shares
 
-If you have stored a complete `cggmp24::KeyShare` from a previous version, you will not be able to
-deserialize it directly. To recover the essential data, you must first extract the core "incomplete"
-key share.
-
-Use the `cggmp24::key_share::cggmp21_compat::ExtractCoreShare` utility. This type implements
-the `serde::Deserialize` trait, which allows it to deserialize a full key share from the
-previous version, discard the incompatible auxiliary data, and lets you retrieve the
-`cggmp24::key_share::IncompleteKeyShare`.
+If you have stored a complete `cggmp24::KeyShare` from a previous version, you will not be
+able to deserialize it directly. To recover the essential data from serialized key shares,
+you need to extract the "incomplete" key share from them. To do that, you can use the
+`cggmp24::key_share::cggmp21_compat::ExtractCoreShare` utility structure: it provides a
+`serde::Deserialize` implementation that is compatible with the `cggmp21::KeyShare` format. This
+allows you, while still using the new version of the library, to read an old version of a key share,
+and extract the "core".
 
 Once you have the core key share, you can combine it with your newly generated auxiliary data to
 reconstruct a complete, compatible key share.
