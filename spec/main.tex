@@ -121,10 +121,10 @@
 \maketitle
 
 \section{Introduction}
-We provide a specification for our implementation of the CGGMP threshold signing protocol~\cite{cggmp21}. 
+We provide a specification for our implementation of the CGGMP threshold signing protocol~\cite{cggmp24}. 
 
 \section{Notation and Preliminaries}
-$\E$ denotes an elliptic-curve group of prime order\footnote{The curve order is denoted by {\tt curve}\_{\tt order} in the code. Note that $q$ is also used for the verifier's challenge space in~\cite{cggmp21}, but we use $Q$ for that instead.}~$q$ with generator $G$. %(Note we write $\E$ additively, whereas multiplicative notation is used in~\cite{cggmp21}.) 
+$\E$ denotes an elliptic-curve group of prime order\footnote{The curve order is denoted by {\tt curve}\_{\tt order} in the code. Note that $q$ is also used for the verifier's challenge space in~\cite{cggmp24}, but we use $Q$ for that instead.}~$q$ with generator $G$. %(Note we write $\E$ additively, whereas multiplicative notation is used in~\cite{cggmp24}.) 
 If $P \in \E$ is a point on the curve, then $\affineX{P}$ denotes the $x$-coordinate of~$P$. We let $\Z_n=[n]=\{0, \dots, n-1\}$, and let $\Z_n^*$ be the subset of elements of~$\Z_n$ co-prime to~$n$, i.e., $\Z^*_n=\{i \mid i \in \Z_n \land \gcd(i, n) = 1\}$. 
 For integers $a, b, \ell$, we set 
 $[a; b)=\{a, \ldots, b-1\}$,
@@ -1782,12 +1782,12 @@ This protocol is run to generate auxiliary information for each signer in a clus
 
 
 \subsection{Distributed Key Generation}
-We implement two versions of distributed key generation. One generates a key along with an $n$-out-of-$n$ additive sharing of that key, and the other generates a key along with a $t$-out-of-$n$ Shamir secret sharing of that key. Note that only the former protocol is described in~\cite{cggmp21}.
+We implement two versions of distributed key generation. One generates a key along with an $n$-out-of-$n$ additive sharing of that key, and the other generates a key along with a $t$-out-of-$n$ Shamir secret sharing of that key. Note that only the former protocol is described in~\cite{cggmp24}.
 
 \subsubsection{Non-Threshold (i.e., $n$-out-of-$n$) Key Generation}
 \label{sec:n-of-n-dkg}
 
-This protocol is based on~\cite[Figure~5]{cggmp21}, but we have added the option to replace the broadcast channel with a reliable broadcast subroutine, and we added optional support of HD-wallets.
+This protocol is based on~\cite[Figure~5]{cggmp24}, but we have added the option to replace the broadcast channel with a reliable broadcast subroutine, and we added optional support of HD-wallets.
 
 \begin{description}
     \item[\bf Input.] \
@@ -1955,13 +1955,13 @@ This protocol is based on~\cite[Figure~5]{cggmp21}, but we have added the option
 
 We implemented both non-threshold and threshold versions of presigning. 
 The non-threshold version assumes the $n$ parties running the protocol have additive shares of the private key. 
-The threshold version of the protocol, which is not described in~\cite{cggmp21}, first maps the key shares (which are a $t$-out-of-$n$ Shamir sharing of the private key) to a $t$-out-of-$t$ sharing of the key using Lagrange interpolation and then runs the non-threshold protocol among the $t$ parties.
+The threshold version of the protocol, which is not described in~\cite{cggmp24}, first maps the key shares (which are a $t$-out-of-$n$ Shamir sharing of the private key) to a $t$-out-of-$t$ sharing of the key using Lagrange interpolation and then runs the non-threshold protocol among the $t$ parties.
 
 
 
 \subsubsection{Non-Threshold ($n$-out-of-$n$) Presigning} \label{section:orig-presigning}
 
-The following protocol is based on \cite[Figure~7]{cggmp21}, although we have corrected some typos and eliminated some extraneous parts. (In particular, we do not have identifiable abort.)
+The following protocol is based on \cite[Figure~7]{cggmp24}, although we have corrected some typos and eliminated some extraneous parts. (In particular, we do not have identifiable abort.)
 
 \begin{description}
     \item[\bf Input.] \
@@ -2212,7 +2212,7 @@ The signing protocol has two parts: one that takes the output from the presignat
 
     \item Combine CRT and fixed-based multiexponentiation optimizations
 
-    \item In some cases, can do probabilistic bath checks. It may also be possible to combine several of the ZK proofs. (Note, however, that these optimizations involve deviations from~\cite{cggmp21}.)
+    \item In some cases, can do probabilistic bath checks. It may also be possible to combine several of the ZK proofs. (Note, however, that these optimizations involve deviations from~\cite{cggmp24}.)
 \end{enumerate}
 }
 

@@ -12,7 +12,7 @@ use thiserror::Error;
 use crate::security_level::SecurityLevel;
 
 #[doc(inline)]
-pub use cggmp21_keygen::key_share::{
+pub use cggmp24_keygen::key_share::{
     CoreKeyShare as IncompleteKeyShare, DirtyCoreKeyShare as DirtyIncompleteKeyShare, DirtyKeyInfo,
     HdError, InvalidCoreShare as InvalidIncompleteKeyShare, KeyInfo, Valid, Validate,
     ValidateError, ValidateFromParts, VssSetup,
@@ -370,7 +370,7 @@ impl<E: Curve, T: AsRef<IncompleteKeyShare<E>>> AnyKeyShare<E> for T {}
 pub fn reconstruct_secret_key<E: Curve>(
     key_shares: &[impl AnyKeyShare<E>],
 ) -> Result<generic_ec::SecretScalar<E>, ReconstructError> {
-    cggmp21_keygen::key_share::reconstruct_secret_key(key_shares)
+    cggmp24_keygen::key_share::reconstruct_secret_key(key_shares)
 }
 
 impl From<&PedersenParams> for π_enc::Aux {
@@ -418,7 +418,7 @@ enum InvalidKeyShareReason {
 
 /// Error indicating that [key reconstruction](reconstruct_secret_key) failed
 #[cfg(feature = "spof")]
-pub use cggmp21_keygen::key_share::ReconstructError;
+pub use cggmp24_keygen::key_share::ReconstructError;
 
 impl From<InvalidIncompleteKeyShare> for InvalidKeyShare {
     fn from(err: InvalidIncompleteKeyShare) -> Self {
@@ -433,25 +433,25 @@ impl<T> From<ValidateError<T, InvalidIncompleteKeyShare>> for InvalidKeyShare {
 }
 
 impl<T> From<ValidateError<T, InvalidKeyShare>> for InvalidKeyShare {
-    fn from(err: cggmp21_keygen::key_share::ValidateError<T, InvalidKeyShare>) -> Self {
+    fn from(err: cggmp24_keygen::key_share::ValidateError<T, InvalidKeyShare>) -> Self {
         err.into_error()
     }
 }
 
-/// Tools for migrating key shares from cggmp21 to cggmp24
+/// Tools for migrating key shares from cggmp24 to cggmp24
 ///
 /// CGGMP24 revision of the protocol introduced changes in the structure of the key shares:
 /// * The core key share [`IncompleteKeyShare`] has not changed, you can use cggmp24 library
-///   to deserialize core key share from cggmp21
+///   to deserialize core key share from cggmp24
 /// * However, [`AuxInfo`] and [`KeyShare`] have changed: now each signer has distinct Paillier
 ///   and Pedersen keys (previously, they both were one key)
 ///
-/// If you have [`KeyShare`]s serialized by cggmp21, we advise you to discard auxiliary data
+/// If you have [`KeyShare`]s serialized by cggmp24, we advise you to discard auxiliary data
 /// stored within the key share, extract the core key share (that contains the most important
 /// part of the key share), and re-generate auxiliary data by carrying out
 /// [`aux_info_gen`](crate::aux_info_gen) protocol.
 pub mod cggmp21_compat {
-    /// Deserializes a key share from cggmp21, discards the auxiliary data and extracts the core share.
+    /// Deserializes a key share from cggmp24, discards the auxiliary data and extracts the core share.
     #[derive(serde::Deserialize, Clone)]
     pub struct ExtractCoreShare<E: generic_ec::Curve> {
         /// Extracted core share

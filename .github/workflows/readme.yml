@@ -28,8 +28,8 @@ jobs:
         cache: 'npm'
     - name: Install toc-markdown
       run: npm install -g markdown-toc
-    - name: Check that table of contents matches docs/toc-cggmp21.md
+    - name: Check that table of contents matches docs/toc-cggmp24.md
       run: |
-        cp docs/toc-cggmp21.md docs/toc-cggmp21-copy.md
-        make toc-cggmp21
-        diff docs/toc-cggmp21.md docs/toc-cggmp21-copy.md
+        cp docs/toc-cggmp24.md docs/toc-cggmp24-copy.md
+        make toc-cggmp24
+        diff docs/toc-cggmp24.md docs/toc-cggmp24-copy.md

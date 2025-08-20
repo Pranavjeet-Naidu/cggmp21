@@ -22,7 +22,7 @@ use super::{Bug, KeygenAborted, KeygenError};
 
 macro_rules! prefixed {
     ($name:tt) => {
-        concat!("dfns.cggmp21.keygen.non_threshold.", $name)
+        concat!("dfns.cggmp24.keygen.non_threshold.", $name)
     };
 }
 

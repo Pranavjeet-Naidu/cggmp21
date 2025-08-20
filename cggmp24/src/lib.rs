@@ -1,14 +1,14 @@
-//! ![License](https://img.shields.io/crates/l/cggmp21.svg)
-//! [![Docs](https://docs.rs/cggmp21/badge.svg)](https://docs.rs/cggmp21)
-//! [![Crates io](https://img.shields.io/crates/v/cggmp21.svg)](https://crates.io/crates/cggmp21)
+//! ![License](https://img.shields.io/crates/l/cggmp24.svg)
+//! [![Docs](https://docs.rs/cggmp24/badge.svg)](https://docs.rs/cggmp24)
+//! [![Crates io](https://img.shields.io/crates/v/cggmp24.svg)](https://crates.io/crates/cggmp24)
 //! [![Discord](https://img.shields.io/discord/905194001349627914?logo=discord&logoColor=ffffff&label=Discord)][in Discord]
 //!
-//! # Threshold ECDSA based on [CGGMP21] paper
+//! # Threshold ECDSA based on [CGGMP24] paper
 //!
 //! <!-- TOC -->
-#![doc = include_str!("../docs/toc-cggmp21.md")]
+#![doc = include_str!("../docs/toc-cggmp24.md")]
 //!
-//! [CGGMP21] is a state-of-art ECDSA TSS protocol that supports 1-round signing (requires preprocessing),
+//! [CGGMP24] is a state-of-art ECDSA TSS protocol that supports 1-round signing (requires preprocessing),
 //! identifiable abort, provides two signing protocols (3+1 and 5+1 rounds with different complexity
 //! of abort identification) and key refresh protocol out of the box.
 //!
@@ -33,16 +33,16 @@
 //!
 //! Our implementation has been audited by Kudelski. Report can be found [here][report].
 //!
-//! > About notion of threshold and non-threshold keys: originally, CGGMP21 paper does not have support of
+//! > About notion of threshold and non-threshold keys: originally, CGGMP24 paper does not have support of
 //! arbitrary `t` and only works with non-threshold n-out-of-n keys. We have added support of arbitrary
-//! threshold $2 \le t \le n$, however, we made it possible to opt out thresholdness so original CGGMP21
+//! threshold $2 \le t \le n$, however, we made it possible to opt out thresholdness so original CGGMP24
 //! protocol can be carried out if needed.
 //!
 //! ## Running the protocol
 //!
 //! ### Networking
 //! The most essential part of running an interactive protocol is to define how parties can communicate with
-//! each other. Our `cggmp21` library is agnostic to the network layer and only requires you to provide two
+//! each other. Our `cggmp24` library is agnostic to the network layer and only requires you to provide two
 //! things: a stream of incoming messages and a sink for outgoing messages, i.e.:
 //!
 //! ```rust,ignore
@@ -60,7 +60,7 @@
 //! [`MpcParty`]: round_based::MpcParty
 //!
 //! ```rust
-//! # type Msg = cggmp21::signing::msg::Msg<cggmp21::supported_curves::Secp256k1, sha2::Sha256>;
+//! # type Msg = cggmp24::signing::msg::Msg<cggmp24::supported_curves::Secp256k1, sha2::Sha256>;
 //! # let incoming = futures::stream::pending::<Result<round_based::Incoming<Msg>, std::convert::Infallible>>();
 //! # let outgoing = futures::sink::drain::<round_based::Outgoing<Msg>>();
 //! let delivery = (incoming, outgoing);
@@ -108,8 +108,8 @@
 //! run as follows:
 //!
 //! ```rust,no_run
-//! # async fn doc() -> Result<(), cggmp21::KeyRefreshError> {
-//! # type Msg = cggmp21::key_refresh::msg::Msg<sha2::Sha256, cggmp21::security_level::SecurityLevel128>;
+//! # async fn doc() -> Result<(), cggmp24::KeyRefreshError> {
+//! # type Msg = cggmp24::key_refresh::msg::Msg<sha2::Sha256, cggmp24::security_level::SecurityLevel128>;
 //! # let incoming = futures::stream::pending::<Result<round_based::Incoming<Msg>, std::convert::Infallible>>();
 //! # let outgoing = futures::sink::drain::<round_based::Outgoing<Msg>>();
 //! # let delivery = (incoming, outgoing);
@@ -117,15 +117,15 @@
 //! #
 //! # use rand_core::OsRng;
 //! // Prime generation can take a while
-//! let pregenerated_primes = cggmp21::PregeneratedPrimes::generate(&mut OsRng);
+//! let pregenerated_primes = cggmp24::PregeneratedPrimes::generate(&mut OsRng);
 //!
-//! let eid = cggmp21::ExecutionId::new(b"execution id, unique per protocol execution");
+//! let eid = cggmp24::ExecutionId::new(b"execution id, unique per protocol execution");
 //! let i = /* signer index, same as at keygen */
 //! # 0;
 //! let n = /* number of signers */
 //! # 3;
 //!
-//! let aux_info = cggmp21::aux_info_gen(eid, i, n, pregenerated_primes)
+//! let aux_info = cggmp24::aux_info_gen(eid, i, n, pregenerated_primes)
 //!     .start(&mut OsRng, party)
 //!     .await?;
 //! # Ok(()) }
@@ -135,7 +135,7 @@
 //! of safe primes and involves several zero-knowledge (ZK) proofs.
 //!
 //! #### On reusability of the auxiliary data
-//! The CGGMP21 paper assumes that new auxiliary data is generated for each secret key that is shared.
+//! The CGGMP24 paper assumes that new auxiliary data is generated for each secret key that is shared.
 //! However, examination of the proof shows that this is not necessary, and a fixed group of signers
 //! can use the same auxiliary data for the secure sharing/usage of multiple keys.
 //!
@@ -145,17 +145,17 @@
 //! threshold value (i.e., t). The protocol can be executed as
 //!
 //! ```rust,no_run
-//! # async fn doc() -> Result<(), cggmp21::KeygenError> {
-//! # type Msg = cggmp21::keygen::msg::threshold::Msg<cggmp21::supported_curves::Secp256k1, cggmp21::security_level::SecurityLevel128, sha2::Sha256>;
+//! # async fn doc() -> Result<(), cggmp24::KeygenError> {
+//! # type Msg = cggmp24::keygen::msg::threshold::Msg<cggmp24::supported_curves::Secp256k1, cggmp24::security_level::SecurityLevel128, sha2::Sha256>;
 //! # let incoming = futures::stream::pending::<Result<round_based::Incoming<Msg>, std::convert::Infallible>>();
 //! # let outgoing = futures::sink::drain::<round_based::Outgoing<Msg>>();
 //! # let delivery = (incoming, outgoing);
 //! # let party = round_based::MpcParty::connected(delivery);
 //! #
-//! use cggmp21::supported_curves::Secp256k1;
+//! use cggmp24::supported_curves::Secp256k1;
 //! # use rand_core::OsRng;
 //!
-//! let eid = cggmp21::ExecutionId::new(b"execution id, unique per protocol execution");
+//! let eid = cggmp24::ExecutionId::new(b"execution id, unique per protocol execution");
 //! let i = /* signer index (0 <= i < n) */
 //! # 0;
 //! let n = /* number of signers taking part in key generation */
@@ -163,7 +163,7 @@
 //! let t = /* threshold */
 //! # 2;
 //!
-//! let incomplete_key_share = cggmp21::keygen::<Secp256k1>(eid, i, n)
+//! let incomplete_key_share = cggmp24::keygen::<Secp256k1>(eid, i, n)
 //!     .set_threshold(t)
 //!     .start(&mut OsRng, party)
 //!     .await?;
@@ -177,9 +177,9 @@
 //! key share using:
 //!
 //! ```rust,no_run
-//! # let (incomplete_key_share, aux_info): (cggmp21::IncompleteKeyShare<cggmp21::supported_curves::Secp256k1>, cggmp21::key_share::AuxInfo) = unimplemented!();
-//! let key_share = cggmp21::KeyShare::from_parts((incomplete_key_share, aux_info))?;
-//! # Ok::<_, cggmp21::key_share::InvalidKeyShare>(())
+//! # let (incomplete_key_share, aux_info): (cggmp24::IncompleteKeyShare<cggmp24::supported_curves::Secp256k1>, cggmp24::key_share::AuxInfo) = unimplemented!();
+//! let key_share = cggmp24::KeyShare::from_parts((incomplete_key_share, aux_info))?;
+//! # Ok::<_, cggmp24::key_share::InvalidKeyShare>(())
 //! ```
 //!
 //! ### Signing
@@ -190,8 +190,8 @@
 //!
 //! In the example below, we do a full signing:
 //! ```rust,no_run
-//! # async fn doc() -> Result<(), cggmp21::SigningError> {
-//! # type Msg = cggmp21::signing::msg::Msg<cggmp21::supported_curves::Secp256k1, sha2::Sha256>;
+//! # async fn doc() -> Result<(), cggmp24::SigningError> {
+//! # type Msg = cggmp24::signing::msg::Msg<cggmp24::supported_curves::Secp256k1, sha2::Sha256>;
 //! # let incoming = futures::stream::pending::<Result<round_based::Incoming<Msg>, std::convert::Infallible>>();
 //! # let outgoing = futures::sink::drain::<round_based::Outgoing<Msg>>();
 //! # let delivery = (incoming, outgoing);
@@ -200,7 +200,7 @@
 //! # use rand_core::OsRng; use sha2::Sha256;
 //! # const MIN_SIGNERS: usize = 3;
 //! #
-//! let eid = cggmp21::ExecutionId::new(b"execution id, unique per protocol execution");
+//! let eid = cggmp24::ExecutionId::new(b"execution id, unique per protocol execution");
 //!
 //! let i = /* signer index (0 <= i < min_signers) */
 //! # 0;
@@ -208,11 +208,11 @@
 //!     /* parties_indexes_at_keygen[i] is the index the i-th party had at keygen */
 //! # [0, 1, 2];
 //! let key_share = /* completed key share */
-//! # {let s: cggmp21::KeyShare<cggmp21::supported_curves::Secp256k1> = unimplemented!(); s};
+//! # {let s: cggmp24::KeyShare<cggmp24::supported_curves::Secp256k1> = unimplemented!(); s};
 //!
-//! let data_to_sign = cggmp21::DataToSign::digest::<Sha256>(b"data to be signed");
+//! let data_to_sign = cggmp24::DataToSign::digest::<Sha256>(b"data to be signed");
 //!
-//! let signature = cggmp21::signing(eid, i, &parties_indexes_at_keygen, &key_share)
+//! let signature = cggmp24::signing(eid, i, &parties_indexes_at_keygen, &key_share)
 //!     .sign(&mut OsRng, party, data_to_sign)
 //!     .await?;
 //! # Ok(()) }
@@ -251,7 +251,7 @@
 //! [derivation path](signing::SigningBuilder::set_derivation_path) in the signing.
 //!
 //! ## SPOF code: Key Import and Export
-//! CGGMP21 protocol is designed to avoid Single Point of Failure by guaranteeing that attacker would
+//! CGGMP24 protocol is designed to avoid Single Point of Failure by guaranteeing that attacker would
 //! need to compromise threshold amount of nodes to obtain a secret key. However, some use-cases may
 //! require you to create a SPOF, for instance, importing an existing key into TSS and exporting key
 //! from TSS.
@@ -260,9 +260,9 @@
 //! However, you may opt for them by enabling `spof` feature, then you can use [`trusted_dealer`]
 //! for key import and [`key_share::reconstruct_secret_key`] for key export.
 //!
-//! ## Differences between the implementation and CGGMP21
-//! [CGGMP21] only defines a non-threshold protocol. To support general thresholds,
-//! we defined our own CGGMP21-like key generation and threshold signing
+//! ## Differences between the implementation and CGGMP24
+//! [CGGMP24] only defines a non-threshold protocol. To support general thresholds,
+//! we defined our own CGGMP24-like key generation and threshold signing
 //! protocols. However, we keep both
 //! threshold and non-threshold versions of the protocols in the crate, so if you opt for the non-threshold
 //! protocol, you will be running the original protocol defined in the paper.
@@ -270,8 +270,8 @@
 //! There are other (small) differences in the implementation compared to the original paper (mostly typo fixes);
 //! they are all documented in [the spec].
 //!
-//! [CGGMP21]: https://ia.cr/2021/060
-//! [the spec]: https://lfdt-lockness.github.io/cggmp21/cggmp21-spec.pdf
+//! [CGGMP24]: https://ia.cr/2021/060
+//! [the spec]: https://lfdt-lockness.github.io/cggmp24/cggmp24-spec.pdf
 //! [security guidelines]: #security-guidelines
 //! [slip10]: https://github.com/satoshilabs/slips/blob/master/slip-0010.md
 //! [bip32]: https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki
@@ -281,7 +281,7 @@
 //! ## Timing attacks
 //! Timing attacks are type of side-channel attacks that leak sensitive information through duration of
 //! execution. We consider timing attacks out of scope as they are nearly impossible to perform for such
-//! complicated protocol as CGGMP21 and impossible to do in our specific deployment. Thus, we intentionally
+//! complicated protocol as CGGMP24 and impossible to do in our specific deployment. Thus, we intentionally
 //! don't do constant-time operations which gives us a significant performance boost.
 //!
 //! ## Join us in Discord!
@@ -309,7 +309,7 @@ pub use {
 };
 
 #[doc(inline)]
-pub use cggmp21_keygen::{keygen, progress, ExecutionId};
+pub use cggmp24_keygen::{keygen, progress, ExecutionId};
 
 use generic_ec::{coords::HasAffineX, Curve, Point};
 use round_based::PartyIndex;
@@ -339,10 +339,10 @@ mod default_choice {
     pub type SecurityLevel = crate::security_level::SecurityLevel128;
 }
 
-/// Threshold and non-threshold CGGMP21 DKG
+/// Threshold and non-threshold CGGMP24 DKG
 pub mod keygen {
     #[doc(inline)]
-    pub use cggmp21_keygen::{
+    pub use cggmp24_keygen::{
         msg, GenericKeygenBuilder, KeygenBuilder, KeygenError, NonThreshold,
         ThresholdKeygenBuilder, WithThreshold,
     };

@@ -1,5 +1,5 @@
 use anyhow::{bail, Context, Result};
-use cggmp21::{
+use cggmp24::{
     key_share::{KeyShare, Validate},
     rug::Integer,
     security_level::SecurityLevel128,
@@ -109,7 +109,7 @@ pub struct PrecomputedKeyShares {
     /// contains only core key shares, that needs to be completed with `aux`
     shares: std::collections::BTreeMap<String, Vec<Value>>,
     /// re-usable aux data
-    aux: Vec<cggmp21::key_share::AuxInfo<SecurityLevel128>>,
+    aux: Vec<cggmp24::key_share::AuxInfo<SecurityLevel128>>,
 }
 
 impl PrecomputedKeyShares {
@@ -146,13 +146,13 @@ impl PrecomputedKeyShares {
             .zip(aux)
             .map(|(share, aux)| {
                 let share = serde_json::from_value(share).context("parse key share")?;
-                cggmp21::KeyShare::from_parts((share, aux)).context("invalid key share")
+                cggmp24::KeyShare::from_parts((share, aux)).context("invalid key share")
             })
             .collect()
     }
 
     /// Retrieves aux data for a set of `n` signers
-    fn get_aux(&self, n: u16) -> Result<Vec<cggmp21::key_share::AuxInfo<SecurityLevel128>>> {
+    fn get_aux(&self, n: u16) -> Result<Vec<cggmp24::key_share::AuxInfo<SecurityLevel128>>> {
         let n: usize = n.into();
         if n > self.aux.len() {
             anyhow::bail!("too many parties")
@@ -193,7 +193,7 @@ impl PrecomputedKeyShares {
         Ok(())
     }
 
-    pub fn add_aux(&mut self, aux: Vec<cggmp21::key_share::AuxInfo<SecurityLevel128>>) {
+    pub fn add_aux(&mut self, aux: Vec<cggmp24::key_share::AuxInfo<SecurityLevel128>>) {
         self.aux = aux;
     }
 
@@ -223,9 +223,9 @@ impl PregeneratedPrimes {
     }
 
     /// Iterate over numbers, producing pregenerated pairs for key refresh
-    pub fn iter<L>(&self) -> impl Iterator<Item = cggmp21::key_refresh::PregeneratedPrimes<L>> + '_
+    pub fn iter<L>(&self) -> impl Iterator<Item = cggmp24::key_refresh::PregeneratedPrimes<L>> + '_
     where
-        L: cggmp21::security_level::SecurityLevel,
+        L: cggmp24::security_level::SecurityLevel,
     {
         if self.bitsize != L::RSA_PRIME_BITLEN {
             panic!("Attempting to use generated primes while expecting wrong bit size");
@@ -237,7 +237,7 @@ impl PregeneratedPrimes {
                 primes[2].clone(),
                 primes[3].clone(),
             ];
-            cggmp21::key_refresh::PregeneratedPrimes::try_from(primes)
+            cggmp24::key_refresh::PregeneratedPrimes::try_from(primes)
                 .expect("primes have wrong bit size")
         })
     }
@@ -245,7 +245,7 @@ impl PregeneratedPrimes {
     /// Generate enough primes so that you can do `amount` of key refreshes
     pub fn generate<R, L>(amount: usize, rng: &mut R) -> Self
     where
-        L: cggmp21::security_level::SecurityLevel,
+        L: cggmp24::security_level::SecurityLevel,
         R: RngCore,
     {
         let bitsize = L::RSA_PRIME_BITLEN;
@@ -259,7 +259,7 @@ impl PregeneratedPrimes {
 
 /// Generates a blum prime
 ///
-/// CGGMP21 requires using safe primes, however blum primes do not break correctness of the protocol
+/// CGGMP24 requires using safe primes, however blum primes do not break correctness of the protocol
 /// and they can be generated faster.
 ///
 /// Only to be used in the tests.
@@ -267,7 +267,7 @@ pub fn generate_blum_prime(rng: &mut impl rand::RngCore, bits_size: u32) -> Inte
     loop {
         let mut n: Integer = Integer::random_bits(
             bits_size,
-            &mut cggmp21::fast_paillier::utils::external_rand(rng),
+            &mut cggmp24::fast_paillier::utils::external_rand(rng),
         )
         .into();
         n.set_bit(bits_size - 1, true);
@@ -279,7 +279,7 @@ pub fn generate_blum_prime(rng: &mut impl rand::RngCore, bits_size: u32) -> Inte
 }
 
 pub fn convert_stark_scalar(
-    x: &generic_ec::Scalar<cggmp21::supported_curves::Stark>,
+    x: &generic_ec::Scalar<cggmp24::supported_curves::Stark>,
 ) -> anyhow::Result<starknet_crypto::FieldElement> {
     let bytes = x.to_be_bytes();
     debug_assert_eq!(bytes.len(), 32);
@@ -300,7 +300,7 @@ pub fn convert_from_stark_scalar(
 pub fn random_derivation_path(rng: &mut impl rand::RngCore) -> Vec<u32> {
     use rand::Rng;
     let len = rng.gen_range(1..=3);
-    std::iter::repeat_with(|| rng.gen_range(0..cggmp21::hd_wallet::H))
+    std::iter::repeat_with(|| rng.gen_range(0..cggmp24::hd_wallet::H))
         .take(len)
         .collect::<Vec<_>>()
 }
@@ -309,26 +309,26 @@ pub fn random_derivation_path(rng: &mut impl rand::RngCore) -> Vec<u32> {
 pub trait CurveParams: Curve {
     /// Which HD derivation algorithm to use with that curve
     #[cfg(feature = "hd-wallet")]
-    type HdAlgo: cggmp21::hd_wallet::HdWallet<Self>;
+    type HdAlgo: cggmp24::hd_wallet::HdWallet<Self>;
     /// External verifier for signatures on this curve
     type ExVerifier: external_verifier::ExternalVerifier<Self>;
 }
 
-impl CurveParams for cggmp21::supported_curves::Secp256k1 {
+impl CurveParams for cggmp24::supported_curves::Secp256k1 {
     #[cfg(feature = "hd-wallet")]
-    type HdAlgo = cggmp21::hd_wallet::Slip10;
+    type HdAlgo = cggmp24::hd_wallet::Slip10;
     type ExVerifier = external_verifier::blockchains::Bitcoin;
 }
 
-impl CurveParams for cggmp21::supported_curves::Secp256r1 {
+impl CurveParams for cggmp24::supported_curves::Secp256r1 {
     #[cfg(feature = "hd-wallet")]
-    type HdAlgo = cggmp21::hd_wallet::Slip10;
+    type HdAlgo = cggmp24::hd_wallet::Slip10;
     type ExVerifier = external_verifier::Noop;
 }
 
-impl CurveParams for cggmp21::supported_curves::Stark {
+impl CurveParams for cggmp24::supported_curves::Stark {
     #[cfg(feature = "hd-wallet")]
-    type HdAlgo = cggmp21::hd_wallet::Stark;
+    type HdAlgo = cggmp24::hd_wallet::Stark;
     type ExVerifier = external_verifier::blockchains::StarkNet;
 }
 
@@ -345,9 +345,9 @@ macro_rules! test_suite {
             $(async_test: $async_test,)?
             $(test: $test,)?
             generics: {
-                secp256k1: <cggmp21::supported_curves::Secp256k1>,
-                secp256r1: <cggmp21::supported_curves::Secp256r1>,
-                stark: <cggmp21::supported_curves::Stark>,
+                secp256k1: <cggmp24::supported_curves::Secp256k1>,
+                secp256r1: <cggmp24::supported_curves::Secp256r1>,
+                stark: <cggmp24::supported_curves::Stark>,
             },
             suites: {$($suites)*}
         }

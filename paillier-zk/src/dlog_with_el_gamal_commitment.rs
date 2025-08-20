@@ -1,5 +1,5 @@
 //! ZK-proof of discrete log with El-Gamal commitment.
-//! Called Пelog or Relog in the CGGMP21/CGGMP24 papers.
+//! Called Пelog or Relog in the CGGMP24 papers.
 //!
 //! ## Description
 //!

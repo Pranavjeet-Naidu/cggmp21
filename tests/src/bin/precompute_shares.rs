@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Result};
-use cggmp21::supported_curves::{Secp256k1, Secp256r1, Stark};
-use cggmp21::{security_level::SecurityLevel128, trusted_dealer};
-use cggmp21_tests::{PrecomputedKeyShares, PregeneratedPrimes};
+use cggmp24::supported_curves::{Secp256k1, Secp256r1, Stark};
+use cggmp24::{security_level::SecurityLevel128, trusted_dealer};
+use cggmp24_tests::{PrecomputedKeyShares, PregeneratedPrimes};
 use generic_ec::Curve;
 use rand::{rngs::OsRng, CryptoRng, RngCore};
 
@@ -51,7 +51,7 @@ fn precompute_shares() -> Result<()> {
     let primes = PregeneratedPrimes::generate::<_, SecurityLevel128>(max_n, &mut rng);
     let primes = primes.iter::<SecurityLevel128>().collect::<Vec<_>>();
 
-    let aux = cggmp21::trusted_dealer::generate_aux_data_with_primes(&mut rng, primes, true)
+    let aux = cggmp24::trusted_dealer::generate_aux_data_with_primes(&mut rng, primes, true)
         .context("gen aux")?;
 
     cache.add_aux(aux);
@@ -108,16 +108,16 @@ fn generate_old_share(out_dir: &std::path::Path) -> Result<()> {
         bail!("`out-dir` is not a dir")
     }
 
-    generate_old_shares_for_curve::<cggmp21::supported_curves::Secp256k1>(out_dir, "secp256k1")?;
-    generate_old_shares_for_curve::<cggmp21::supported_curves::Secp256r1>(out_dir, "secp256r1")?;
-    generate_old_shares_for_curve::<cggmp21::supported_curves::Stark>(out_dir, "stark")
+    generate_old_shares_for_curve::<cggmp24::supported_curves::Secp256k1>(out_dir, "secp256k1")?;
+    generate_old_shares_for_curve::<cggmp24::supported_curves::Secp256r1>(out_dir, "secp256r1")?;
+    generate_old_shares_for_curve::<cggmp24::supported_curves::Stark>(out_dir, "stark")
 }
 
 fn generate_old_shares_for_curve<E: Curve>(out_dir: &std::path::Path, prefix: &str) -> Result<()> {
     for enable_threshold in [true, false] {
         for enable_hd in [true, false] {
             let key_shares =
-                cggmp21::trusted_dealer::builder::<E, cggmp21::security_level::SecurityLevel128>(5)
+                cggmp24::trusted_dealer::builder::<E, cggmp24::security_level::SecurityLevel128>(5)
                     .set_threshold(if enable_threshold { Some(3) } else { None })
                     .hd_wallet(enable_hd)
                     .generate_core_shares(&mut OsRng)

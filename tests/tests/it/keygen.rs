@@ -4,9 +4,9 @@ use generic_ec::{Curve, Point};
 use rand::{seq::SliceRandom, Rng};
 use rand_dev::DevRng;
 
-use cggmp21::{key_share::reconstruct_secret_key, ExecutionId};
+use cggmp24::{key_share::reconstruct_secret_key, ExecutionId};
 
-cggmp21_tests::test_suite! {
+cggmp24_tests::test_suite! {
     test: keygen_works,
     generics: all_curves,
     suites: {
@@ -35,12 +35,12 @@ fn keygen_works<E: Curve>(n: u16, reliable_broadcast: bool, hd_wallet: bool) {
     let eid = ExecutionId::new(&eid);
 
     let key_shares = round_based::sim::run(n, |i, party| {
-        let party = cggmp21_tests::buffer_outgoing(party);
+        let party = cggmp24_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
 
         async move {
             let keygen =
-                cggmp21::keygen::<E>(eid, i, n).enforce_reliable_broadcast(reliable_broadcast);
+                cggmp24::keygen::<E>(eid, i, n).enforce_reliable_broadcast(reliable_broadcast);
 
             #[cfg(feature = "hd-wallet")]
             let keygen = keygen.hd_wallet(hd_wallet);
@@ -55,7 +55,7 @@ fn keygen_works<E: Curve>(n: u16, reliable_broadcast: bool, hd_wallet: bool) {
     validate_keygen_output(&mut rng, &key_shares, hd_wallet);
 }
 
-cggmp21_tests::test_suite! {
+cggmp24_tests::test_suite! {
     test: threshold_keygen_works,
     generics: all_curves,
     suites: {
@@ -78,11 +78,11 @@ fn threshold_keygen_works<E: Curve>(t: u16, n: u16, reliable_broadcast: bool, hd
     let eid = ExecutionId::new(&eid);
 
     let key_shares = round_based::sim::run(n, |i, party| {
-        let party = cggmp21_tests::buffer_outgoing(party);
+        let party = cggmp24_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
 
         async move {
-            let keygen = cggmp21::keygen::<E>(eid, i, n)
+            let keygen = cggmp24::keygen::<E>(eid, i, n)
                 .enforce_reliable_broadcast(reliable_broadcast)
                 .set_threshold(t);
 
@@ -99,7 +99,7 @@ fn threshold_keygen_works<E: Curve>(t: u16, n: u16, reliable_broadcast: bool, hd
     validate_keygen_output(&mut rng, &key_shares, hd_wallet);
 }
 
-cggmp21_tests::test_suite! {
+cggmp24_tests::test_suite! {
     test: threshold_keygen_sync_works,
     generics: all_curves,
     suites: {
@@ -124,7 +124,7 @@ fn threshold_keygen_sync_works<E: Curve>(t: u16, n: u16, hd_wallet: bool) {
     let mut simulation = round_based::sim::Simulation::with_capacity(n);
     for (i, party_rng) in (0..).zip(&mut party_rng) {
         simulation.add_party({
-            let keygen = cggmp21::keygen::<E>(eid, i, n).set_threshold(t);
+            let keygen = cggmp24::keygen::<E>(eid, i, n).set_threshold(t);
 
             #[cfg(feature = "hd-wallet")]
             let keygen = keygen.hd_wallet(hd_wallet);
@@ -144,7 +144,7 @@ fn threshold_keygen_sync_works<E: Curve>(t: u16, n: u16, hd_wallet: bool) {
 
 fn validate_keygen_output<E: generic_ec::Curve>(
     rng: &mut impl rand::RngCore,
-    key_shares: &[cggmp21::IncompleteKeyShare<E>],
+    key_shares: &[cggmp24::IncompleteKeyShare<E>],
     hd_wallet: bool,
 ) {
     #[cfg(not(feature = "hd-wallet"))]

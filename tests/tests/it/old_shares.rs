@@ -14,11 +14,11 @@ fn deserialize_old_shares() {
         if file_name == "README.md" {
             continue;
         } else if file_name.contains("secp256k1") {
-            deserialize_old_share_on_curve::<cggmp21::supported_curves::Secp256k1>(share);
+            deserialize_old_share_on_curve::<cggmp24::supported_curves::Secp256k1>(share);
         } else if file_name.contains("secp256r1") {
-            deserialize_old_share_on_curve::<cggmp21::supported_curves::Secp256r1>(share);
+            deserialize_old_share_on_curve::<cggmp24::supported_curves::Secp256r1>(share);
         } else if file_name.contains("stark") {
-            deserialize_old_share_on_curve::<cggmp21::supported_curves::Stark>(share);
+            deserialize_old_share_on_curve::<cggmp24::supported_curves::Stark>(share);
         } else {
             panic!("couldn't figure out the curve from the share name {file_name}")
         }
@@ -33,7 +33,7 @@ fn deserialize_old_share_on_curve<E: generic_ec::Curve>(share: &include_dir::Fil
         .to_str()
         .expect("key share ext is not valid utf8");
 
-    let _: cggmp21::IncompleteKeyShare<E> = match ext {
+    let _: cggmp24::IncompleteKeyShare<E> = match ext {
         "json" => serde_json::from_slice(share.contents()).expect("deserialize share"),
         "cbor" => {
             let bytes =

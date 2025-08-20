@@ -1,9 +1,9 @@
-use cggmp21::{define_security_level, key_share::reconstruct_secret_key};
+use cggmp24::{define_security_level, key_share::reconstruct_secret_key};
 use generic_ec::{Curve, NonZero, Point, Scalar, SecretScalar};
 use rand::{seq::SliceRandom, Rng};
 use rand_dev::DevRng;
 
-use cggmp21::trusted_dealer;
+use cggmp24::trusted_dealer;
 
 /// Dummy security level that enables fast key generation
 #[derive(Clone)]
@@ -18,7 +18,7 @@ define_security_level!(DummyLevel {
     m: 128,
 });
 
-cggmp21_tests::test_suite! {
+cggmp24_tests::test_suite! {
     test: trusted_dealer_generates_correct_shares,
     generics: all_curves,
     suites: {
