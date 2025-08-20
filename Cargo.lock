@@ -324,7 +324,7 @@ dependencies = [
 
 [[package]]
 name = "cggmp24-keygen"
-version = "0.6.0-alpha.1"
+version = "0.7.0-alpha.1"
 dependencies = [
  "digest",
  "displaydoc",
@@ -1645,7 +1645,7 @@ dependencies = [
 
 [[package]]
 name = "paillier-zk"
-version = "0.5.0-alpha.1"
+version = "0.7.0-alpha.1"
 dependencies = [
  "anyhow",
  "digest",

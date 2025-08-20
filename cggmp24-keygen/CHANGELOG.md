@@ -1,6 +1,6 @@
 # CGGMP24 releases
 
-## v0.6.0
+## v0.7.0
 Update key generation protocol to follow the latest CGGMP24 paper revision.
 
 # CGGMP21 releases

@@ -1,6 +1,6 @@
 # CGGMP24 releases
 
-## v0.5.0
+## v0.7.0
 Proofs are updated to follow the latest CGGMP24 paper revision.
 
 # CGGMP21 releases
