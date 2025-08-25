@@ -26,15 +26,13 @@
 
 <!-- TOC ENDS -->
 
-[CGGMP24] is a state-of-art ECDSA TSS protocol that supports 1-round signing (requires preprocessing),
-identifiable abort, provides two signing protocols (3+1 and 5+1 rounds with different complexity
-of abort identification) and key refresh protocol out of the box.
+[CGGMP24] is a state-of-art ECDSA TSS protocol that supports 1-round signing (requires 3 preprocessing rounds),
+identifiable abort, and a key refresh protocol.
 
 This crate implements:
 * Threshold (i.e., t-out-of-n) and non-threshold (i.e., n-out-of-n) key generation
 * (3+1)-round general threshold and non-threshold signing
 * Auxiliary info generation protocol
-* Key refresh for non-threshold keys
 * HD-wallets support based on [slip10] standard (compatible with [bip32]) \
   Requires `hd-wallets` feature
 
@@ -45,16 +43,10 @@ We also provide auxiliary tools like:
 * Trusted dealer (importing key into TSS)
 
 This crate **does not** (currently) support:
-* Key refresh for threshold keys (i.e., t-out-of-n)
+* Key refresh for both threshold (i.e., t-out-of-n) and non-threshold (i.e., n-out-of-n) keys
 * Identifiable abort
-* The (5+1)-round signing protocol
 
 Our implementation has been audited by Kudelski. Report can be found [here][report].
-
-> About notion of threshold and non-threshold keys: originally, CGGMP24 paper does not have support of
-arbitrary `t` and only works with non-threshold n-out-of-n keys. We have added support of arbitrary
-threshold $2 \le t \le n$, however, we made it possible to opt out thresholdness so original CGGMP24
-protocol can be carried out if needed.
 
 ## Running the protocol
 
@@ -236,13 +228,7 @@ However, you may opt for them by enabling `spof` feature, then you can use `trus
 for key import and `key_share::reconstruct_secret_key` for key export.
 
 ## Differences between the implementation and CGGMP24
-[CGGMP24] only defines a non-threshold protocol. To support general thresholds,
-we defined our own CGGMP24-like key generation and threshold signing
-protocols. However, we keep both
-threshold and non-threshold versions of the protocols in the crate, so if you opt for the non-threshold
-protocol, you will be running the original protocol defined in the paper.
-
-There are other (small) differences in the implementation compared to the original paper (mostly typo fixes);
+There are small differences in the implementation compared to the original paper [CGGMP24] (mostly typo fixes);
 they are all documented in [the spec].
 
 [CGGMP24]: https://ia.cr/2021/060
