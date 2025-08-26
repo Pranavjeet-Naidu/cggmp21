@@ -34,7 +34,7 @@
 //! protocols for threshold t-out-of-n keys with arbitrary `t`, and only works with non-threshold
 //! n-out-of-n keys. We have added support for arbitrary threshold $2 \le t \le n$, however, we made
 //! it possible to opt out thresholdness so original CGGMP24 protocol can be carried out if needed.
-//! 
+//!
 //! ## Running the protocol
 //!
 //! ### Networking
