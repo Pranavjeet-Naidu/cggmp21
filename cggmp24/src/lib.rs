@@ -30,6 +30,11 @@
 //!
 //! Our implementation has been audited by Kudelski. Report can be found [here][report].
 //!
+//! > About notion of threshold and non-threshold keys: originally, the CGGMP24 paper does not specify
+//! protocols for threshold t-out-of-n keys with arbitrary `t`, and only works with non-threshold
+//! n-out-of-n keys. We have added support for arbitrary threshold $2 \le t \le n$, however, we made
+//! it possible to opt out thresholdness so original CGGMP24 protocol can be carried out if needed.
+//! 
 //! ## Running the protocol
 //!
 //! ### Networking
@@ -253,7 +258,13 @@
 //! for key import and [`key_share::reconstruct_secret_key`] for key export.
 //!
 //! ## Differences between the implementation and CGGMP24
-//! There are small differences in the implementation compared to the original paper [CGGMP24] (mostly typo fixes);
+//! [CGGMP24] only defines a non-threshold protocol. To support general thresholds,
+//! we defined our own CGGMP24-like key generation and threshold signing
+//! protocols. However, we keep both
+//! threshold and non-threshold versions of the protocols in the crate, so if you opt for the non-threshold
+//! protocol, you will be running the original protocol defined in the paper.
+//!
+//! There are other (small) differences in the implementation compared to the original paper (mostly typo fixes);
 //! they are all documented in [the spec].
 //!
 //! [CGGMP24]: https://ia.cr/2021/060
