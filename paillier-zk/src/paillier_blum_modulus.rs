@@ -38,7 +38,7 @@
 //!
 //! // 2. P sends `data, commitment, proof` to the verifier V
 //!
-//! # fn send(_: &p::Data, _: &p::non_interactive::Proof<{SECURITY}>) { }
+//! # fn send(_: &p::Data, _: &p::NiProof<{SECURITY}>) { }
 //! send(&data, &proof);
 //!
 //! // 3. V receives and verifies the proof:
@@ -101,8 +101,8 @@ pub struct ProofPoint {
     pub z: Integer,
 }
 
-/// The ZK proof. Computed by [`interactive::prove`] or
-/// [`non_interactive::prove`]. Consists of M proofs for each challenge
+/// The ZK proof. Computed by [`interactive::prove`].
+/// Consists of M proofs for each challenge
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Proof<const M: usize> {
@@ -112,6 +112,15 @@ pub struct Proof<const M: usize> {
         serde(with = "serde_with::As::<[serde_with::Same; M]>")
     )]
     pub points: [ProofPoint; M],
+}
+
+/// The non-interactive ZK proof. Computed by [`non_interactive::prove`].
+/// Combines commitment and proof.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct NiProof<const M: usize> {
+    pub commitment: Commitment,
+    pub proof: Proof<M>,
 }
 
 /// The interactive version of the ZK proof. Should be completed in 3 rounds:
@@ -240,17 +249,7 @@ pub mod non_interactive {
 
     use crate::{Error, InvalidProof};
 
-    use super::{Challenge, Commitment, Data, PrivateData};
-
-    #[cfg(feature = "serde")]
-    use serde::{Deserialize, Serialize};
-    /// The Non-interactive ZK proof. Combines commitment and proof.
-    #[derive(Debug, Clone)]
-    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub struct Proof<const M: usize> {
-        pub commitment: Commitment,
-        pub proof: super::Proof<M>,
-    }
+    use super::{Challenge, Commitment, Data, NiProof, PrivateData};
 
     /// Compute proof for the given data, producing random commitment and
     /// deriving determenistic challenge.
@@ -261,18 +260,18 @@ pub mod non_interactive {
         data: Data,
         pdata: PrivateData,
         rng: &mut impl rand_core::RngCore,
-    ) -> Result<Proof<M>, Error> {
+    ) -> Result<NiProof<M>, Error> {
         let commitment = super::interactive::commit(data, rng);
         let challenge = challenge::<M, D>(shared_state, data, &commitment);
         let proof = super::interactive::prove(data, pdata, &commitment, &challenge)?;
-        Ok(Proof { commitment, proof })
+        Ok(NiProof { commitment, proof })
     }
 
     /// Verify the proof, deriving challenge independently from same data
     pub fn verify<const M: usize, D: Digest>(
         shared_state: &impl udigest::Digestable,
         data: Data,
-        proof: &Proof<M>,
+        proof: &NiProof<M>,
     ) -> Result<(), InvalidProof> {
         let challenge = challenge::<M, D>(shared_state, data, &proof.commitment);
         super::interactive::verify(data, &proof.commitment, &challenge, &proof.proof)
@@ -337,9 +336,9 @@ mod test {
         let data = super::Data { n: &n };
         let pdata = super::PrivateData { p: &p, q: &q };
         let shared_state = "shared state";
-        let niproof =
+        let proof =
             super::non_interactive::prove::<65, D>(&shared_state, data, pdata, &mut rng).unwrap();
-        let r = super::non_interactive::verify::<65, D>(&shared_state, data, &niproof);
+        let r = super::non_interactive::verify::<65, D>(&shared_state, data, &proof);
         if r.is_ok() {
             panic!("proof should not pass");
         }

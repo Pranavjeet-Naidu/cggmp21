@@ -93,7 +93,7 @@ pub struct MsgRound2<L: SecurityLevel> {
 pub struct MsgRound3 {
     /// $\psi_i$
     // this should be L::M instead, but no rustc support yet
-    pub mod_proof: π_mod::non_interactive::Proof<{ crate::security_level::M }>,
+    pub mod_proof: π_mod::NiProof<{ crate::security_level::M }>,
     /// $\phi_i^j$
     pub fac_proof: π_fac::Proof,
 }
