@@ -93,10 +93,7 @@ pub struct MsgRound2<L: SecurityLevel> {
 pub struct MsgRound3 {
     /// $\psi_i$
     // this should be L::M instead, but no rustc support yet
-    pub mod_proof: (
-        π_mod::Commitment,
-        π_mod::Proof<{ crate::security_level::M }>,
-    ),
+    pub mod_proof: π_mod::NiProof<{ crate::security_level::M }>,
     /// $\phi_i^j$
     pub fac_proof: π_fac::Proof,
 }
@@ -438,7 +435,6 @@ where
         &decommitments,
         &shares_msg_b,
         |j, decommitment, proof_msg| {
-            let (comm, proof) = &proof_msg.mod_proof;
             π_mod::non_interactive::verify::<{ crate::security_level::M }, D>(
                 &unambiguous::ProofMod {
                     sid,
@@ -446,8 +442,7 @@ where
                     prover: j,
                 },
                 π_mod::Data { n: &decommitment.N },
-                comm,
-                proof,
+                &proof_msg.mod_proof,
             )
             .is_err()
         },
