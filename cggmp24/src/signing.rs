@@ -218,9 +218,9 @@ pub mod msg {
         /// $\psi_i$
         pub tilde_psi: pi_elog::NiProof<E>,
         /// $\psi_{j,i}$
-        pub psi_j: (pi_aff::Commitment<E>, pi_aff::Proof),
+        pub psi_j: pi_aff::NiProof<E>,
         /// $\hat \psi_{j,i}$
-        pub hat_psi_j: (pi_aff::Commitment<E>, pi_aff::Proof),
+        pub hat_psi_j: pi_aff::NiProof<E>,
     }
 
     /// Message from round 3
@@ -1160,9 +1160,8 @@ where
                     y: &msg.F,
                     x: &msg.Gamma,
                 },
-                &msg.psi_j.0,
                 &security_params.pi_aff,
-                &msg.psi_j.1,
+                &msg.psi_j,
             )
             .err();
 
@@ -1182,9 +1181,8 @@ where
                     y: &msg.hat_F,
                     x: &X_j,
                 },
-                &msg.hat_psi_j.0,
                 &security_params.pi_aff,
-                &msg.hat_psi_j.1,
+                &msg.hat_psi_j,
             )
             .err();
 

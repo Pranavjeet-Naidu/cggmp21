@@ -119,7 +119,7 @@
 //!     nonce: &nonce,
 //!     nonce_y: &nonce_y,
 //! };
-//! let (commitment, proof) =
+//! let proof =
 //!     p::non_interactive::prove::<E, sha2::Sha256>(
 //!         &shared_state,
 //!         &aux,
@@ -132,18 +132,17 @@
 //! // 5. Prover sends this data to verifier
 //!
 //! # use generic_ec::Curve;
-//! # fn send<E: Curve>(_: &p::Data<E>, _: &p::Commitment<E>, _: &p::Proof) {  }
-//! send(&data, &commitment, &proof);
+//! # fn send<E: Curve>(_: &p::Data<E>, _: &p::NiProof<E>) {  }
+//! send(&data, &proof);
 //!
 //! // 6. Verifier receives the data and the proof and verifies it
 //!
-//! # let recv = || (data, commitment, proof);
-//! let (data, commitment, proof) = recv();
+//! # let recv = || (data, proof);
+//! let (data, proof) = recv();
 //! let r = p::non_interactive::verify::<E, sha2::Sha256>(
 //!     &shared_state,
 //!     &aux,
 //!     data,
-//!     &commitment,
 //!     &security,
 //!     &proof,
 //! )?;
@@ -249,8 +248,7 @@ pub struct PrivateCommitment {
 /// [`non_interactive::challenge`] or randomly by [`interactive::challenge`]
 pub type Challenge = Integer;
 
-/// The ZK proof. Computed by [`interactive::prove`] or
-/// [`non_interactive::prove`]
+/// The ZK proof. Computed by [`interactive::prove`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Proof {
@@ -260,6 +258,16 @@ pub struct Proof {
     pub z4: Integer,
     pub w: Integer,
     pub w_y: Integer,
+}
+
+/// The non-interactive ZK proof. Computed by [`non_interactive::prove`].
+/// Combines commitment and proof.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
+pub struct NiProof<C: Curve> {
+    pub commitment: Commitment<C>,
+    pub proof: Proof,
 }
 
 /// The interactive version of the ZK proof. Should be completed in 3 rounds:
@@ -446,7 +454,7 @@ pub mod non_interactive {
 
     use crate::{Error, InvalidProof};
 
-    use super::{Aux, Challenge, Commitment, Data, PrivateData, Proof, SecurityParams};
+    use super::{Aux, Challenge, Commitment, Data, NiProof, PrivateData, SecurityParams};
 
     /// Compute proof for the given data, producing random commitment and
     /// deriving determenistic challenge.
@@ -459,11 +467,11 @@ pub mod non_interactive {
         pdata: PrivateData,
         security: &SecurityParams,
         rng: &mut impl rand_core::RngCore,
-    ) -> Result<(Commitment<C>, Proof), Error> {
-        let (comm, pcomm) = super::interactive::commit(aux, data, pdata, security, rng)?;
-        let challenge = challenge::<C, D>(shared_state, aux, data, &comm, security);
+    ) -> Result<NiProof<C>, Error> {
+        let (commitment, pcomm) = super::interactive::commit(aux, data, pdata, security, rng)?;
+        let challenge = challenge::<C, D>(shared_state, aux, data, &commitment, security);
         let proof = super::interactive::prove(data, pdata, &pcomm, &challenge)?;
-        Ok((comm, proof))
+        Ok(NiProof { commitment, proof })
     }
 
     /// Verify the proof, deriving challenge independently from same data
@@ -471,12 +479,18 @@ pub mod non_interactive {
         shared_state: &impl udigest::Digestable,
         aux: &Aux,
         data: Data<C>,
-        commitment: &Commitment<C>,
         security: &SecurityParams,
-        proof: &Proof,
+        proof: &NiProof<C>,
     ) -> Result<(), InvalidProof> {
-        let challenge = challenge::<C, D>(shared_state, aux, data, commitment, security);
-        super::interactive::verify(aux, data, commitment, security, &challenge, proof)
+        let challenge = challenge::<C, D>(shared_state, aux, data, &proof.commitment, security);
+        super::interactive::verify(
+            aux,
+            data,
+            &proof.commitment,
+            security,
+            &challenge,
+            &proof.proof,
+        )
     }
 
     /// Deterministically compute challenge based on prior known values in protocol
@@ -551,17 +565,10 @@ mod test {
 
         let shared_state = "shared state";
 
-        let (commitment, proof) =
+        let proof =
             super::non_interactive::prove::<C, D>(&shared_state, &aux, data, pdata, &security, rng)
                 .unwrap();
-        super::non_interactive::verify::<C, D>(
-            &shared_state,
-            &aux,
-            data,
-            &commitment,
-            &security,
-            &proof,
-        )
+        super::non_interactive::verify::<C, D>(&shared_state, &aux, data, &security, &proof)
     }
 
     fn passing_test<C: Curve, D: Digest>() {
