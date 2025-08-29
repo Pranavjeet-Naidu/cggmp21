@@ -196,9 +196,9 @@ pub mod msg {
     #[serde(bound = "")]
     pub struct MsgRound1b<E: Curve> {
         /// $\psi^0_{j,i}$
-        pub psi0: (pi_enc_elg::Commitment<E>, pi_enc_elg::Proof<E>),
+        pub psi0: pi_enc_elg::NiProof<E>,
         /// $\psi^1_{j,i}$
-        pub psi1: (pi_enc_elg::Commitment<E>, pi_enc_elg::Proof<E>),
+        pub psi1: pi_enc_elg::NiProof<E>,
     }
 
     /// Message from round 2
@@ -904,8 +904,7 @@ where
                     b: &ciphertexts.A1,
                     x: &ciphertexts.A2,
                 },
-                &proof.psi0.0,
-                &proof.psi0.1,
+                &proof.psi0,
                 &security_params.pi_enc_elg,
             )
             .err()?;
@@ -923,8 +922,7 @@ where
                     b: &ciphertexts.B1,
                     x: &ciphertexts.B2,
                 },
-                &proof.psi1.0,
-                &proof.psi1.1,
+                &proof.psi1,
                 &security_params.pi_enc_elg,
             )
             .err()
