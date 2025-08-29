@@ -216,7 +216,7 @@ pub mod msg {
         /// $\hat F_{j,i}$
         pub hat_F: fast_paillier::Ciphertext,
         /// $\psi_i$
-        pub tilde_psi: (pi_elog::Commitment<E>, pi_elog::Proof<E>),
+        pub tilde_psi: pi_elog::NiProof<E>,
         /// $\psi_{j,i}$
         pub psi_j: (pi_aff::Commitment<E>, pi_aff::Proof),
         /// $\hat \psi_{j,i}$
@@ -234,7 +234,7 @@ pub mod msg {
         /// $\Delta_i$
         pub Delta: Point<E>,
         /// $\psi'_i$
-        pub psi_prime: (pi_elog::Commitment<E>, pi_elog::Proof<E>),
+        pub psi_prime: pi_elog::NiProof<E>,
     }
 
     /// Message from round 4
@@ -1142,8 +1142,7 @@ where
                     y: &msg.Gamma,
                     h: &Point::generator().to_point(),
                 },
-                &msg.tilde_psi.0,
-                &msg.tilde_psi.1,
+                &msg.tilde_psi,
             )
             .err();
 
@@ -1296,8 +1295,7 @@ where
                     y: &msg_j.Delta,
                     h: &Gamma,
                 },
-                &msg_j.psi_prime.0,
-                &msg_j.psi_prime.1,
+                &msg_j.psi_prime,
             )
             .err()
         });
