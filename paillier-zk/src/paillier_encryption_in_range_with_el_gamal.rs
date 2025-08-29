@@ -175,7 +175,7 @@ pub struct PrivateCommitment<E: Curve> {
 /// [`non_interactive::challenge`] or randomly by [`interactive::challenge`]
 pub type Challenge = Integer;
 
-/// Range Proof with El-Gamal commitment.Computed by [`interactive::prove`]
+/// Range Proof with El-Gamal commitment. Computed by [`interactive::prove`]
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct Proof<E: Curve> {
