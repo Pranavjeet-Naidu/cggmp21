@@ -1,8 +1,7 @@
 use digest::Digest;
 use futures::SinkExt;
 use paillier_zk::{
-    no_small_factor::non_interactive as π_fac,
-    paillier_blum_modulus as π_mod,
+    no_small_factor as π_fac, paillier_blum_modulus as π_mod,
     rug::{Complete, Integer},
 };
 use rand_core::{CryptoRng, RngCore};
@@ -95,7 +94,7 @@ pub struct MsgRound3 {
     // this should be L::M instead, but no rustc support yet
     pub mod_proof: π_mod::NiProof<{ crate::security_level::M }>,
     /// $\phi_i^j$
-    pub fac_proof: π_fac::Proof,
+    pub fac_proof: π_fac::NiProof,
 }
 
 /// Message from an optional round that enforces reliability check
@@ -380,7 +379,7 @@ where
         tracer.send_msg();
 
         tracer.stage("Compute П_fac (ψ'_i,j)");
-        let psi_prime = π_fac::prove::<D>(
+        let psi_prime = π_fac::non_interactive::prove::<D>(
             &unambiguous::ProofFac {
                 sid,
                 rho: rho_bytes.as_ref(),
@@ -459,7 +458,7 @@ where
         &decommitments,
         &shares_msg_b,
         |j, decommitment, proof_msg| {
-            π_fac::verify::<D>(
+            π_fac::non_interactive::verify::<D>(
                 &unambiguous::ProofFac {
                     sid,
                     rho: rho_bytes.as_ref(),
