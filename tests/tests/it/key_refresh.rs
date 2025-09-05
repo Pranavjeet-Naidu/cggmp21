@@ -90,7 +90,7 @@ where
                 cggmp21::signing(eid, i, participants, share)
                     .set_progress_tracer(tracer)
                     .enforce_reliable_broadcast(reliable_broadcast)
-                    .sign(&mut party_rng, party, message_to_sign)
+                    .sign(&mut party_rng, party, &message_to_sign)
                     .await
             }
         },

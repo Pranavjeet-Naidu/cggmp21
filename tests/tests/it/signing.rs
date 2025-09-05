@@ -83,7 +83,7 @@ where
             signing
         };
 
-        async move { signing.sign(&mut party_rng, party, message_to_sign).await }
+        async move { signing.sign(&mut party_rng, party, &message_to_sign).await }
     })
     .unwrap()
     .expect_ok()
@@ -147,14 +147,27 @@ where
 
     let participants_shares = participants.iter().map(|i| &shares[usize::from(*i)]);
 
+    #[cfg(feature = "hd-wallet")]
+    let derivation_path = if hd_wallet {
+        Some(cggmp21_tests::random_derivation_path(&mut rng))
+    } else {
+        None
+    };
+
     let presigs = round_based::sim::run_with_setup(participants_shares, |i, party, share| {
         let party = cggmp21_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
+        let derivation_path = derivation_path.clone();
 
         async move {
-            cggmp21::signing(eid, i, participants, share)
-                .generate_presignature(&mut party_rng, party)
-                .await
+            let mut signing = cggmp21::signing(eid, i, participants, share);
+            #[cfg(feature = "hd-wallet")]
+            if let Some(path) = derivation_path {
+                signing = signing
+                    .set_derivation_path_with_algo::<E::HdAlgo, _>(path.iter().copied())
+                    .unwrap();
+            }
+            signing.generate_presignature(&mut party_rng, party).await
         }
     })
     .unwrap()
@@ -167,13 +180,6 @@ where
     rng.fill_bytes(&mut original_message_to_sign);
     let message_to_sign = DataToSign::digest::<Sha256>(&original_message_to_sign);
 
-    #[cfg(feature = "hd-wallet")]
-    let derivation_path = if hd_wallet {
-        Some(cggmp21_tests::random_derivation_path(&mut rng))
-    } else {
-        None
-    };
-
     // all presig commitments must be same
     for (i, (_, commitment)) in presigs.iter().enumerate() {
         assert_eq!(presigs[0].1, *commitment, "cmp(0, {i})")
@@ -182,21 +188,7 @@ where
 
     let partial_signatures = presigs
         .into_iter()
-        .map(|(presig, _commitments)| {
-            #[cfg(feature = "hd-wallet")]
-            let presig = if let Some(derivation_path) = &derivation_path {
-                let epub = shares[0].extended_public_key().expect("not hd wallet");
-                presig
-                    .set_derivation_path_with_algo::<E::HdAlgo, _>(
-                        epub,
-                        derivation_path.iter().copied(),
-                    )
-                    .unwrap()
-            } else {
-                presig
-            };
-            presig.issue_partial_signature(message_to_sign)
-        })
+        .map(|(presig, _commitments)| presig.issue_partial_signature(message_to_sign))
         .collect::<Vec<_>>();
 
     let signature =
@@ -294,7 +286,7 @@ where
                 signing
             };
 
-            signing.sign_sync(signer_rng, message_to_sign)
+            signing.sign_sync(signer_rng, &message_to_sign)
         })
     }
 

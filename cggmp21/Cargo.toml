@@ -55,6 +55,10 @@ hd-slip10 = ["hd-wallet/slip10"]
 hd-stark = ["hd-wallet/stark"]
 spof = ["key-share/spof"]
 
+# Exposes insecure API which may lead to security vulnerabilities when used inappropriately. Only
+# for advanced users. Be sure you fully understand the implications if you enable this feature.
+insecure-assume-preimage-known = []
+
 state-machine = ["cggmp21-keygen/state-machine"]
 
 [package.metadata.docs.rs]

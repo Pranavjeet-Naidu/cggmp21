@@ -251,7 +251,7 @@ fn do_becnhmarks<L: SecurityLevel>(args: Args) {
                 async move {
                     let _signature = cggmp21::signing(eid, i, signers_indexes_at_keygen, share)
                         .set_progress_tracer(&mut profiler)
-                        .sign(&mut party_rng, party, message_to_sign)
+                        .sign(&mut party_rng, party, &message_to_sign)
                         .await
                         .context("signing failed")?;
                     profiler.get_report().context("get perf report")
