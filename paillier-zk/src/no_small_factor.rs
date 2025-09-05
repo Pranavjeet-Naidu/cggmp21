@@ -12,7 +12,7 @@
 //!
 //! ```rust
 //! use rug::{Integer, Complete};
-//! use paillier_zk::no_small_factor::non_interactive as p;
+//! use paillier_zk::no_small_factor as p;
 //! # mod pregenerated {
 //! #     use super::*;
 //! #     paillier_zk::load_pregenerated_data!(
@@ -47,7 +47,7 @@
 //!
 //! // 2. Prover computes a non-interactive proof that both factors are large enough
 //!
-//! let proof = p::prove::<sha2::Sha256>(
+//! let proof = p::non_interactive::prove::<sha2::Sha256>(
 //!     &shared_state,
 //!     &aux,
 //!     data,
@@ -58,7 +58,7 @@
 //!
 //! // 4. Prover sends this data to verifier
 //!
-//! # fn send(_: &Integer, _: &p::Proof) {  }
+//! # fn send(_: &Integer, _: &p::NiProof) {  }
 //! send(data.n, &proof);
 //!
 //! // 5. Verifier receives the data and the proof and verifies it
@@ -70,7 +70,7 @@
 //!     n: &n,
 //!     n_root: &n_root,
 //! };
-//! p::verify::<sha2::Sha256>(&shared_state, &aux, data, &security, &proof)?;
+//! p::non_interactive::verify::<sha2::Sha256>(&shared_state, &aux, data, &security, &proof)?;
 //! # Ok(()) }
 //! ```
 //!
@@ -158,6 +158,15 @@ pub struct Proof {
     pub v: Integer,
 }
 
+/// The non-interactive ZK proof. Computed by [`non_interactive::prove`].
+/// Combines commitment and proof.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct NiProof {
+    commitment: Commitment,
+    proof: Proof,
+}
+
 /// Interactive version of the proof
 pub mod interactive {
     use rand_core::RngCore;
@@ -188,13 +197,13 @@ pub mod interactive {
         let aux_n_at_two_to_l_plus_e = (&two_to_l_plus_e * &aux.rsa_modulo).complete();
         let n_at_aux_n = (&aux.rsa_modulo * data.n).complete();
 
-        let alpha = Integer::from_rng_pm(&n_root_at_two_to_l_plus_e, &mut rng);
-        let beta = Integer::from_rng_pm(&n_root_at_two_to_l_plus_e, &mut rng);
-        let mu = Integer::from_rng_pm(&aux_n_at_two_to_l, &mut rng);
-        let nu = Integer::from_rng_pm(&aux_n_at_two_to_l, &mut rng);
-        let r = Integer::from_rng_pm(&(&two_to_l_plus_e * &n_at_aux_n).complete(), &mut rng);
-        let x = Integer::from_rng_pm(&aux_n_at_two_to_l_plus_e, &mut rng);
-        let y = Integer::from_rng_pm(&aux_n_at_two_to_l_plus_e, &mut rng);
+        let alpha = Integer::from_rng_half_pm(&n_root_at_two_to_l_plus_e, &mut rng);
+        let beta = Integer::from_rng_half_pm(&n_root_at_two_to_l_plus_e, &mut rng);
+        let mu = Integer::from_rng_half_pm(&aux_n_at_two_to_l, &mut rng);
+        let nu = Integer::from_rng_half_pm(&aux_n_at_two_to_l, &mut rng);
+        let r = Integer::from_rng_half_pm(&(&two_to_l_plus_e * &n_at_aux_n).complete(), &mut rng);
+        let x = Integer::from_rng_half_pm(&aux_n_at_two_to_l_plus_e, &mut rng);
+        let y = Integer::from_rng_half_pm(&aux_n_at_two_to_l_plus_e, &mut rng);
 
         let p = aux.combine(pdata.p, &mu)?;
         let q = aux.combine(pdata.q, &nu)?;
@@ -219,7 +228,7 @@ pub mod interactive {
     ///
     /// `security` parameter is used to generate challenge in correct range
     pub fn challenge<R: RngCore>(security: &SecurityParams, rng: &mut R) -> Challenge {
-        Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), rng)
+        Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), rng)
     }
 
     /// Compute proof for given data and prior protocol values
@@ -294,9 +303,15 @@ pub mod interactive {
         }
         let range = (Integer::from(1) << (security.l + security.epsilon)) * data.n_root;
         // range check for z1
-        fail_if(InvalidProofReason::RangeCheck(1), proof.z1.is_in_pm(&range))?;
+        fail_if(
+            InvalidProofReason::RangeCheck(1),
+            proof.z1.is_in_half_pm(&range),
+        )?;
         // range check for z2
-        fail_if(InvalidProofReason::RangeCheck(2), proof.z2.is_in_pm(&range))?;
+        fail_if(
+            InvalidProofReason::RangeCheck(2),
+            proof.z2.is_in_half_pm(&range),
+        )?;
 
         Ok(())
     }
@@ -308,15 +323,7 @@ pub mod non_interactive {
 
     pub use crate::{Error, InvalidProof};
 
-    pub use super::{Aux, Challenge, Data, PrivateData, SecurityParams};
-
-    /// The ZK proof, computed by [`prove`]
-    #[derive(Debug, Clone)]
-    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-    pub struct Proof {
-        commitment: super::Commitment,
-        proof: super::Proof,
-    }
+    pub use super::{Aux, Challenge, Data, NiProof, PrivateData, SecurityParams};
 
     /// Compute proof for the given data, producing random commitment and
     /// deriving determenistic challenge.
@@ -329,11 +336,11 @@ pub mod non_interactive {
         pdata: PrivateData,
         security: &SecurityParams,
         rng: &mut impl rand_core::RngCore,
-    ) -> Result<Proof, Error> {
+    ) -> Result<NiProof, Error> {
         let (commitment, pcomm) = super::interactive::commit(aux, data, pdata, security, rng)?;
         let challenge = challenge::<D>(shared_state, aux, data, &commitment, security);
         let proof = super::interactive::prove(pdata, &pcomm, &challenge)?;
-        Ok(Proof { commitment, proof })
+        Ok(NiProof { commitment, proof })
     }
 
     /// Deterministically compute challenge based on prior known values in protocol
@@ -362,7 +369,7 @@ pub mod non_interactive {
         aux: &Aux,
         data: Data,
         security: &SecurityParams,
-        proof: &Proof,
+        proof: &NiProof,
     ) -> Result<(), InvalidProof> {
         let challenge = challenge::<D>(shared_state, aux, data, &proof.commitment, security);
         super::interactive::verify(

@@ -1,5 +1,5 @@
-use cggmp21::key_share::AnyKeyShare;
-use cggmp21_tests::{convert_from_stark_scalar, convert_stark_scalar};
+use cggmp24::key_share::AnyKeyShare;
+use cggmp24_tests::{convert_from_stark_scalar, convert_stark_scalar};
 use generic_ec::{coords::HasAffineX, curves::Stark};
 use rand::{seq::SliceRandom, Rng};
 use rand_dev::DevRng;
@@ -10,12 +10,12 @@ fn sign_transaction() {
     let t = Some(2);
     let n = 3;
 
-    let shares = cggmp21_tests::CACHED_SHARES
+    let shares = cggmp24_tests::CACHED_SHARES
         .get_shares::<Stark>(t, n, false)
         .expect("retrieve cached shares");
 
     let eid: [u8; 32] = rng.gen();
-    let eid = cggmp21::ExecutionId::new(&eid);
+    let eid = cggmp24::ExecutionId::new(&eid);
 
     let fe = |hex| starknet_crypto::FieldElement::from_hex_be(hex).unwrap();
     let sep = |hex, idx| starknet_core::types::SierraEntryPoint {
@@ -57,10 +57,10 @@ fn sign_transaction() {
 
     // convert to cggmp scalar multiple ways to sanity check
     let bytes = transaction_hash.to_bytes_be();
-    let s1 = cggmp21::generic_ec::Scalar::from_be_bytes_mod_order(bytes);
+    let s1 = cggmp24::generic_ec::Scalar::from_be_bytes_mod_order(bytes);
     let s2 = convert_from_stark_scalar(&transaction_hash).unwrap();
     assert_eq!(s1, s2);
-    let cggmp_transaction_hash = cggmp21::PrehashedDataToSign::from_scalar(s2);
+    let cggmp_transaction_hash = cggmp24::PrehashedDataToSign::from_scalar(s2);
 
     // Choose `t` signers to perform signing
     let t = shares[0].min_signers();
@@ -71,11 +71,11 @@ fn sign_transaction() {
     let participants_shares = participants.iter().map(|i| &shares[usize::from(*i)]);
 
     let sig = round_based::sim::run_with_setup(participants_shares, |i, party, share| {
-        let party = cggmp21_tests::buffer_outgoing(party);
+        let party = cggmp24_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
 
         async move {
-            cggmp21::signing(eid, i, participants, share)
+            cggmp24::signing(eid, i, participants, share)
                 .sign(&mut party_rng, party, &cggmp_transaction_hash)
                 .await
         }

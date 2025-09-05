@@ -3,7 +3,7 @@ pub mod sqrt;
 use std::sync::Arc;
 
 use generic_ec::Scalar;
-use rug::{Complete, Integer};
+use rug::Integer;
 
 /// Auxiliary data known to both prover and verifier
 #[cfg_attr(
@@ -171,17 +171,15 @@ pub trait IntegerExt: Sized {
     /// Returns prime order of curve C
     fn curve_order<C: generic_ec::Curve>() -> Self;
 
-    /// Generates a random integer in interval `[-range; range]`
-    fn from_rng_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self;
+    /// Generates a random integer in interval
+    /// `[-range/2; range/2]` if range is even
+    /// `[-(range-1)/2; (range-1)/2]` if range is odd
+    fn from_rng_half_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self;
 
-    /// Checks whether `self` is in interval `[-range; range]`
-    fn is_in_pm(&self, range: &Self) -> bool;
-
-    /// Returns `self smod n`
-    ///
-    /// For odd `n`, result is in `{-n/2, .., n/2}`. For even `n`, result is in
-    /// `{-n/2, .., n/2 - 1}`
-    fn signed_modulo(&self, n: &Self) -> Self;
+    /// Checks whether `self` is in interval
+    /// `[-range/2; range/2]` when range is even
+    /// `[-(range-1)/2; (range-1)/2]` when range is odd
+    fn is_in_half_pm(&self, range: &Self) -> bool;
 }
 
 impl IntegerExt for Integer {
@@ -221,25 +219,31 @@ impl IntegerExt for Integer {
         i + 1
     }
 
-    fn from_rng_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self {
+    fn from_rng_half_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self {
         let mut rng = fast_paillier::utils::external_rand(rng);
-        let range_twice = range.clone() << 1u32;
-        range_twice.random_below(&mut rng) - range
-    }
 
-    fn is_in_pm(&self, range: &Self) -> bool {
-        let minus_range = -range.clone();
-        minus_range <= *self && self <= range
-    }
-
-    fn signed_modulo(&self, n: &Self) -> Self {
-        let self_mod_n = self.modulo_ref(n).complete();
-        let half_n = (n >> 1_u32).complete();
-        if half_n.is_odd() && self_mod_n <= half_n || self_mod_n < half_n {
-            self_mod_n
-        } else {
-            self_mod_n - n
+        if range.is_even() {
+            let half_range = range.clone() >> 1u32;
+            let range_plus_one = range.clone() + Integer::ONE;
+            return range_plus_one.random_below(&mut rng) - half_range;
         }
+
+        let range_minus_one = range.clone() - Integer::ONE;
+        let half_range_minus_one = range_minus_one >> 1u32;
+        range.clone().random_below(&mut rng) - half_range_minus_one
+    }
+
+    fn is_in_half_pm(&self, range: &Self) -> bool {
+        if range.is_even() {
+            let upper_bound = range.clone() >> 1u32;
+            let lower_bound = -upper_bound.clone();
+            return lower_bound <= *self && *self <= upper_bound;
+        }
+
+        let range_minus_one = range.clone() - Integer::ONE;
+        let upper_bound = range_minus_one >> 1u32;
+        let lower_bound = -upper_bound.clone();
+        lower_bound <= *self && *self <= upper_bound
     }
 }
 
@@ -394,27 +398,6 @@ mod _test {
     }
 
     #[test]
-    fn signed_modulo() {
-        let n = Integer::from(7);
-
-        assert_eq!(Integer::from(0).signed_modulo(&n), 0);
-        assert_eq!(Integer::from(1).signed_modulo(&n), 1);
-        assert_eq!(Integer::from(2).signed_modulo(&n), 2);
-        assert_eq!(Integer::from(3).signed_modulo(&n), 3);
-        assert_eq!(Integer::from(4).signed_modulo(&n), -3);
-        assert_eq!(Integer::from(5).signed_modulo(&n), -2);
-        assert_eq!(Integer::from(6).signed_modulo(&n), -1);
-        assert_eq!(Integer::from(7).signed_modulo(&n), 0);
-        assert_eq!(Integer::from(8).signed_modulo(&n), 1);
-
-        let n = Integer::from(4);
-        assert_eq!(Integer::from(0).signed_modulo(&n), 0);
-        assert_eq!(Integer::from(1).signed_modulo(&n), 1);
-        assert_eq!(Integer::from(2).signed_modulo(&n), -2);
-        assert_eq!(Integer::from(3).signed_modulo(&n), -1);
-    }
-
-    #[test]
     fn multiexp() {
         let mut rng = rand_dev::DevRng::new();
         let mut aux = super::test::aux(&mut rng);
@@ -461,5 +444,113 @@ mod _test {
             let expected = aux.rsa_modulo.combine(&aux.s, &x, &aux.t, &y).unwrap();
             assert_eq!(actual, expected);
         }
+    }
+
+    #[test]
+    fn test_from_rng_half_pm_bounds() {
+        let mut rng = rand_dev::DevRng::new();
+        // Testing even case
+        let range = Integer::from(10);
+        let upper_bound = range.clone() >> 1u32;
+        let lower_bound = -upper_bound.clone();
+        let mut min = Integer::from(0);
+        let mut max = Integer::from(0);
+
+        // Obtaining lower and upper bounds
+        for _ in 0..10000 {
+            let value = Integer::from_rng_half_pm(&range, &mut rng);
+            if value > max {
+                max = value.clone();
+            }
+            if value < min {
+                min = value.clone();
+            }
+        }
+
+        assert_eq!(
+            min, lower_bound,
+            "Minimum value {min} did not match expected lower bound {lower_bound}"
+        );
+        assert_eq!(
+            max, upper_bound,
+            "Maximum value {max} did not match expected upper bound {upper_bound}"
+        );
+
+        // Testing odd case
+        let range = Integer::from(9);
+        let range_minus_one = range.clone() - Integer::ONE.clone();
+        let upper_bound = range_minus_one >> 1u32;
+        let lower_bound = -upper_bound.clone();
+        let mut min = Integer::from(0);
+        let mut max = Integer::from(0);
+
+        // Obtaining lower and upper bounds
+        for _ in 0..10000 {
+            let value = Integer::from_rng_half_pm(&range, &mut rng);
+            if value > max {
+                max = value.clone();
+            }
+            if value < min {
+                min = value.clone();
+            }
+        }
+
+        assert_eq!(
+            min, lower_bound,
+            "Minimum value {min} did not match expected lower bound {lower_bound}"
+        );
+        assert_eq!(
+            max, upper_bound,
+            "Maximum value {max} did not match expected upper bound {upper_bound}"
+        );
+    }
+
+    #[test]
+    fn test_is_in_half_pm() {
+        // Testing even case
+        let range = Integer::from(10);
+        let a_1 = Integer::from(-6);
+        let a_2 = Integer::from(-5);
+        let a_3 = Integer::from(5);
+        let a_4 = Integer::from(6);
+        assert!(
+            !a_1.is_in_half_pm(&range),
+            "{a_1} should be outside [-range/2,range/2]"
+        );
+        assert!(
+            a_2.is_in_half_pm(&range),
+            "{a_2} should be in [-range/2,range/2]"
+        );
+        assert!(
+            a_3.is_in_half_pm(&range),
+            "{a_3} should be in [-range/2,range/2]"
+        );
+        assert!(
+            !a_4.is_in_half_pm(&range),
+            "{a_4} should be outside [-range/2,range/2]"
+        );
+
+        // Testing odd case
+        let range = Integer::from(9);
+        let a_1 = Integer::from(-5);
+        let a_2 = Integer::from(-4);
+        let a_3 = Integer::from(4);
+        let a_4 = Integer::from(5);
+        assert!(
+            !a_1.is_in_half_pm(&range),
+            "{a_1} should be outside [-(range-1)/2,(range-1)/2]"
+        );
+        assert!(
+            a_2.is_in_half_pm(&range),
+            "{a_1} should be in [-(range-1)/2,(range-1)/2]"
+        );
+        assert!(
+            a_3.is_in_half_pm(&range),
+            "{a_3} should be in [-(range-1)/2,(range-1)/2]"
+        );
+        assert!(
+            !a_4.is_in_half_pm(&range),
+            "{a_4} should be outside [-(range-1)/2,(range-1)/2]"
+        );
     }
 }

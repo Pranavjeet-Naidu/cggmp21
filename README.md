@@ -1,11 +1,11 @@
 <!-- cargo-rdme start -->
 
-![License](https://img.shields.io/crates/l/cggmp21.svg)
-[![Docs](https://docs.rs/cggmp21/badge.svg)](https://docs.rs/cggmp21)
-[![Crates io](https://img.shields.io/crates/v/cggmp21.svg)](https://crates.io/crates/cggmp21)
+![License](https://img.shields.io/crates/l/cggmp24.svg)
+[![Docs](https://docs.rs/cggmp24/badge.svg)](https://docs.rs/cggmp24)
+[![Crates io](https://img.shields.io/crates/v/cggmp24.svg)](https://crates.io/crates/cggmp24)
 [![Discord](https://img.shields.io/discord/905194001349627914?logo=discord&logoColor=ffffff&label=Discord)][in Discord]
 
-# Threshold ECDSA based on [CGGMP21] paper
+# Threshold ECDSA based on [CGGMP24] paper
 
 <!-- TOC STARTS -->
 
@@ -20,21 +20,19 @@
 - [Sync API](#sync-api)
 - [HD wallets support](#hd-wallets-support)
 - [SPOF code: Key Import and Export](#spof-code-key-import-and-export)
-- [Differences between the implementation and CGGMP21](#differences-between-the-implementation-and-cggmp21)
+- [Differences between the implementation and CGGMP24](#differences-between-the-implementation-and-cggmp24)
 - [Timing attacks](#timing-attacks)
 - [Join us in Discord!](#join-us-in-discord)
 
 <!-- TOC ENDS -->
 
-[CGGMP21] is a state-of-art ECDSA TSS protocol that supports 1-round signing (requires preprocessing),
-identifiable abort, provides two signing protocols (3+1 and 5+1 rounds with different complexity
-of abort identification) and key refresh protocol out of the box.
+[CGGMP24] is a state-of-art ECDSA TSS protocol that supports 1-round signing (requires 3 preprocessing rounds),
+identifiable abort, and a key refresh protocol.
 
 This crate implements:
 * Threshold (i.e., t-out-of-n) and non-threshold (i.e., n-out-of-n) key generation
 * (3+1)-round general threshold and non-threshold signing
 * Auxiliary info generation protocol
-* Key refresh for non-threshold keys
 * HD-wallets support based on [slip10] standard (compatible with [bip32]) \
   Requires `hd-wallets` feature
 
@@ -45,22 +43,21 @@ We also provide auxiliary tools like:
 * Trusted dealer (importing key into TSS)
 
 This crate **does not** (currently) support:
-* Key refresh for threshold keys (i.e., t-out-of-n)
+* Key refresh for both threshold (i.e., t-out-of-n) and non-threshold (i.e., n-out-of-n) keys
 * Identifiable abort
-* The (5+1)-round signing protocol
 
 Our implementation has been audited by Kudelski. Report can be found [here][report].
 
-> About notion of threshold and non-threshold keys: originally, CGGMP21 paper does not have support of
-arbitrary `t` and only works with non-threshold n-out-of-n keys. We have added support of arbitrary
-threshold $2 \le t \le n$, however, we made it possible to opt out thresholdness so original CGGMP21
-protocol can be carried out if needed.
+> About notion of threshold and non-threshold keys: originally, the CGGMP24 paper does not specify
+protocols for threshold t-out-of-n keys with arbitrary `t`, and only works with non-threshold
+n-out-of-n keys. We have added support for arbitrary threshold $2 \le t \le n$, however, we made
+it possible to opt out thresholdness so original CGGMP24 protocol can be carried out if needed.
 
 ## Running the protocol
 
 ### Networking
 The most essential part of running an interactive protocol is to define how parties can communicate with
-each other. Our `cggmp21` library is agnostic to the network layer and only requires you to provide two
+each other. Our `cggmp24` library is agnostic to the network layer and only requires you to provide two
 things: a stream of incoming messages and a sink for outgoing messages, i.e.:
 
 ```rust
@@ -123,13 +120,13 @@ run as follows:
 
 ```rust
 // Prime generation can take a while
-let pregenerated_primes = cggmp21::PregeneratedPrimes::generate(&mut OsRng);
+let pregenerated_primes = cggmp24::PregeneratedPrimes::generate(&mut OsRng);
 
-let eid = cggmp21::ExecutionId::new(b"execution id, unique per protocol execution");
+let eid = cggmp24::ExecutionId::new(b"execution id, unique per protocol execution");
 let i = /* signer index, same as at keygen */;
 let n = /* number of signers */;
 
-let aux_info = cggmp21::aux_info_gen(eid, i, n, pregenerated_primes)
+let aux_info = cggmp24::aux_info_gen(eid, i, n, pregenerated_primes)
     .start(&mut OsRng, party)
     .await?;
 ```
@@ -138,7 +135,7 @@ The auxiliary-data generation protocol is computationally heavy as it requires t
 of safe primes and involves several zero-knowledge (ZK) proofs.
 
 #### On reusability of the auxiliary data
-The CGGMP21 paper assumes that new auxiliary data is generated for each secret key that is shared.
+The CGGMP24 paper assumes that new auxiliary data is generated for each secret key that is shared.
 However, examination of the proof shows that this is not necessary, and a fixed group of signers
 can use the same auxiliary data for the secure sharing/usage of multiple keys.
 
@@ -148,14 +145,14 @@ some basic parameters including the participants' indices, the execution ID, and
 threshold value (i.e., t). The protocol can be executed as
 
 ```rust
-use cggmp21::supported_curves::Secp256k1;
+use cggmp24::supported_curves::Secp256k1;
 
-let eid = cggmp21::ExecutionId::new(b"execution id, unique per protocol execution");
+let eid = cggmp24::ExecutionId::new(b"execution id, unique per protocol execution");
 let i = /* signer index (0 <= i < n) */;
 let n = /* number of signers taking part in key generation */;
 let t = /* threshold */;
 
-let incomplete_key_share = cggmp21::keygen::<Secp256k1>(eid, i, n)
+let incomplete_key_share = cggmp24::keygen::<Secp256k1>(eid, i, n)
     .set_threshold(t)
     .start(&mut OsRng, party)
     .await?;
@@ -168,7 +165,7 @@ Assuming auxiliary-data generation has already been done (see above), you can "c
 key share using:
 
 ```rust
-let key_share = cggmp21::KeyShare::from_parts((incomplete_key_share, aux_info))?;
+let key_share = cggmp24::KeyShare::from_parts((incomplete_key_share, aux_info))?;
 ```
 
 ### Signing
@@ -179,16 +176,16 @@ to t-1. But the signers also need to know which index each signer occupied at th
 
 In the example below, we do a full signing:
 ```rust
-let eid = cggmp21::ExecutionId::new(b"execution id, unique per protocol execution");
+let eid = cggmp24::ExecutionId::new(b"execution id, unique per protocol execution");
 
 let i = /* signer index (0 <= i < min_signers) */;
 let parties_indexes_at_keygen: [u16; MIN_SIGNERS] =
     /* parties_indexes_at_keygen[i] is the index the i-th party had at keygen */;
 let key_share = /* completed key share */;
 
-let data_to_sign = cggmp21::DataToSign::digest::<Sha256>(b"data to be signed");
+let data_to_sign = cggmp24::DataToSign::digest::<Sha256>(b"data to be signed");
 
-let signature = cggmp21::signing(eid, i, &parties_indexes_at_keygen, &key_share)
+let signature = cggmp24::signing(eid, i, &parties_indexes_at_keygen, &key_share)
     .sign(&mut OsRng, party, &data_to_sign)
     .await?;
 ```
@@ -226,7 +223,7 @@ When master key is generated, you can issue a signature for child key by setting
 derivation path in the signing.
 
 ## SPOF code: Key Import and Export
-CGGMP21 protocol is designed to avoid Single Point of Failure by guaranteeing that attacker would
+CGGMP24 protocol is designed to avoid Single Point of Failure by guaranteeing that attacker would
 need to compromise threshold amount of nodes to obtain a secret key. However, some use-cases may
 require you to create a SPOF, for instance, importing an existing key into TSS and exporting key
 from TSS.
@@ -235,9 +232,9 @@ Such use-cases contradict to nature of MPC so we don't include those primitives 
 However, you may opt for them by enabling `spof` feature, then you can use `trusted_dealer`
 for key import and `key_share::reconstruct_secret_key` for key export.
 
-## Differences between the implementation and CGGMP21
-[CGGMP21] only defines a non-threshold protocol. To support general thresholds,
-we defined our own CGGMP21-like key generation and threshold signing
+## Differences between the implementation and CGGMP24
+[CGGMP24] only defines a non-threshold protocol. To support general thresholds,
+we defined our own CGGMP24-like key generation and threshold signing
 protocols. However, we keep both
 threshold and non-threshold versions of the protocols in the crate, so if you opt for the non-threshold
 protocol, you will be running the original protocol defined in the paper.
@@ -245,8 +242,8 @@ protocol, you will be running the original protocol defined in the paper.
 There are other (small) differences in the implementation compared to the original paper (mostly typo fixes);
 they are all documented in [the spec].
 
-[CGGMP21]: https://ia.cr/2021/060
-[the spec]: https://lfdt-lockness.github.io/cggmp21/cggmp21-spec.pdf
+[CGGMP24]: https://ia.cr/2021/060
+[the spec]: https://lfdt-lockness.github.io/cggmp24/cggmp24-spec.pdf
 [security guidelines]: #security-guidelines
 [slip10]: https://github.com/satoshilabs/slips/blob/master/slip-0010.md
 [bip32]: https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki
@@ -256,7 +253,7 @@ they are all documented in [the spec].
 ## Timing attacks
 Timing attacks are type of side-channel attacks that leak sensitive information through duration of
 execution. We consider timing attacks out of scope as they are nearly impossible to perform for such
-complicated protocol as CGGMP21 and impossible to do in our specific deployment. Thus, we intentionally
+complicated protocol as CGGMP24 and impossible to do in our specific deployment. Thus, we intentionally
 don't do constant-time operations which gives us a significant performance boost.
 
 ## Join us in Discord!

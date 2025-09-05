@@ -50,7 +50,7 @@
 //! // Prover knows its secret `pdata` and `a`
 //! let a = Scalar::random(&mut rng);
 //! let pdata = p::PrivateData {
-//!     plaintext: &Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng),
+//!     plaintext: &Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), &mut rng),
 //!     nonce: &Integer::gen_invertible(key.n(), &mut rng),
 //!     b: &Scalar::random(&mut rng),
 //! };
@@ -67,7 +67,7 @@
 //! };
 //!
 //! // Prover computes a non-interactive proof:
-//! let (commitment, proof) = p::non_interactive::prove::<E, sha2::Sha256>(
+//! let proof = p::non_interactive::prove::<E, sha2::Sha256>(
 //!     &shared_state,
 //!     &aux,
 //!     data,
@@ -78,17 +78,16 @@
 //!
 //! // Prover sends this data to verifier
 //! # use generic_ec::Curve;
-//! # fn send<E: Curve>(_: &p::Data<E>, _: &p::Commitment<E>, _: &p::Proof<E>) {  }
-//! send(&data, &commitment, &proof);
+//! # fn send<E: Curve>(_: &p::Data<E>, _: &p::NiProof<E>) {  }
+//! send(&data, &proof);
 //!
 //! // Verifier receives the data and the proof and verifies it
-//! # let recv = || (data, commitment, proof);
-//! let (data, commitment, proof) = recv();
+//! # let recv = || (data, proof);
+//! let (data, proof) = recv();
 //! p::non_interactive::verify::<E, sha2::Sha256>(
 //!     &shared_state,
 //!     &aux,
 //!     data,
-//!     &commitment,
 //!     &proof,
 //!     &security,
 //! );
@@ -176,7 +175,7 @@ pub struct PrivateCommitment<E: Curve> {
 /// [`non_interactive::challenge`] or randomly by [`interactive::challenge`]
 pub type Challenge = Integer;
 
-/// Range Proof with El-Gamal commitment
+/// Range Proof with El-Gamal commitment. Computed by [`interactive::prove`]
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct Proof<E: Curve> {
@@ -184,6 +183,15 @@ pub struct Proof<E: Curve> {
     pub z2: Integer,
     pub z3: Integer,
     pub w: Scalar<E>,
+}
+
+/// The non-interactive ZK proof. Computed by [`non_interactive::prove`].
+/// Combines commitment and proof.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
+pub struct NiProof<E: Curve> {
+    pub commitment: Commitment<E>,
+    pub proof: Proof<E>,
 }
 
 /// The interactive version of the ZK proof. Should be completed in 3 rounds:
@@ -217,11 +225,11 @@ pub mod interactive {
         let n_j_at_two_to_l = (Integer::ONE << security.l).complete() * &aux.rsa_modulo;
         let n_j_at_two_to_l_plus_e = (&two_to_l_plus_e * &aux.rsa_modulo).complete();
 
-        let alpha = Integer::from_rng_pm(&two_to_l_plus_e, rng);
-        let mu = Integer::from_rng_pm(&n_j_at_two_to_l, rng);
+        let alpha = Integer::from_rng_half_pm(&two_to_l_plus_e, rng);
+        let mu = Integer::from_rng_half_pm(&n_j_at_two_to_l, rng);
         let r = Integer::gen_invertible(data.key.n(), rng);
         let beta = Scalar::random(rng);
-        let gamma = Integer::from_rng_pm(&n_j_at_two_to_l_plus_e, rng);
+        let gamma = Integer::from_rng_half_pm(&n_j_at_two_to_l_plus_e, rng);
 
         let s = aux.combine(pdata.plaintext, &mu)?;
         let t = aux.combine(&alpha, &gamma)?;
@@ -310,7 +318,7 @@ pub mod interactive {
             InvalidProofReason::RangeCheck(5),
             proof
                 .z1
-                .is_in_pm(&(Integer::ONE << (security.l + security.epsilon)).complete()),
+                .is_in_half_pm(&(Integer::ONE << (security.l + security.epsilon)).complete()),
         )?;
 
         Ok(())
@@ -320,7 +328,7 @@ pub mod interactive {
     ///
     /// `security` parameter is used to generate challenge in correct range
     pub fn challenge<E: Curve>(rng: &mut impl RngCore) -> Challenge {
-        Integer::from_rng_pm(&Integer::curve_order::<E>(), rng)
+        Integer::from_rng_half_pm(&Integer::curve_order::<E>(), rng)
     }
 }
 
@@ -332,7 +340,7 @@ pub mod non_interactive {
 
     use crate::{Error, InvalidProof};
 
-    use super::{Aux, Challenge, Commitment, Data, PrivateData, Proof, SecurityParams};
+    use super::{Aux, Challenge, Commitment, Data, NiProof, PrivateData, SecurityParams};
 
     /// Compute proof for the given data, producing random commitment and
     /// deriving deterministic challenge.
@@ -345,11 +353,11 @@ pub mod non_interactive {
         pdata: PrivateData<E>,
         security: &SecurityParams,
         rng: &mut impl rand_core::RngCore,
-    ) -> Result<(Commitment<E>, Proof<E>), Error> {
-        let (comm, pcomm) = super::interactive::commit(aux, data, pdata, security, rng)?;
-        let challenge = challenge::<E, D>(shared_state, aux, data, &comm, security);
+    ) -> Result<NiProof<E>, Error> {
+        let (commitment, pcomm) = super::interactive::commit(aux, data, pdata, security, rng)?;
+        let challenge = challenge::<E, D>(shared_state, aux, data, &commitment, security);
         let proof = super::interactive::prove(data, pdata, &pcomm, &challenge)?;
-        Ok((comm, proof))
+        Ok(NiProof { commitment, proof })
     }
 
     /// Verify the proof, deriving challenge independently from same data
@@ -357,12 +365,18 @@ pub mod non_interactive {
         shared_state: &impl udigest::Digestable,
         aux: &Aux,
         data: Data<E>,
-        commitment: &Commitment<E>,
-        proof: &Proof<E>,
+        proof: &NiProof<E>,
         security: &SecurityParams,
     ) -> Result<(), InvalidProof> {
-        let challenge = challenge::<E, D>(shared_state, aux, data, commitment, security);
-        super::interactive::verify(aux, data, commitment, security, &challenge, proof)
+        let challenge = challenge::<E, D>(shared_state, aux, data, &proof.commitment, security);
+        super::interactive::verify(
+            aux,
+            data,
+            &proof.commitment,
+            security,
+            &challenge,
+            &proof.proof,
+        )
     }
 
     /// Deterministically compute challenge based on prior known values in protocol
@@ -420,17 +434,10 @@ mod test {
         };
 
         let shared_state = "shared state";
-        let (commitment, proof) =
+        let proof =
             super::non_interactive::prove::<E, D>(&shared_state, &aux, data, pdata, &security, rng)
                 .unwrap();
-        super::non_interactive::verify::<E, D>(
-            &shared_state,
-            &aux,
-            data,
-            &commitment,
-            &proof,
-            &security,
-        )
+        super::non_interactive::verify::<E, D>(&shared_state, &aux, data, &proof, &security)
     }
 
     fn passing_test<C: Curve, D: Digest>() {
@@ -439,7 +446,8 @@ mod test {
             l: 1024,
             epsilon: 300,
         };
-        let plaintext = Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng);
+        let plaintext =
+            Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), &mut rng);
         run_with::<C, D>(&mut rng, security, plaintext).expect("proof failed");
     }
 
@@ -449,7 +457,7 @@ mod test {
             l: 1024,
             epsilon: 300,
         };
-        let plaintext = (Integer::ONE << (security.l + security.epsilon)).complete() + 1;
+        let plaintext = (Integer::ONE << (security.l + security.epsilon - 1)).complete() + 1;
         let r = run_with::<C, D>(&mut rng, security, plaintext).expect_err("proof should not pass");
         match r.reason() {
             InvalidProofReason::RangeCheck(5) => (),

@@ -3,12 +3,12 @@ use rand::{seq::SliceRandom, Rng, RngCore};
 use rand_dev::DevRng;
 use sha2::Sha256;
 
-use cggmp21::{
+use cggmp24::{
     key_share::{AnyKeyShare, IncompleteKeyShare, KeyShare},
     ExecutionId,
 };
 
-cggmp21_tests::test_suite! {
+cggmp24_tests::test_suite! {
     test: full_pipeline_works,
     generics: all_curves,
     suites: {
@@ -20,7 +20,7 @@ cggmp21_tests::test_suite! {
 }
 fn full_pipeline_works<E>(t: u16, n: u16, hd_enabled: bool)
 where
-    E: Curve + cggmp21_tests::CurveParams,
+    E: Curve + cggmp24_tests::CurveParams,
     Point<E>: generic_ec::coords::HasAffineX<E>,
 {
     let mut rng = DevRng::new();
@@ -40,11 +40,11 @@ where
     let eid = ExecutionId::new(&eid);
 
     round_based::sim::run(n, |i, party| {
-        let party = cggmp21_tests::buffer_outgoing(party);
+        let party = cggmp24_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
 
         async move {
-            let keygen = cggmp21::keygen(eid, i, n).set_threshold(t);
+            let keygen = cggmp24::keygen(eid, i, n).set_threshold(t);
 
             #[cfg(feature = "hd-wallet")]
             let keygen = keygen.hd_wallet(hd_enabled);
@@ -61,18 +61,18 @@ fn run_aux_gen<E>(shares: Vec<IncompleteKeyShare<E>>, rng: &mut DevRng) -> Vec<K
 where
     E: Curve,
 {
-    let mut primes = cggmp21_tests::CACHED_PRIMES.iter();
+    let mut primes = cggmp24_tests::CACHED_PRIMES.iter();
     let n = shares.len().try_into().unwrap();
 
     let eid: [u8; 32] = rng.gen();
     let eid = ExecutionId::new(&eid);
 
     let aux_infos = round_based::sim::run(n, |i, party| {
-        let party = cggmp21_tests::buffer_outgoing(party);
+        let party = cggmp24_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
         let pregenerated_data = primes.next().expect("Can't fetch primes");
         async move {
-            cggmp21::aux_info_gen(eid, i, n, pregenerated_data)
+            cggmp24::aux_info_gen(eid, i, n, pregenerated_data)
                 .start(&mut party_rng, party)
                 .await
         }
@@ -92,7 +92,7 @@ where
 
 fn run_signing<E>(shares: &[KeyShare<E>], random_derivation_path: bool, rng: &mut DevRng)
 where
-    E: Curve + cggmp21_tests::CurveParams,
+    E: Curve + cggmp24_tests::CurveParams,
     Point<E>: generic_ec::coords::HasAffineX<E>,
 {
     #[cfg(not(feature = "hd-wallet"))]
@@ -103,7 +103,7 @@ where
 
     #[cfg(feature = "hd-wallet")]
     let derivation_path = if random_derivation_path {
-        Some(cggmp21_tests::random_derivation_path(rng))
+        Some(cggmp24_tests::random_derivation_path(rng))
     } else {
         None
     };
@@ -113,7 +113,7 @@ where
 
     let mut original_message_to_sign = [0u8; 100];
     rng.fill_bytes(&mut original_message_to_sign);
-    let message_to_sign = cggmp21::signing::DataToSign::digest::<Sha256>(&original_message_to_sign);
+    let message_to_sign = cggmp24::signing::DataToSign::digest::<Sha256>(&original_message_to_sign);
 
     // Choose `t` signers to perform signing
     let mut participants = (0..n).collect::<Vec<_>>();
@@ -123,14 +123,14 @@ where
     let participants_shares = participants.iter().map(|i| &shares[usize::from(*i)]);
 
     let sig = round_based::sim::run_with_setup(participants_shares, |i, party, share| {
-        let party = cggmp21_tests::buffer_outgoing(party);
+        let party = cggmp24_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
 
         #[cfg(feature = "hd-wallet")]
         let derivation_path = derivation_path.clone();
 
         async move {
-            let signing = cggmp21::signing(eid, i, participants, share);
+            let signing = cggmp24::signing(eid, i, participants, share);
 
             #[cfg(feature = "hd-wallet")]
             let signing = if let Some(derivation_path) = derivation_path {

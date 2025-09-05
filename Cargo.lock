@@ -297,10 +297,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "cggmp21"
-version = "0.6.0"
+name = "cggmp24"
+version = "0.7.0-alpha.1"
 dependencies = [
- "cggmp21-keygen",
+ "cggmp24-keygen",
  "digest",
  "futures",
  "generic-ec",
@@ -323,8 +323,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "cggmp21-keygen"
-version = "0.5.0"
+name = "cggmp24-keygen"
+version = "0.7.0-alpha.1"
 dependencies = [
  "digest",
  "displaydoc",
@@ -344,12 +344,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "cggmp21-tests"
+name = "cggmp24-tests"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "bpaf",
- "cggmp21",
+ "cggmp24",
  "ciborium",
  "criterion",
  "futures",
@@ -1500,7 +1500,7 @@ dependencies = [
 
 [[package]]
 name = "key-share"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "displaydoc",
  "generic-ec",
@@ -1645,7 +1645,7 @@ dependencies = [
 
 [[package]]
 name = "paillier-zk"
-version = "0.4.2"
+version = "0.7.0-alpha.1"
 dependencies = [
  "anyhow",
  "digest",

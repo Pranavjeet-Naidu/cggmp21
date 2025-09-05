@@ -1,8 +1,7 @@
 use digest::Digest;
 use futures::SinkExt;
 use paillier_zk::{
-    no_small_factor::non_interactive as π_fac,
-    paillier_blum_modulus as π_mod,
+    no_small_factor as π_fac, paillier_blum_modulus as π_mod,
     rug::{Complete, Integer},
 };
 use rand_core::{CryptoRng, RngCore};
@@ -27,7 +26,7 @@ use super::{Bug, KeyRefreshError, PregeneratedPrimes, ProtocolAborted};
 
 macro_rules! prefixed {
     ($name:tt) => {
-        concat!("dfns.cggmp21.aux_gen.", $name)
+        concat!("dfns.cggmp24.aux_gen.", $name)
     };
 }
 
@@ -93,12 +92,9 @@ pub struct MsgRound2<L: SecurityLevel> {
 pub struct MsgRound3 {
     /// $\psi_i$
     // this should be L::M instead, but no rustc support yet
-    pub mod_proof: (
-        π_mod::Commitment,
-        π_mod::Proof<{ crate::security_level::M }>,
-    ),
+    pub mod_proof: π_mod::NiProof<{ crate::security_level::M }>,
     /// $\phi_i^j$
-    pub fac_proof: π_fac::Proof,
+    pub fac_proof: π_fac::NiProof,
 }
 
 /// Message from an optional round that enforces reliability check
@@ -383,7 +379,7 @@ where
         tracer.send_msg();
 
         tracer.stage("Compute П_fac (ψ'_i,j)");
-        let psi_prime = π_fac::prove::<D>(
+        let psi_prime = π_fac::non_interactive::prove::<D>(
             &unambiguous::ProofFac {
                 sid,
                 rho: rho_bytes.as_ref(),
@@ -438,7 +434,6 @@ where
         &decommitments,
         &shares_msg_b,
         |j, decommitment, proof_msg| {
-            let (comm, proof) = &proof_msg.mod_proof;
             π_mod::non_interactive::verify::<{ crate::security_level::M }, D>(
                 &unambiguous::ProofMod {
                     sid,
@@ -446,8 +441,7 @@ where
                     prover: j,
                 },
                 π_mod::Data { n: &decommitment.N },
-                comm,
-                proof,
+                &proof_msg.mod_proof,
             )
             .is_err()
         },
@@ -464,7 +458,7 @@ where
         &decommitments,
         &shares_msg_b,
         |j, decommitment, proof_msg| {
-            π_fac::verify::<D>(
+            π_fac::non_interactive::verify::<D>(
                 &unambiguous::ProofFac {
                     sid,
                     rho: rho_bytes.as_ref(),

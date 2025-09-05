@@ -1,5 +1,5 @@
 use anyhow::Context;
-use cggmp21::{
+use cggmp24::{
     key_share::Validate,
     progress::PerfProfiler,
     security_level::{SecurityLevel, SecurityLevel128},
@@ -73,7 +73,7 @@ fn do_becnhmarks<L: SecurityLevel>(args: Args) {
         if args.bench_primes_gen {
             let start = std::time::Instant::now();
             let _primes =
-                std::iter::repeat_with(|| cggmp21::PregeneratedPrimes::<L>::generate(&mut rng))
+                std::iter::repeat_with(|| cggmp24::PregeneratedPrimes::<L>::generate(&mut rng))
                     .take(n.into())
                     .collect::<Vec<_>>();
             let took = std::time::Instant::now().duration_since(start);
@@ -82,7 +82,7 @@ fn do_becnhmarks<L: SecurityLevel>(args: Args) {
             println!();
         }
 
-        let non_threshold_key_shares: Option<Vec<cggmp21::IncompleteKeyShare<E>>> =
+        let non_threshold_key_shares: Option<Vec<cggmp24::IncompleteKeyShare<E>>> =
             if args.bench_non_threshold_keygen || args.bench_signing {
                 let eid: [u8; 32] = rng.gen();
                 let eid = ExecutionId::new(&eid);
@@ -93,7 +93,7 @@ fn do_becnhmarks<L: SecurityLevel>(args: Args) {
                     let mut profiler = PerfProfiler::new();
 
                     async move {
-                        let key_share = cggmp21::keygen(eid, i, n)
+                        let key_share = cggmp24::keygen(eid, i, n)
                             .set_progress_tracer(&mut profiler)
                             .set_security_level::<L>()
                             .start(&mut party_rng, party)
@@ -118,7 +118,7 @@ fn do_becnhmarks<L: SecurityLevel>(args: Args) {
                 None
             };
 
-        let _threshold_key_shares: Option<Vec<cggmp21::IncompleteKeyShare<E>>> =
+        let _threshold_key_shares: Option<Vec<cggmp24::IncompleteKeyShare<E>>> =
             if args.bench_threshold_keygen {
                 let t = n - 1;
 
@@ -131,7 +131,7 @@ fn do_becnhmarks<L: SecurityLevel>(args: Args) {
                     let mut profiler = PerfProfiler::new();
 
                     async move {
-                        let key_share = cggmp21::keygen(eid, i, n)
+                        let key_share = cggmp24::keygen(eid, i, n)
                             .set_threshold(t)
                             .set_progress_tracer(&mut profiler)
                             .set_security_level::<L>()
@@ -155,12 +155,12 @@ fn do_becnhmarks<L: SecurityLevel>(args: Args) {
                 None
             };
 
-        let mut aux_data: Option<Vec<cggmp21::key_share::AuxInfo<L>>> =
+        let mut aux_data: Option<Vec<cggmp24::key_share::AuxInfo<L>>> =
             if args.bench_aux_data_gen || args.bench_signing {
                 let eid: [u8; 32] = rng.gen();
                 let eid = ExecutionId::new(&eid);
 
-                let mut primes = cggmp21_tests::CACHED_PRIMES.iter::<L>();
+                let mut primes = cggmp24_tests::CACHED_PRIMES.iter::<L>();
 
                 let outputs = round_based::sim::run(n, |i, party| {
                     let mut party_rng = rng.fork();
@@ -169,7 +169,7 @@ fn do_becnhmarks<L: SecurityLevel>(args: Args) {
                     let mut profiler = PerfProfiler::new();
 
                     async move {
-                        let aux_data = cggmp21::aux_info_gen(eid, i, n, pregen)
+                        let aux_data = cggmp24::aux_info_gen(eid, i, n, pregen)
                             .set_progress_tracer(&mut profiler)
                             .start(&mut party_rng, party)
                             .await
@@ -217,7 +217,7 @@ fn do_becnhmarks<L: SecurityLevel>(args: Args) {
             );
             println!(
                 "Size of exponents: {:?}",
-                cggmp21::security_level::max_exponents_size::<L>()
+                cggmp24::security_level::max_exponents_size::<L>()
             );
             println!();
         }
@@ -230,7 +230,7 @@ fn do_becnhmarks<L: SecurityLevel>(args: Args) {
                 .into_iter()
                 .zip(aux_data.expect("aux data is not generated"))
                 .map(|(key_share, aux_data)| {
-                    cggmp21::key_share::KeyShare::from_parts((key_share, aux_data))
+                    cggmp24::key_share::KeyShare::from_parts((key_share, aux_data))
                 })
                 .collect::<Result<Vec<_>, _>>()
                 .expect("couldn't complete a share");
@@ -249,7 +249,7 @@ fn do_becnhmarks<L: SecurityLevel>(args: Args) {
                 let mut profiler = PerfProfiler::new();
 
                 async move {
-                    let _signature = cggmp21::signing(eid, i, signers_indexes_at_keygen, share)
+                    let _signature = cggmp24::signing(eid, i, signers_indexes_at_keygen, share)
                         .set_progress_tracer(&mut profiler)
                         .sign(&mut party_rng, party, &message_to_sign)
                         .await
@@ -270,11 +270,11 @@ fn do_becnhmarks<L: SecurityLevel>(args: Args) {
 
 // #[derive(Clone, Copy)]
 // struct CustomSecLevel;
-// cggmp21::define_security_level!(CustomSecLevel {
+// cggmp24::define_security_level!(CustomSecLevel {
 //     security_bits = 384,
 //     epsilon = 220,
 //     ell = 256,
 //     ell_prime = 824,
 //     m = 128,
-//     q = cggmp21::rug::Integer::ONE.clone() << 128,
+//     q = cggmp24::rug::Integer::ONE.clone() << 128,
 // });

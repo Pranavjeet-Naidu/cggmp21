@@ -1,4 +1,22 @@
-# Changelog
+# CGGMP24 releases
+
+## v0.7.0
+
+Changes:
+* All protocols have been updated to follow the latest CGGMP24 paper revision.
+
+Breaking changes:
+* The structure `cggmp24::key_share::AuxInfo` has been updated and consequently `cggmp24::KeyShare`
+  have been affected.
+  * Key shares and auxiliary data generated with previous library versions are not compatible and
+    cannot be deserialized by this new version.
+  * The core data within `cggmp24::IncompleteKeyShare` remains backward compatible and can be
+    deserialized from older versions.
+
+Please refer to the [migration manual](./../CGGMP21_MIGRATION.md) for detailed instructions on how
+to upgrade your existing key share data.
+
+# CGGMP21 releases
 
 ## v0.6.0
 * Update `hd-wallet` dep to v0.6 [#120]

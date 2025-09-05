@@ -1,4 +1,9 @@
-# Changelog
+# CGGMP24 releases
+
+## v0.7.0
+Update key generation protocol to follow the latest CGGMP24 paper revision.
+
+# CGGMP21 releases
 
 ## v0.5.0
 * Update `hd-wallet` dep to v0.6 [#120]

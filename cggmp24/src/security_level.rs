@@ -11,8 +11,8 @@
 
 use crate::rug::Integer;
 
-/// Security level of CGGMP21 DKG protocol
-pub use cggmp21_keygen::security_level::SecurityLevel as KeygenSecurityLevel;
+/// Security level of CGGMP24 DKG protocol
+pub use cggmp24_keygen::security_level::SecurityLevel as KeygenSecurityLevel;
 
 /// Hardcoded value for parameter $m$ of security level
 ///
@@ -20,7 +20,7 @@ pub use cggmp21_keygen::security_level::SecurityLevel as KeygenSecurityLevel;
 /// once `feature(generic_const_exprs)` is stable.
 pub const M: usize = 128;
 
-/// Security level of the CGGMP21 protocol
+/// Security level of the CGGMP24 protocol
 ///
 /// You should not implement this trait manually. Use [define_security_level] macro instead.
 pub trait SecurityLevel: KeygenSecurityLevel {
@@ -41,7 +41,7 @@ pub trait SecurityLevel: KeygenSecurityLevel {
 
 /// Determines max size of exponents
 ///
-/// During the CGGMP21 protocol, we often calculate $s^x t^y \mod N$. Given the security level
+/// During the CGGMP24 protocol, we often calculate $s^x t^y \mod N$. Given the security level
 /// we can determine max size of $x$ and $y$ in bits.
 ///
 /// Size of exponents can be used to build a [multiexp table](paillier_zk::multiexp).
@@ -64,7 +64,7 @@ pub fn max_exponents_size<L: SecurityLevel>() -> (u32, u32) {
 pub mod _internal {
 
     pub use crate::rug::Integer;
-    pub use cggmp21_keygen::security_level::{
+    pub use cggmp24_keygen::security_level::{
         define_security_level as define_keygen_security_level, SecurityLevel as KeygenSecurityLevel,
     };
 }
@@ -77,8 +77,8 @@ pub mod _internal {
 /// RSA public key bitlen = 511, $\varepsilon=128$, $\ell = \ell' = 1024$, and $m = 128$ (note:
 /// choice of parameters is random, it does not correspond to meaningful security level):
 /// ```rust
-/// use cggmp21::security_level::define_security_level;
-/// use cggmp21::rug::Integer;
+/// use cggmp24::security_level::define_security_level;
+/// use cggmp24::rug::Integer;
 ///
 /// #[derive(Clone)]
 /// pub struct MyLevel;
@@ -155,7 +155,7 @@ macro_rules! define_security_level {
 pub use define_security_level;
 
 #[doc(inline)]
-pub use cggmp21_keygen::security_level::SecurityLevel128;
+pub use cggmp24_keygen::security_level::SecurityLevel128;
 define_security_level!(SecurityLevel128 {
     rsa_prime_bitlen: 1536,
     rsa_pubkey_bitlen: 3071,

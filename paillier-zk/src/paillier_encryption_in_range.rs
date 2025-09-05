@@ -1,4 +1,4 @@
-//! ZK-proof of paillier encryption in range. Called Пenc or Renc in the CGGMP21
+//! ZK-proof of paillier encryption in range. Called Пenc or Renc in the CGGMP24
 //! paper.
 //!
 //! ## Description
@@ -46,13 +46,13 @@
 //!
 //! // 2. Setup: prover has some plaintext and encrypts it
 //!
-//! let plaintext = Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng);
+//! let plaintext = Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), &mut rng);
 //! let (ciphertext, nonce) = key.encrypt_with_random(&mut rng, &plaintext)?;
 //!
 //! // 3. Prover computes a non-interactive proof that plaintext is at most 1024 bits:
 //!
 //! let data = p::Data { key, ciphertext: &ciphertext };
-//! let (commitment, proof) = p::non_interactive::prove::<sha2::Sha256>(
+//! let proof = p::non_interactive::prove::<sha2::Sha256>(
 //!     &shared_state,
 //!     &aux,
 //!     data,
@@ -66,18 +66,17 @@
 //!
 //! // 4. Prover sends this data to verifier
 //!
-//! # fn send(_: &p::Data, _: &p::Commitment, _: &p::Proof) {  }
-//! send(&data, &commitment, &proof);
+//! # fn send(_: &p::Data, _: &p::NiProof) {  }
+//! send(&data, &proof);
 //!
 //! // 5. Verifier receives the data and the proof and verifies it
 //!
-//! # let recv = || (data, commitment, proof);
-//! let (data, commitment, proof) = recv();
+//! # let recv = || (data, proof);
+//! let (data, proof) = recv();
 //! p::non_interactive::verify::<sha2::Sha256>(
 //!     &shared_state,
 //!     &aux,
 //!     data,
-//!     &commitment,
 //!     &security,
 //!     &proof,
 //! );
@@ -129,7 +128,7 @@ pub struct PrivateData<'a> {
     pub nonce: &'a Nonce,
 }
 
-// As described in cggmp21 at page 33
+// As described in cggmp24 at page 33
 /// Prover's first message, obtained by [`interactive::commit`]
 #[derive(Debug, Clone, udigest::Digestable)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -156,15 +155,23 @@ pub struct PrivateCommitment {
 /// [`non_interactive::challenge`] or randomly by [`interactive::challenge`]
 pub type Challenge = Integer;
 
-// As described in cggmp21 at page 33
-/// The ZK proof. Computed by [`interactive::prove`] or
-/// [`non_interactive::prove`]
+// As described in cggmp24 at page 33
+/// The ZK proof. Computed by [`interactive::prove`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Proof {
     pub z1: Integer,
     pub z2: Integer,
     pub z3: Integer,
+}
+
+/// The non-interactive ZK proof. Computed by [`non_interactive::prove`].
+/// Combines commitment and proof.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct NiProof {
+    pub commitment: Commitment,
+    pub proof: Proof,
 }
 
 /// The interactive version of the ZK proof. Should be completed in 3 rounds:
@@ -198,10 +205,10 @@ pub mod interactive {
         let hat_n_at_two_to_l_plus_e =
             (Integer::ONE << (security.l + security.epsilon)).complete() * &aux.rsa_modulo;
 
-        let alpha = Integer::from_rng_pm(&two_to_l_plus_e, rng);
-        let mu = Integer::from_rng_pm(&hat_n_at_two_to_l, rng);
+        let alpha = Integer::from_rng_half_pm(&two_to_l_plus_e, rng);
+        let mu = Integer::from_rng_half_pm(&hat_n_at_two_to_l, rng);
         let r = Integer::gen_invertible(data.key.n(), rng);
-        let gamma = Integer::from_rng_pm(&hat_n_at_two_to_l_plus_e, rng);
+        let gamma = Integer::from_rng_half_pm(&hat_n_at_two_to_l_plus_e, rng);
 
         let s = aux.combine(pdata.plaintext, &mu)?;
         let a = data.key.encrypt_with(&alpha, &r)?;
@@ -280,7 +287,7 @@ pub mod interactive {
             InvalidProofReason::RangeCheck(4),
             proof
                 .z1
-                .is_in_pm(&(Integer::ONE << (security.l + security.epsilon)).complete()),
+                .is_in_half_pm(&(Integer::ONE << (security.l + security.epsilon)).complete()),
         )?;
 
         Ok(())
@@ -290,7 +297,7 @@ pub mod interactive {
     ///
     /// `security` parameter is used to generate challenge in correct range
     pub fn challenge<R: RngCore>(security: &SecurityParams, rng: &mut R) -> Challenge {
-        Integer::from_rng_pm(&security.q, rng)
+        Integer::from_rng_half_pm(&security.q, rng)
     }
 }
 
@@ -301,7 +308,7 @@ pub mod non_interactive {
 
     use crate::{Error, InvalidProof};
 
-    use super::{Aux, Challenge, Commitment, Data, PrivateData, Proof, SecurityParams};
+    use super::{Aux, Challenge, Commitment, Data, NiProof, PrivateData, SecurityParams};
 
     /// Compute proof for the given data, producing random commitment and
     /// deriving determenistic challenge.
@@ -314,11 +321,11 @@ pub mod non_interactive {
         pdata: PrivateData,
         security: &SecurityParams,
         rng: &mut impl rand_core::RngCore,
-    ) -> Result<(Commitment, Proof), Error> {
-        let (comm, pcomm) = super::interactive::commit(aux, data, pdata, security, rng)?;
-        let challenge = challenge::<D>(shared_state, aux, data, &comm, security);
+    ) -> Result<NiProof, Error> {
+        let (commitment, pcomm) = super::interactive::commit(aux, data, pdata, security, rng)?;
+        let challenge = challenge::<D>(shared_state, aux, data, &commitment, security);
         let proof = super::interactive::prove(data, pdata, &pcomm, &challenge)?;
-        Ok((comm, proof))
+        Ok(NiProof { commitment, proof })
     }
 
     /// Deterministically compute challenge based on prior known values in protocol
@@ -345,12 +352,18 @@ pub mod non_interactive {
         shared_state: &impl udigest::Digestable,
         aux: &Aux,
         data: Data,
-        commitment: &Commitment,
         security: &SecurityParams,
-        proof: &Proof,
+        proof: &NiProof,
     ) -> Result<(), InvalidProof> {
-        let challenge = challenge::<D>(shared_state, aux, data, commitment, security);
-        super::interactive::verify(aux, data, commitment, security, &challenge, proof)
+        let challenge = challenge::<D>(shared_state, aux, data, &proof.commitment, security);
+        super::interactive::verify(
+            aux,
+            data,
+            &proof.commitment,
+            security,
+            &challenge,
+            &proof.proof,
+        )
     }
 }
 
@@ -380,17 +393,10 @@ mod test {
         };
 
         let shared_state = "shared state";
-        let (commitment, proof) =
+        let proof =
             super::non_interactive::prove::<D>(&shared_state, &aux, data, pdata, &security, rng)
                 .unwrap();
-        super::non_interactive::verify::<D>(
-            &shared_state,
-            &aux,
-            data,
-            &commitment,
-            &security,
-            &proof,
-        )
+        super::non_interactive::verify::<D>(&shared_state, &aux, data, &security, &proof)
     }
 
     #[test]
@@ -401,7 +407,8 @@ mod test {
             epsilon: 256,
             q: (Integer::ONE << 128_u32).complete() - 1,
         };
-        let plaintext = Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng);
+        let plaintext =
+            Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), &mut rng);
         let r = run_with::<sha2::Sha256>(&mut rng, security, plaintext);
         match r {
             Ok(()) => (),

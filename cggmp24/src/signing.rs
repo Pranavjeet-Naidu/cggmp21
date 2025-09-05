@@ -234,7 +234,7 @@ pub struct Signature<E: Curve> {
 
 macro_rules! prefixed {
     ($name:tt) => {
-        concat!("dfns.cggmp21.signing.", $name)
+        concat!("dfns.cggmp24.signing.", $name)
     };
 }
 
@@ -306,9 +306,9 @@ pub mod msg {
     #[serde(bound = "")]
     pub struct MsgRound1b<E: Curve> {
         /// $\psi^0_{j,i}$
-        pub psi0: (pi_enc_elg::Commitment<E>, pi_enc_elg::Proof<E>),
+        pub psi0: pi_enc_elg::NiProof<E>,
         /// $\psi^1_{j,i}$
-        pub psi1: (pi_enc_elg::Commitment<E>, pi_enc_elg::Proof<E>),
+        pub psi1: pi_enc_elg::NiProof<E>,
     }
 
     /// Message from round 2
@@ -326,11 +326,11 @@ pub mod msg {
         /// $\hat F_{j,i}$
         pub hat_F: fast_paillier::Ciphertext,
         /// $\psi_i$
-        pub tilde_psi: (pi_elog::Commitment<E>, pi_elog::Proof<E>),
+        pub tilde_psi: pi_elog::NiProof<E>,
         /// $\psi_{j,i}$
-        pub psi_j: (pi_aff::Commitment<E>, pi_aff::Proof),
+        pub psi_j: pi_aff::NiProof<E>,
         /// $\hat \psi_{j,i}$
-        pub hat_psi_j: (pi_aff::Commitment<E>, pi_aff::Proof),
+        pub hat_psi_j: pi_aff::NiProof<E>,
     }
 
     /// Message from round 3
@@ -344,7 +344,7 @@ pub mod msg {
         /// $\Delta_i$
         pub Delta: Point<E>,
         /// $\psi'_i$
-        pub psi_prime: (pi_elog::Commitment<E>, pi_elog::Proof<E>),
+        pub psi_prime: pi_elog::NiProof<E>,
     }
 
     /// Message from round 4
@@ -486,10 +486,10 @@ where
     /// Set derivation path to m/1/999
     ///
     /// ```rust,no_run
-    /// # let eid = cggmp21::ExecutionId::new(b"protocol nonce");
-    /// # let (i, parties_indexes_at_keygen, key_share): (u16, Vec<u16>, cggmp21::KeyShare<cggmp21::supported_curves::Secp256k1>)
+    /// # let eid = cggmp24::ExecutionId::new(b"protocol nonce");
+    /// # let (i, parties_indexes_at_keygen, key_share): (u16, Vec<u16>, cggmp24::KeyShare<cggmp24::supported_curves::Secp256k1>)
     /// # = unimplemented!();
-    /// cggmp21::signing(eid, i, &parties_indexes_at_keygen, &key_share)
+    /// cggmp24::signing(eid, i, &parties_indexes_at_keygen, &key_share)
     ///     .set_derivation_path([1, 999])?
     /// # ; Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
@@ -834,10 +834,10 @@ where
 
     tracer.stage("Encrypt G_i and K_i");
     let G_i = dec_i
-        .encrypt_with(&utils::scalar_to_bignumber(&gamma_i), &v_i)
+        .encrypt_with(&utils::scalar_to_pm_bignumber(&gamma_i), &v_i)
         .map_err(|_| Bug::PaillierEnc(BugSource::G_i))?;
     let K_i = dec_i
-        .encrypt_with(&utils::scalar_to_bignumber(&k_i), &rho_i)
+        .encrypt_with(&utils::scalar_to_pm_bignumber(&k_i), &rho_i)
         .map_err(|_| Bug::PaillierEnc(BugSource::K_i))?;
 
     tracer.stage("Generate a_i, b_i, A_i1, A_i2, B_i1, B_i2");
@@ -888,7 +888,7 @@ where
                 x: &A_i2,
             },
             pi_enc_elg::PrivateData {
-                plaintext: &utils::scalar_to_bignumber(&k_i),
+                plaintext: &utils::scalar_to_pm_bignumber(&k_i),
                 nonce: &rho_i,
                 b: a_i.as_ref(),
             },
@@ -912,7 +912,7 @@ where
                 x: &B_i2,
             },
             pi_enc_elg::PrivateData {
-                plaintext: &utils::scalar_to_bignumber(&gamma_i),
+                plaintext: &utils::scalar_to_pm_bignumber(&gamma_i),
                 nonce: &v_i,
                 b: b_i.as_ref(),
             },
@@ -1014,8 +1014,7 @@ where
                     b: &ciphertexts.A1,
                     x: &ciphertexts.A2,
                 },
-                &proof.psi0.0,
-                &proof.psi0.1,
+                &proof.psi0,
                 &security_params.pi_enc_elg,
             )
             .err()?;
@@ -1033,8 +1032,7 @@ where
                     b: &ciphertexts.B1,
                     x: &ciphertexts.B2,
                 },
-                &proof.psi1.0,
-                &proof.psi1.1,
+                &proof.psi1,
                 &security_params.pi_enc_elg,
             )
             .err()
@@ -1097,8 +1095,8 @@ where
             .random_below_ref(&mut utils::external_rand(rng))
             .into();
 
-        let beta_ij = Integer::from_rng_pm(&J, rng);
-        let hat_beta_ij = Integer::from_rng_pm(&J, rng);
+        let beta_ij = Integer::from_rng_half_pm(&J, rng);
+        let hat_beta_ij = Integer::from_rng_half_pm(&J, rng);
 
         beta_sum += beta_ij.to_scalar();
         hat_beta_sum += hat_beta_ij.to_scalar();
@@ -1107,7 +1105,7 @@ where
         // D_ji = (gamma_i * K_j) + enc_j(-beta_ij, s_ij)
         let D_ji = {
             let gamma_i_times_K_j = enc_j
-                .omul(&utils::scalar_to_bignumber(&gamma_i), &ciphertext_j.K)
+                .omul(&utils::scalar_to_pm_bignumber(&gamma_i), &ciphertext_j.K)
                 .map_err(|_| Bug::PaillierOp(BugSource::gamma_i_times_K_j))?;
             let neg_beta_ij_enc = enc_j
                 .encrypt_with(&(-&beta_ij).complete(), &s_ij)
@@ -1126,7 +1124,7 @@ where
         // Dˆ_ji = (x_i * K_j) + enc_j(-hat_beta_ij, hat_s_ij)
         let hat_D_ji = {
             let x_i_times_K_j = enc_j
-                .omul(&utils::scalar_to_bignumber(x_i), &ciphertext_j.K)
+                .omul(&utils::scalar_to_pm_bignumber(x_i), &ciphertext_j.K)
                 .map_err(|_| Bug::PaillierOp(BugSource::x_i_times_K_j))?;
             let neg_hat_beta_ij_enc = enc_j
                 .encrypt_with(&(-&hat_beta_ij).complete(), &hat_s_ij)
@@ -1159,7 +1157,7 @@ where
                 x: &Gamma_i,
             },
             pi_aff::PrivateData {
-                x: &utils::scalar_to_bignumber(&gamma_i),
+                x: &utils::scalar_to_pm_bignumber(&gamma_i),
                 y: &(-&beta_ij).complete(),
                 nonce: &s_ij,
                 nonce_y: &r_ij,
@@ -1187,7 +1185,7 @@ where
                 x: &(Point::generator() * x_i),
             },
             pi_aff::PrivateData {
-                x: &utils::scalar_to_bignumber(x_i),
+                x: &utils::scalar_to_pm_bignumber(x_i),
                 y: &(-&hat_beta_ij).complete(),
                 nonce: &hat_s_ij,
                 nonce_y: &hat_r_ij,
@@ -1252,8 +1250,7 @@ where
                     y: &msg.Gamma,
                     h: &Point::generator().to_point(),
                 },
-                &msg.tilde_psi.0,
-                &msg.tilde_psi.1,
+                &msg.tilde_psi,
             )
             .err();
 
@@ -1273,9 +1270,8 @@ where
                     y: &msg.F,
                     x: &msg.Gamma,
                 },
-                &msg.psi_j.0,
                 &security_params.pi_aff,
-                &msg.psi_j.1,
+                &msg.psi_j,
             )
             .err();
 
@@ -1295,9 +1291,8 @@ where
                     y: &msg.hat_F,
                     x: &X_j,
                 },
-                &msg.hat_psi_j.0,
                 &security_params.pi_aff,
-                &msg.hat_psi_j.1,
+                &msg.hat_psi_j,
             )
             .err();
 
@@ -1406,8 +1401,7 @@ where
                     y: &msg_j.Delta,
                     h: &Gamma,
                 },
-                &msg_j.psi_prime.0,
-                &msg_j.psi_prime.1,
+                &msg_j.psi_prime,
             )
             .err()
         });

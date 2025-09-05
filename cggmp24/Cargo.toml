@@ -1,9 +1,9 @@
 [package]
-name = "cggmp21"
-version = "0.6.0"
+name = "cggmp24"
+version = "0.7.0-alpha.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "TSS ECDSA implementation based on CGGMP21 paper"
+description = "TSS ECDSA implementation based on CGGMP24 paper"
 repository = "https://github.com/LFDT-Lockness/cggmp21"
 categories = ["algorithms", "cryptography"]
 keywords = ["mpc", "threshold-signatures", "tss"]
@@ -12,7 +12,7 @@ readme = "../README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cggmp21-keygen = { workspace = true }
+cggmp24-keygen = { workspace = true }
 key-share = { workspace = true, features = ["serde"] }
 
 generic-ec = { workspace = true, features = ["serde", "udigest", "hash-to-scalar"] }
@@ -50,7 +50,7 @@ all-curves = ["curve-secp256k1", "curve-secp256r1", "curve-stark"]
 curve-secp256k1 = ["generic-ec/curve-secp256k1", "hd-wallet?/curve-secp256k1"]
 curve-secp256r1 = ["generic-ec/curve-secp256r1", "hd-wallet?/curve-secp256r1"]
 curve-stark = ["generic-ec/curve-stark", "hd-wallet?/curve-stark"]
-hd-wallet = ["dep:hd-wallet", "cggmp21-keygen/hd-wallet"]
+hd-wallet = ["dep:hd-wallet", "cggmp24-keygen/hd-wallet"]
 hd-slip10 = ["hd-wallet/slip10"]
 hd-stark = ["hd-wallet/stark"]
 spof = ["key-share/spof"]
@@ -59,7 +59,7 @@ spof = ["key-share/spof"]
 # for advanced users. Be sure you fully understand the implications if you enable this feature.
 insecure-assume-preimage-known = []
 
-state-machine = ["cggmp21-keygen/state-machine"]
+state-machine = ["cggmp24-keygen/state-machine"]
 
 [package.metadata.docs.rs]
 all-features = true

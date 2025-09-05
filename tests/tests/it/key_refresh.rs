@@ -3,13 +3,13 @@ use rand::seq::SliceRandom;
 use rand::Rng;
 use sha2::Sha256;
 
-use cggmp21::{
+use cggmp24::{
     key_share::{DirtyKeyShare, Validate},
     security_level::SecurityLevel128,
     ExecutionId,
 };
 
-cggmp21_tests::test_suite! {
+cggmp24_tests::test_suite! {
     test: aux_gen_works,
     generics: all_curves,
     suites: {
@@ -24,10 +24,10 @@ where
 {
     let mut rng = rand_dev::DevRng::new();
 
-    let shares = cggmp21_tests::CACHED_SHARES
+    let shares = cggmp24_tests::CACHED_SHARES
         .get_shares::<E>(Some(t), n, false)
         .expect("retrieve cached shares");
-    let mut primes = cggmp21_tests::CACHED_PRIMES.iter::<SecurityLevel128>();
+    let mut primes = cggmp24_tests::CACHED_PRIMES.iter::<SecurityLevel128>();
 
     // Perform refresh
 
@@ -35,11 +35,11 @@ where
     let eid = ExecutionId::new(&eid);
 
     let aux_infos = round_based::sim::run(n, |i, party| {
-        let party = cggmp21_tests::buffer_outgoing(party);
+        let party = cggmp24_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
         let pregenerated_data = primes.next().expect("Can't fetch primes");
         async move {
-            cggmp21::aux_info_gen(eid, i, n, pregenerated_data)
+            cggmp24::aux_info_gen(eid, i, n, pregenerated_data)
                 .enforce_reliable_broadcast(reliable_broadcast)
                 .start(&mut party_rng, party)
                 .await
@@ -69,7 +69,7 @@ where
     let eid: [u8; 32] = rng.gen();
     let eid = ExecutionId::new(&eid);
 
-    let message_to_sign = cggmp21::signing::DataToSign::digest::<Sha256>(&[42; 100]);
+    let message_to_sign = cggmp24::signing::DataToSign::digest::<Sha256>(&[42; 100]);
 
     // choose t participants
     let mut participants = (0..n).collect::<Vec<_>>();
@@ -79,15 +79,15 @@ where
     let participants_shares = participants.iter().map(|i| &key_shares[usize::from(*i)]);
 
     let mut tracers = (0..t)
-        .map(|i| cggmp21::progress::Stderr::new().with_prefix(i))
+        .map(|i| cggmp24::progress::Stderr::new().with_prefix(i))
         .collect::<Vec<_>>();
     let sig = round_based::sim::run_with_setup(
         participants_shares.zip(&mut tracers),
         |i, party, (share, tracer)| {
-            let party = cggmp21_tests::buffer_outgoing(party);
+            let party = cggmp24_tests::buffer_outgoing(party);
             let mut party_rng = rng.fork();
             async move {
-                cggmp21::signing(eid, i, participants, share)
+                cggmp24::signing(eid, i, participants, share)
                     .set_progress_tracer(tracer)
                     .enforce_reliable_broadcast(reliable_broadcast)
                     .sign(&mut party_rng, party, &message_to_sign)

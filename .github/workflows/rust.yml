@@ -32,8 +32,8 @@ jobs:
       matrix:
         package:
         - key-share
-        - cggmp21-keygen
-        - cggmp21
+        - cggmp24-keygen
+        - cggmp24
         - paillier-zk
     steps:
     - uses: actions/checkout@v4
@@ -91,7 +91,7 @@ jobs:
       with:
         cache-on-failure: "true"
     - name: Run clippy
-      run: cargo clippy --all --all-features --lib --exclude cggmp21-tests -- --no-deps -D clippy::all -D clippy::unwrap_used -D clippy::expect_used
+      run: cargo clippy --all --all-features --lib --exclude cggmp24-tests -- --no-deps -D clippy::all -D clippy::unwrap_used -D clippy::expect_used
   clippy-tests:
     runs-on: ubuntu-latest
     steps:
