@@ -96,7 +96,7 @@ pub use crate::common::InvalidProof;
 
 /// Security parameters for proof. Choosing the values is a tradeoff between
 /// speed and chance of rejecting a valid proof or accepting an invalid proof
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, udigest::Digestable)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct SecurityParams {
     /// l in paper, security parameter for bit size of plaintext: it needs to
@@ -104,8 +104,6 @@ pub struct SecurityParams {
     pub l: usize,
     /// Epsilon in paper, slackness parameter
     pub epsilon: usize,
-    /// q in paper. Security parameter for challenge
-    pub q: Integer,
 }
 
 /// Public data that both parties know
@@ -252,13 +250,37 @@ pub mod interactive {
         challenge: &Challenge,
         proof: &Proof,
     ) -> Result<(), InvalidProof> {
-        {
-            fail_if_ne(
-                InvalidProofReason::EqualityCheck(1),
-                &data.ciphertext.gcd_ref(data.key.n()).complete(),
-                Integer::ONE,
-            )?;
-        }
+        fail_if(
+            InvalidProofReason::RangeCheck(1),
+            data.ciphertext.is_in_mult_group(data.key.nn()),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(2),
+            aux.is_in_mult_group(&commitment.s),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(3),
+            commitment.a.is_in_mult_group(data.key.nn()),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(4),
+            aux.is_in_mult_group(&commitment.c),
+        )?;
+
+        fail_if(
+            InvalidProofReason::RangeCheck(5),
+            proof
+                .z1
+                .is_in_half_pm(&(Integer::ONE << (security.l + security.epsilon)).complete()),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(6),
+            proof.z3.is_in_half_pm(
+                &(&aux.rsa_modulo
+                    * (Integer::ONE << (security.l + security.epsilon + 1)).complete()),
+            ),
+        )?;
+
         {
             let lhs = data
                 .key
@@ -283,21 +305,15 @@ pub mod interactive {
             fail_if_ne(InvalidProofReason::EqualityCheck(3), lhs, rhs)?;
         }
 
-        fail_if(
-            InvalidProofReason::RangeCheck(4),
-            proof
-                .z1
-                .is_in_half_pm(&(Integer::ONE << (security.l + security.epsilon)).complete()),
-        )?;
-
         Ok(())
     }
 
     /// Generate random challenge
     ///
     /// `security` parameter is used to generate challenge in correct range
-    pub fn challenge<R: RngCore>(security: &SecurityParams, rng: &mut R) -> Challenge {
-        Integer::from_rng_half_pm(&security.q, rng)
+    pub fn challenge<C: generic_ec::Curve>(rng: &mut impl rand_core::RngCore) -> Integer {
+        let q = Integer::curve_order::<C>();
+        Integer::from_rng_half_pm(&q, rng)
     }
 }
 
@@ -314,7 +330,7 @@ pub mod non_interactive {
     /// deriving determenistic challenge.
     ///
     /// Obtained from the above interactive proof via Fiat-Shamir heuristic.
-    pub fn prove<D: Digest>(
+    pub fn prove<C: generic_ec::Curve, D: Digest>(
         shared_state: &impl udigest::Digestable,
         aux: &Aux,
         data: Data,
@@ -323,13 +339,13 @@ pub mod non_interactive {
         rng: &mut impl rand_core::RngCore,
     ) -> Result<NiProof, Error> {
         let (commitment, pcomm) = super::interactive::commit(aux, data, pdata, security, rng)?;
-        let challenge = challenge::<D>(shared_state, aux, data, &commitment, security);
+        let challenge = challenge::<C, D>(shared_state, aux, data, &commitment, security);
         let proof = super::interactive::prove(data, pdata, &pcomm, &challenge)?;
         Ok(NiProof { commitment, proof })
     }
 
     /// Deterministically compute challenge based on prior known values in protocol
-    pub fn challenge<D: Digest>(
+    pub fn challenge<C: generic_ec::Curve, D: Digest>(
         shared_state: &impl udigest::Digestable,
         aux: &Aux,
         data: Data,
@@ -338,24 +354,25 @@ pub mod non_interactive {
     ) -> Challenge {
         let tag = "paillier_zk.encryption_in_range.ni_challenge";
         let seed = udigest::inline_struct!(tag {
+            security,
             shared_state,
             aux: aux.digest_public_data(),
             data,
             commitment,
         });
         let mut rng = rand_hash::HashRng::<D, _>::from_seed(seed);
-        super::interactive::challenge(security, &mut rng)
+        super::interactive::challenge::<C>(&mut rng)
     }
 
     /// Verify the proof, deriving challenge independently from same data
-    pub fn verify<D: Digest>(
+    pub fn verify<C: generic_ec::Curve, D: Digest>(
         shared_state: &impl udigest::Digestable,
         aux: &Aux,
         data: Data,
         security: &SecurityParams,
         proof: &NiProof,
     ) -> Result<(), InvalidProof> {
-        let challenge = challenge::<D>(shared_state, aux, data, &proof.commitment, security);
+        let challenge = challenge::<C, D>(shared_state, aux, data, &proof.commitment, security);
         super::interactive::verify(
             aux,
             data,
@@ -374,7 +391,7 @@ mod test {
 
     use crate::common::{IntegerExt, InvalidProofReason};
 
-    fn run_with<D: Digest>(
+    fn run_with<C: generic_ec::Curve, D: Digest>(
         mut rng: &mut impl rand_core::CryptoRngCore,
         security: super::SecurityParams,
         plaintext: Integer,
@@ -394,9 +411,9 @@ mod test {
 
         let shared_state = "shared state";
         let proof =
-            super::non_interactive::prove::<D>(&shared_state, &aux, data, pdata, &security, rng)
+            super::non_interactive::prove::<C, D>(&shared_state, &aux, data, pdata, &security, rng)
                 .unwrap();
-        super::non_interactive::verify::<D>(&shared_state, &aux, data, &security, &proof)
+        super::non_interactive::verify::<C, D>(&shared_state, &aux, data, &security, &proof)
     }
 
     #[test]
@@ -405,11 +422,11 @@ mod test {
         let security = super::SecurityParams {
             l: 1024,
             epsilon: 256,
-            q: (Integer::ONE << 128_u32).complete() - 1,
         };
         let plaintext =
             Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), &mut rng);
-        let r = run_with::<sha2::Sha256>(&mut rng, security, plaintext);
+        let r =
+            run_with::<generic_ec::curves::Secp256k1, sha2::Sha256>(&mut rng, security, plaintext);
         match r {
             Ok(()) => (),
             Err(e) => panic!("{e:?}"),
@@ -421,10 +438,10 @@ mod test {
         let security = super::SecurityParams {
             l: 1024,
             epsilon: 256,
-            q: (Integer::ONE << 128_u32).complete() - 1,
         };
         let plaintext = (Integer::ONE << (security.l + security.epsilon)).complete() + 1;
-        let r = run_with::<sha2::Sha256>(&mut rng, security, plaintext);
+        let r =
+            run_with::<generic_ec::curves::Secp256k1, sha2::Sha256>(&mut rng, security, plaintext);
         match r.map_err(|e| e.reason()) {
             Ok(()) => panic!("proof should not pass"),
             Err(InvalidProofReason::RangeCheck(_)) => (),
