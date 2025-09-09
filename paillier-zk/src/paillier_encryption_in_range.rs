@@ -35,7 +35,7 @@
 //! let security = p::SecurityParams {
 //!     l: 1024,
 //!     epsilon: 128,
-//!     q: (Integer::ONE << 128_u32).into(),
+//!     q: Integer::curve_order::<generic_ec::curves::Secp256k1>(),
 //! };
 //!
 //! // 1. Setup: prover prepares the paillier keys
@@ -97,13 +97,18 @@ pub use crate::common::InvalidProof;
 /// Security parameters for proof. Choosing the values is a tradeoff between
 /// speed and chance of rejecting a valid proof or accepting an invalid proof
 #[derive(Debug, Clone, udigest::Digestable)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[udigest(bound = "")]
 pub struct SecurityParams {
     /// l in paper, security parameter for bit size of plaintext: it needs to
     /// be in range [-2^l; 2^l] or equivalently 2^l
     pub l: usize,
     /// Epsilon in paper, slackness parameter
     pub epsilon: usize,
+    /// Determines a domain of challenges
+    ///
+    /// Must be equal to order of the curve
+    #[udigest(as = crate::common::encoding::Integer)]
+    pub q: Integer,
 }
 
 /// Public data that both parties know
@@ -176,7 +181,6 @@ pub struct NiProof {
 /// prover commits to data, verifier responds with a random challenge, and
 /// prover gives proof with commitment and challenge.
 pub mod interactive {
-    use rand_core::RngCore;
     use rug::{Complete, Integer};
 
     use crate::{
@@ -191,12 +195,12 @@ pub mod interactive {
     };
 
     /// Create random commitment
-    pub fn commit<R: RngCore>(
+    pub fn commit(
         aux: &Aux,
         data: Data,
         pdata: PrivateData,
         security: &SecurityParams,
-        rng: &mut R,
+        rng: &mut impl rand_core::RngCore,
     ) -> Result<(Commitment, PrivateCommitment), Error> {
         let two_to_l_plus_e = (Integer::ONE << (security.l + security.epsilon)).complete();
         let hat_n_at_two_to_l = (Integer::ONE << security.l).complete() * &aux.rsa_modulo;
@@ -311,9 +315,8 @@ pub mod interactive {
     /// Generate random challenge
     ///
     /// `security` parameter is used to generate challenge in correct range
-    pub fn challenge<C: generic_ec::Curve>(rng: &mut impl rand_core::RngCore) -> Integer {
-        let q = Integer::curve_order::<C>();
-        Integer::from_rng_half_pm(&q, rng)
+    pub fn challenge(rng: &mut impl rand_core::RngCore, security: &SecurityParams) -> Integer {
+        Integer::from_rng_half_pm(&security.q, rng)
     }
 }
 
@@ -330,7 +333,7 @@ pub mod non_interactive {
     /// deriving determenistic challenge.
     ///
     /// Obtained from the above interactive proof via Fiat-Shamir heuristic.
-    pub fn prove<C: generic_ec::Curve, D: Digest>(
+    pub fn prove<D: Digest>(
         shared_state: &impl udigest::Digestable,
         aux: &Aux,
         data: Data,
@@ -339,13 +342,13 @@ pub mod non_interactive {
         rng: &mut impl rand_core::RngCore,
     ) -> Result<NiProof, Error> {
         let (commitment, pcomm) = super::interactive::commit(aux, data, pdata, security, rng)?;
-        let challenge = challenge::<C, D>(shared_state, aux, data, &commitment, security);
+        let challenge = challenge::<D>(shared_state, aux, data, &commitment, security);
         let proof = super::interactive::prove(data, pdata, &pcomm, &challenge)?;
         Ok(NiProof { commitment, proof })
     }
 
     /// Deterministically compute challenge based on prior known values in protocol
-    pub fn challenge<C: generic_ec::Curve, D: Digest>(
+    pub fn challenge<D: Digest>(
         shared_state: &impl udigest::Digestable,
         aux: &Aux,
         data: Data,
@@ -361,18 +364,18 @@ pub mod non_interactive {
             commitment,
         });
         let mut rng = rand_hash::HashRng::<D, _>::from_seed(seed);
-        super::interactive::challenge::<C>(&mut rng)
+        super::interactive::challenge(&mut rng, security)
     }
 
     /// Verify the proof, deriving challenge independently from same data
-    pub fn verify<C: generic_ec::Curve, D: Digest>(
+    pub fn verify<D: Digest>(
         shared_state: &impl udigest::Digestable,
         aux: &Aux,
         data: Data,
         security: &SecurityParams,
         proof: &NiProof,
     ) -> Result<(), InvalidProof> {
-        let challenge = challenge::<C, D>(shared_state, aux, data, &proof.commitment, security);
+        let challenge = challenge::<D>(shared_state, aux, data, &proof.commitment, security);
         super::interactive::verify(
             aux,
             data,
@@ -391,7 +394,7 @@ mod test {
 
     use crate::common::{IntegerExt, InvalidProofReason};
 
-    fn run_with<C: generic_ec::Curve, D: Digest>(
+    fn run_with<D: Digest>(
         mut rng: &mut impl rand_core::CryptoRngCore,
         security: super::SecurityParams,
         plaintext: Integer,
@@ -411,9 +414,9 @@ mod test {
 
         let shared_state = "shared state";
         let proof =
-            super::non_interactive::prove::<C, D>(&shared_state, &aux, data, pdata, &security, rng)
+            super::non_interactive::prove::<D>(&shared_state, &aux, data, pdata, &security, rng)
                 .unwrap();
-        super::non_interactive::verify::<C, D>(&shared_state, &aux, data, &security, &proof)
+        super::non_interactive::verify::<D>(&shared_state, &aux, data, &security, &proof)
     }
 
     #[test]
@@ -422,11 +425,11 @@ mod test {
         let security = super::SecurityParams {
             l: 1024,
             epsilon: 256,
+            q: Integer::curve_order::<generic_ec::curves::Secp256k1>(),
         };
         let plaintext =
             Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), &mut rng);
-        let r =
-            run_with::<generic_ec::curves::Secp256k1, sha2::Sha256>(&mut rng, security, plaintext);
+        let r = run_with::<sha2::Sha256>(&mut rng, security, plaintext);
         match r {
             Ok(()) => (),
             Err(e) => panic!("{e:?}"),
@@ -438,10 +441,10 @@ mod test {
         let security = super::SecurityParams {
             l: 1024,
             epsilon: 256,
+            q: Integer::curve_order::<generic_ec::curves::Secp256k1>(),
         };
         let plaintext = (Integer::ONE << (security.l + security.epsilon)).complete() + 1;
-        let r =
-            run_with::<generic_ec::curves::Secp256k1, sha2::Sha256>(&mut rng, security, plaintext);
+        let r = run_with::<sha2::Sha256>(&mut rng, security, plaintext);
         match r.map_err(|e| e.reason()) {
             Ok(()) => panic!("proof should not pass"),
             Err(InvalidProofReason::RangeCheck(_)) => (),
