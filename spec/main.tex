@@ -717,6 +717,18 @@ Proof guarantees: $x \in \pm 2^{\ell + \varepsilon}$ and $y \in \pm 2^{\ell' + \
 }
 \algoOutputs{aborts if proof is invalid}
 \begin{algorithmic}[1]
+\Statex Verify public data:
+\State $C \? \in \Z^*_{N_j^2}$
+\State $D \? \in \Z^*_{N_j^2}$
+\State $Y \? \in \Z^*_{N_i^2}$
+\Statex Verify commitment:
+\State $A \? \in \Z^*_{N_j^2}$
+\State $B_y \? \in \Z^*_{N_i^2}$
+\State $E \? \in \Z^*_{\hat N_j}$
+\State $S \? \in \Z^*_{\hat N_j}$
+\State $F \? \in \Z^*_{\hat N_j}$
+\State $T \? \in \Z^*_{\hat N_j}$
+\Statex Verify statement:
 \State $A \oplus (e \odot D) \? = (z_1 \odot C) \oplus \enc^\crt_{\sk_j}(z_2; w)\bmod N_j^2$
 \State $z_1 \cdot G \? = B_x + e \cdot X$
 \State $B_y \oplus (e \odot Y) \? = \enc_{N_i}(z_2; w_y) \bmod N_i^2$
