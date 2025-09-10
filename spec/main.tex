@@ -1094,6 +1094,12 @@ For this proof, the prover and verifier have common input $(N, s, t)$ with $s, t
 }
 \algoOutputs{Aborts if proof is invalid}
 \begin{algorithmic}[1]
+\Statex Verify that inputs are in expected domains:
+\State $s \? \in \Z^*_N$
+\State $t \? \in \Z^*_N$
+\State $A_i \? \in \Z^*_N \; \forall i \in [m]$
+\State $z_i \? \in \Z_N \; \forall i \in [m]$
+\Statex Verify statement:
 \State Assert $t^{z_i} \? = A_i s^{e_i} \bmod N$ for all $i \in [m]$
 \end{algorithmic}
 \end{inlineAlgorithm}
