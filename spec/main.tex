@@ -975,10 +975,11 @@ the output is undefined.
 \begin{algorithmic}[1]
 \State $N \? = 1 \bmod 2$
 \State $\isprime(N) \? = \mathtt{false}$
-\State $\gcd(w, N) \? = 1$
+\State $w \? \in \Z^*_N$
 \Statex
 \For{$i \in [m]$}
-    \State $y_i \? \in \Z^*_N$
+    \State $x_i \? \in \Z^*_N$
+    \State $z_i \? \in \Z^*_N$
     \State $z_i^N \? = y_i \bmod N$
     \State $(a_i, b_i) \? \in \Bit^2$
     \State $x_i^4 \? = (-1)^{a_i}w^{b_i}y_i \bmod N$

@@ -132,7 +132,7 @@ pub mod interactive {
 
     use crate::{
         common::{
-            fail_if_ne,
+            fail_if,
             sqrt::{blum_sqrt, find_residue, sample_invertible_with_neg_jacobi},
         },
         IntegerExt,
@@ -192,17 +192,19 @@ pub mod interactive {
         if data.n.is_even() {
             return Err(InvalidProofReason::ModulusIsEven.into());
         }
-        fail_if_ne(
-            InvalidProofReason::EqualityCheck(1),
-            &data.n.gcd_ref(&commitment.w).complete(),
-            Integer::ONE,
+        fail_if(
+            InvalidProofReason::RangeCheck(1),
+            commitment.w.is_in_mult_group(&data.n),
         )?;
 
         for (point, y) in proof.points.iter().zip(challenge.ys.iter()) {
-            fail_if_ne(
-                InvalidProofReason::EqualityCheck(2),
-                &y.gcd_ref(data.n).complete(),
-                Integer::ONE,
+            fail_if(
+                InvalidProofReason::RangeCheck(2),
+                point.x.is_in_mult_group(&data.n),
+            )?;
+            fail_if(
+                InvalidProofReason::RangeCheck(3),
+                point.z.is_in_mult_group(&data.n),
             )?;
             if Integer::from(
                 point
