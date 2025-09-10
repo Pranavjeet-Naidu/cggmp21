@@ -1393,6 +1393,7 @@ Prover has secret input $(y, \lambda) \in \Z_q^2$ such that $L = \lambda G, M = 
 \algoOutputs{challenge $q \in \Z_q$}
 \begin{algorithmic}[1]
 \State $e \gets \Z_q$
+\Comment{\parbox[t]{.8\linewidth}{Note: paper suggests sampling from $\pm q$, but in this particular proof it doesn't matter, as challenge is only used in elliptic point operations. In other proofs you may see that we sample challenge from $\pm q$, but notice that challenge is also used in other arithmetic operations, e.g. $\rho^e \bmod N$ where sign of $e$ matters.}}
 \State \Return $e$
 \end{algorithmic}
 \end{inlineAlgorithm}
