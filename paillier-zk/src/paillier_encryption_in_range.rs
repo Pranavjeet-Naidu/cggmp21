@@ -315,7 +315,7 @@ pub mod interactive {
     /// Generate random challenge
     ///
     /// `security` parameter is used to generate challenge in correct range
-    pub fn challenge(rng: &mut impl rand_core::RngCore, security: &SecurityParams) -> Integer {
+    pub fn challenge(rng: &mut impl rand_core::RngCore, security: &SecurityParams) -> Challenge {
         Integer::from_rng_half_pm(&security.q, rng)
     }
 }
