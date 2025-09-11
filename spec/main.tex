@@ -1244,6 +1244,14 @@ Proof guarantees that each $p, q > 2^\ell$ (assuming $2^{2 \ell + \varepsilon} \
 }
 \algoOutputs{aborts if proof is invalid}
 \begin{algorithmic}[1]
+\Statex Verify that inputs are in expected domains:
+\State $P \? \in \Z^*_{N_j}$
+\State $Q \? \in \Z^*_{N_j}$
+\State $A \? \in \Z^*_{N_j}$
+\State $B \? \in \Z^*_{N_j}$
+\State $T \? \in \Z^*_{N_j}$
+
+\Statex Verify statement:
 \State $N_i \? > 2^{4 \ell}$
 \State $s_j^{z_1} t_j^{w_1} \? = A \cdot P^e \bmod N_j \? \in \Z^*_{N_j}$ 
 \State $s_j^{z_2} t_j^{w_2} \? = B \cdot Q^e \bmod N_j \? \in \Z^*_{N_j}$

@@ -255,6 +255,28 @@ pub mod interactive {
         challenge: &Challenge,
         proof: &Proof,
     ) -> Result<(), InvalidProof> {
+        // Verify that inputs are in expected domains
+        fail_if(
+            InvalidProofReason::RangeCheck(0),
+            aux.is_in_mult_group(&commitment.p),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(1),
+            aux.is_in_mult_group(&commitment.q),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(2),
+            aux.is_in_mult_group(&commitment.a),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(3),
+            aux.is_in_mult_group(&commitment.b),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(4),
+            aux.is_in_mult_group(&commitment.t),
+        )?;
+        // Verify the statement
         // range check for N_i
         {
             let n_bits: usize = data
@@ -262,31 +284,28 @@ pub mod interactive {
                 .significant_bits()
                 .try_into()
                 .map_err(|_| InvalidProofReason::Conversion)?;
-            fail_if(InvalidProofReason::RangeCheck(0), n_bits >= 4 * security.l)?;
+            fail_if(InvalidProofReason::RangeCheck(5), n_bits >= 4 * security.l)?;
         }
-        // check 1
         {
             let lhs = aux.combine(&proof.z1, &proof.w1)?;
             let p_to_e = aux.pow_mod(&commitment.p, challenge)?;
             let rhs = (&commitment.a * p_to_e).modulo(&aux.rsa_modulo);
-            fail_if_ne(InvalidProofReason::EqualityCheck(1), &lhs, &rhs)?;
+            fail_if_ne(InvalidProofReason::EqualityCheck(6), &lhs, &rhs)?;
             fail_if(
-                InvalidProofReason::MultGroupCheck(1),
+                InvalidProofReason::MultGroupCheck(7),
                 aux.is_in_mult_group(&lhs),
             )?;
         }
-        // check 2
         {
             let lhs = aux.combine(&proof.z2, &proof.w2)?;
             let q_to_e = aux.pow_mod(&commitment.q, challenge)?;
             let rhs = (&commitment.b * q_to_e).modulo(&aux.rsa_modulo);
-            fail_if_ne(InvalidProofReason::EqualityCheck(2), &lhs, &rhs)?;
+            fail_if_ne(InvalidProofReason::EqualityCheck(8), &lhs, &rhs)?;
             fail_if(
-                InvalidProofReason::MultGroupCheck(2),
+                InvalidProofReason::MultGroupCheck(9),
                 aux.is_in_mult_group(&lhs),
             )?;
         }
-        // check 3
         {
             let r = aux.pow_mod(&aux.s, data.n)?;
             let q_to_z1 = aux.pow_mod(&commitment.q, &proof.z1)?;
@@ -295,21 +314,21 @@ pub mod interactive {
             let rhs = aux
                 .rsa_modulo
                 .combine(&commitment.t, Integer::ONE, &r, challenge)?;
-            fail_if_ne(InvalidProofReason::EqualityCheck(3), &lhs, &rhs)?;
+            fail_if_ne(InvalidProofReason::EqualityCheck(10), &lhs, &rhs)?;
             fail_if(
-                InvalidProofReason::MultGroupCheck(3),
+                InvalidProofReason::MultGroupCheck(11),
                 aux.is_in_mult_group(&lhs),
             )?;
         }
         let range = (Integer::from(1) << (security.l + security.epsilon)) * data.n_root;
         // range check for z1
         fail_if(
-            InvalidProofReason::RangeCheck(1),
+            InvalidProofReason::RangeCheck(12),
             proof.z1.is_in_half_pm(&range),
         )?;
         // range check for z2
         fail_if(
-            InvalidProofReason::RangeCheck(2),
+            InvalidProofReason::RangeCheck(13),
             proof.z2.is_in_half_pm(&range),
         )?;
 
@@ -466,7 +485,7 @@ mod test {
         let r = super::non_interactive::verify::<D>(&shared_state, &aux, data, &security, &proof)
             .expect_err("proof should not pass");
         match r.reason() {
-            InvalidProofReason::RangeCheck(1) => (),
+            InvalidProofReason::RangeCheck(12) => (),
             e => panic!("Proof should not fail with {e:?}"),
         }
     }
