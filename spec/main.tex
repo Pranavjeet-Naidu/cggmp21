@@ -1606,6 +1606,12 @@ Proof guarantees that $x \in \pm 2^{\ell + \varepsilon}$
 }
 \algoOutputs{aborts if proof is invalid}
 \begin{algorithmic}[1]
+\Statex Verify that inputs are in expected domains:
+\State $C \? \in \Z^*_{N_0^2}$
+\State $S \? \in \Z^*_{N_j}$
+\State $T \? \in \Z^*_{N_j}$
+\State $D \? \in \Z^*_{N_0^2}$
+\Statex Verify statement:
 \State $\enc_{N_0}(z_1, z_2) \? = D \oplus e \odot C$
 \State $w \cdot A + z_1 \cdot G \? = Y + e \cdot X$
 \State $w \cdot G \? = Z + e \cdot B$

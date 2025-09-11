@@ -279,6 +279,25 @@ pub mod interactive {
         challenge: &Challenge,
         proof: &Proof<E>,
     ) -> Result<(), InvalidProof> {
+        // Verify that inputs are in expected domains:
+        fail_if(
+            InvalidProofReason::RangeCheck(1),
+            data.ciphertext.is_in_mult_group(data.key.nn()),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(2),
+            aux.is_in_mult_group(&commitment.s),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(3),
+            aux.is_in_mult_group(&commitment.t),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(4),
+            commitment.d.is_in_mult_group(data.key.nn()),
+        )?;
+
+        // Verify statement
         {
             let lhs = data
                 .key
@@ -293,17 +312,17 @@ pub mod interactive {
                     .oadd(&commitment.d, &e_at_c)
                     .map_err(|_| InvalidProofReason::PaillierOp)?
             };
-            fail_if_ne(InvalidProofReason::EqualityCheck(1), lhs, rhs)?;
+            fail_if_ne(InvalidProofReason::EqualityCheck(5), lhs, rhs)?;
         }
         {
             let lhs = data.a * proof.w + Point::<E>::generator() * proof.z1.to_scalar();
             let rhs = commitment.y + data.x * challenge.to_scalar();
-            fail_if_ne(InvalidProofReason::EqualityCheck(2), lhs, rhs)?;
+            fail_if_ne(InvalidProofReason::EqualityCheck(6), lhs, rhs)?;
         }
         {
             let lhs = Point::<E>::generator() * proof.w;
             let rhs = commitment.z + data.b * challenge.to_scalar();
-            fail_if_ne(InvalidProofReason::EqualityCheck(3), lhs, rhs)?;
+            fail_if_ne(InvalidProofReason::EqualityCheck(7), lhs, rhs)?;
         }
         {
             let lhs = aux.combine(&proof.z1, &proof.z3)?;
@@ -311,11 +330,11 @@ pub mod interactive {
                 let s_to_e = aux.pow_mod(&commitment.s, challenge)?;
                 (&commitment.t * s_to_e).modulo(&aux.rsa_modulo)
             };
-            fail_if_ne(InvalidProofReason::EqualityCheck(4), lhs, rhs)?;
+            fail_if_ne(InvalidProofReason::EqualityCheck(8), lhs, rhs)?;
         }
 
         fail_if(
-            InvalidProofReason::RangeCheck(5),
+            InvalidProofReason::RangeCheck(9),
             proof
                 .z1
                 .is_in_half_pm(&(Integer::ONE << (security.l + security.epsilon)).complete()),
@@ -460,7 +479,7 @@ mod test {
         let plaintext = (Integer::ONE << (security.l + security.epsilon - 1)).complete() + 1;
         let r = run_with::<C, D>(&mut rng, security, plaintext).expect_err("proof should not pass");
         match r.reason() {
-            InvalidProofReason::RangeCheck(5) => (),
+            InvalidProofReason::RangeCheck(9) => (),
             e => panic!("proof should not fail with: {e:?}"),
         }
     }
