@@ -194,17 +194,17 @@ pub mod interactive {
         }
         fail_if(
             InvalidProofReason::RangeCheck(1),
-            commitment.w.is_in_mult_group(&data.n),
+            commitment.w.is_in_mult_group(data.n),
         )?;
 
         for (point, y) in proof.points.iter().zip(challenge.ys.iter()) {
             fail_if(
                 InvalidProofReason::RangeCheck(2),
-                point.x.is_in_mult_group(&data.n),
+                point.x.is_in_mult_group(data.n),
             )?;
             fail_if(
                 InvalidProofReason::RangeCheck(3),
-                point.z.is_in_mult_group(&data.n),
+                point.z.is_in_mult_group(data.n),
             )?;
             if Integer::from(
                 point
