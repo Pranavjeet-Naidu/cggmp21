@@ -365,7 +365,46 @@ pub mod interactive {
         challenge: &Challenge,
         proof: &Proof,
     ) -> Result<(), InvalidProof> {
-        // Five equality checks and two range checks
+        // Verify public data
+        fail_if(
+            InvalidProofReason::RangeCheck(1),
+            data.c.is_in_mult_group(data.key_j.nn()),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(2),
+            data.d.is_in_mult_group(data.key_j.nn()),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(3),
+            data.y.is_in_mult_group(data.key_i.nn()),
+        )?;
+        // Verify commitment
+        fail_if(
+            InvalidProofReason::RangeCheck(4),
+            commitment.a.is_in_mult_group(data.key_j.nn()),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(5),
+            commitment.b_y.is_in_mult_group(data.key_i.nn()),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(6),
+            aux.is_in_mult_group(&commitment.e),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(7),
+            aux.is_in_mult_group(&commitment.s),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(8),
+            aux.is_in_mult_group(&commitment.f),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(9),
+            aux.is_in_mult_group(&commitment.t),
+        )?;
+
+        // Verify statement
         {
             let lhs = {
                 let z1_at_c = data
@@ -389,12 +428,12 @@ pub mod interactive {
                     .oadd(&commitment.a, &e_at_d)
                     .map_err(|_| InvalidProofReason::PaillierOp)?
             };
-            fail_if_ne(InvalidProofReason::EqualityCheck(1), lhs, rhs)?;
+            fail_if_ne(InvalidProofReason::EqualityCheck(10), lhs, rhs)?;
         }
         {
             let lhs = Point::<C>::generator() * proof.z1.to_scalar();
             let rhs = commitment.b_x + data.x * challenge.to_scalar();
-            fail_if_ne(InvalidProofReason::EqualityCheck(2), lhs, rhs)?;
+            fail_if_ne(InvalidProofReason::EqualityCheck(11), lhs, rhs)?;
         }
         {
             let lhs = data
@@ -410,28 +449,28 @@ pub mod interactive {
                     .oadd(&commitment.b_y, &e_at_y)
                     .map_err(|_| InvalidProofReason::PaillierOp)?
             };
-            fail_if_ne(InvalidProofReason::EqualityCheck(3), lhs, rhs)?;
+            fail_if_ne(InvalidProofReason::EqualityCheck(12), lhs, rhs)?;
         }
         {
             let lhs = aux.combine(&proof.z1, &proof.z3)?;
             let s_to_e = aux.pow_mod(&commitment.s, challenge)?;
             let rhs = (&commitment.e * s_to_e).modulo(&aux.rsa_modulo);
-            fail_if_ne(InvalidProofReason::EqualityCheck(4), lhs, rhs)?;
+            fail_if_ne(InvalidProofReason::EqualityCheck(13), lhs, rhs)?;
         }
         {
             let lhs = aux.combine(&proof.z2, &proof.z4)?;
             let t_to_e = aux.pow_mod(&commitment.t, challenge)?;
             let rhs = (&commitment.f * t_to_e).modulo(&aux.rsa_modulo);
-            fail_if_ne(InvalidProofReason::EqualityCheck(5), lhs, rhs)?;
+            fail_if_ne(InvalidProofReason::EqualityCheck(14), lhs, rhs)?;
         }
         fail_if(
-            InvalidProofReason::RangeCheck(6),
+            InvalidProofReason::RangeCheck(15),
             proof
                 .z1
                 .is_in_half_pm(&(Integer::ONE << (security.l_x + security.epsilon)).complete()),
         )?;
         fail_if(
-            InvalidProofReason::RangeCheck(7),
+            InvalidProofReason::RangeCheck(16),
             proof
                 .z2
                 .is_in_half_pm(&(Integer::ONE << (security.l_y + security.epsilon)).complete()),
@@ -594,7 +633,7 @@ mod test {
         let y = (Integer::ONE << (security.l_y + security.epsilon - 1)).complete() + 1;
         let r = run::<_, C, D>(&mut rng, security, x, y).expect_err("proof should not pass");
         match r.reason() {
-            InvalidProofReason::RangeCheck(7) => (),
+            InvalidProofReason::RangeCheck(16) => (),
             e => panic!("proof should not fail with: {e:?}"),
         }
     }
@@ -610,7 +649,7 @@ mod test {
         let y = Integer::from_rng_half_pm(&(Integer::ONE << security.l_y).complete(), &mut rng);
         let r = run::<_, C, D>(&mut rng, security, x, y).expect_err("proof should not pass");
         match r.reason() {
-            InvalidProofReason::RangeCheck(6) => (),
+            InvalidProofReason::RangeCheck(15) => (),
             e => panic!("proof should not fail with: {e:?}"),
         }
     }
