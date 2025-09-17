@@ -158,7 +158,7 @@ mod internal {
 ///
 /// This library accepts `&dyn AnyDataToSign` **only if** it doesn't matter for security whether
 /// original message is known or not.
-pub trait AnyDataToSign<E: Curve>: internal::Sealed {
+pub trait AnyDataToSign<E: Curve>: Send + Sync + internal::Sealed {
     /// Returns a scalar that represents a data to be signed
     fn to_scalar(&self) -> Scalar<E>;
 }
