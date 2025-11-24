@@ -4,6 +4,7 @@ use digest::Digest;
 use paillier_zk::{
     fast_paillier::utils,
     rug::{Complete, Integer},
+    IntegerExt,
 };
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
@@ -121,6 +122,20 @@ pub fn verify<const M: usize, D: Digest>(
     data: Data,
     proof: &Proof<M>,
 ) -> Result<(), InvalidProof> {
+    // Verify that inputs are in expected domains
+    if !data.s.is_in_mult_group(data.N) {
+        return Err(InvalidProof);
+    }
+    if !data.t.is_in_mult_group(data.N) {
+        return Err(InvalidProof);
+    }
+    for (A_i, z_i) in proof.commitment.iter().zip(&proof.zs) {
+        if !A_i.is_in_mult_group(data.N) || z_i.is_negative() || z_i >= data.N {
+            return Err(InvalidProof);
+        }
+    }
+
+    // Verify statement
     let challenge: Challenge<M> = derive_challenge::<M, D>(shared_state, data, &proof.commitment);
     for ((z, a), e) in proof.zs.iter().zip(&proof.commitment).zip(&challenge.es) {
         let lhs: Integer = data.t.pow_mod_ref(z, data.N).ok_or(InvalidProof)?.into();

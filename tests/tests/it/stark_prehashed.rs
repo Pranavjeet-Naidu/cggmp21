@@ -60,7 +60,7 @@ fn sign_transaction() {
     let s1 = cggmp24::generic_ec::Scalar::from_be_bytes_mod_order(bytes);
     let s2 = convert_from_stark_scalar(&transaction_hash).unwrap();
     assert_eq!(s1, s2);
-    let cggmp_transaction_hash = cggmp24::DataToSign::from_scalar(s2);
+    let cggmp_transaction_hash = cggmp24::PrehashedDataToSign::from_scalar(s2);
 
     // Choose `t` signers to perform signing
     let t = shares[0].min_signers();
@@ -76,7 +76,7 @@ fn sign_transaction() {
 
         async move {
             cggmp24::signing(eid, i, participants, share)
-                .sign(&mut party_rng, party, cggmp_transaction_hash)
+                .sign(&mut party_rng, party, &cggmp_transaction_hash)
                 .await
         }
     })

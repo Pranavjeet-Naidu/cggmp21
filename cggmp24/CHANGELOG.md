@@ -12,9 +12,15 @@ Breaking changes:
     cannot be deserialized by this new version.
   * The core data within `cggmp24::IncompleteKeyShare` remains backward compatible and can be
     deserialized from older versions.
+* "Raw signing" (when we sign a hash, and original message to be signed in unknown) using a presignature
+  is now prohibited on API level, as it is insecure. Read our [blog post][vuln-disclosure] to learn more.
+* Using HD derivation when signing with presignature is prohibited, as it significantly decreases security.
+  Read our [blog post][vuln-disclosure] to learn more.
 
 Please refer to the [migration manual](./../CGGMP21_MIGRATION.md) for detailed instructions on how
 to upgrade your existing key share data.
+
+[vuln-disclosure]: https://www.dfns.co/article/cggmp21-vulnerabilities-patched-and-explained
 
 # CGGMP21 releases
 

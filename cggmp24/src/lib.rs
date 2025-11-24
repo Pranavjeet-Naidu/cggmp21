@@ -210,7 +210,7 @@
 //! let data_to_sign = cggmp24::DataToSign::digest::<Sha256>(b"data to be signed");
 //!
 //! let signature = cggmp24::signing(eid, i, &parties_indexes_at_keygen, &key_share)
-//!     .sign(&mut OsRng, party, data_to_sign)
+//!     .sign(&mut OsRng, party, &data_to_sign)
 //!     .await?;
 //! # Ok(()) }
 //! ```
@@ -295,7 +295,7 @@
 )]
 #![forbid(clippy::disallowed_methods, missing_docs, unsafe_code)]
 #![cfg_attr(not(test), forbid(unused_crate_dependencies))]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[cfg(feature = "hd-wallet")]
 pub use hd_wallet;
@@ -352,7 +352,9 @@ pub use self::{
     key_refresh::{KeyRefreshError, PregeneratedPrimes},
     key_share::{IncompleteKeyShare, KeyShare},
     keygen::KeygenError,
-    signing::{DataToSign, PartialSignature, Presignature, Signature, SigningError},
+    signing::{
+        DataToSign, PartialSignature, PrehashedDataToSign, Presignature, Signature, SigningError,
+    },
 };
 
 /// Protocol for finalizing the keygen by generating aux info.

@@ -35,7 +35,7 @@
 //! let security = p::SecurityParams {
 //!     l: 1024,
 //!     epsilon: 128,
-//!     q: (Integer::ONE << 128_u32).into(),
+//!     q: Integer::curve_order::<generic_ec::curves::Secp256k1>(),
 //! };
 //!
 //! // 1. Setup: prover prepares the paillier keys
@@ -96,15 +96,18 @@ pub use crate::common::InvalidProof;
 
 /// Security parameters for proof. Choosing the values is a tradeoff between
 /// speed and chance of rejecting a valid proof or accepting an invalid proof
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, udigest::Digestable)]
+#[udigest(bound = "")]
 pub struct SecurityParams {
     /// l in paper, security parameter for bit size of plaintext: it needs to
     /// be in range [-2^l; 2^l] or equivalently 2^l
     pub l: usize,
     /// Epsilon in paper, slackness parameter
     pub epsilon: usize,
-    /// q in paper. Security parameter for challenge
+    /// Determines a domain of challenges
+    ///
+    /// Must be equal to order of the curve
+    #[udigest(as = crate::common::encoding::Integer)]
     pub q: Integer,
 }
 
@@ -178,7 +181,6 @@ pub struct NiProof {
 /// prover commits to data, verifier responds with a random challenge, and
 /// prover gives proof with commitment and challenge.
 pub mod interactive {
-    use rand_core::RngCore;
     use rug::{Complete, Integer};
 
     use crate::{
@@ -193,12 +195,12 @@ pub mod interactive {
     };
 
     /// Create random commitment
-    pub fn commit<R: RngCore>(
+    pub fn commit(
         aux: &Aux,
         data: Data,
         pdata: PrivateData,
         security: &SecurityParams,
-        rng: &mut R,
+        rng: &mut impl rand_core::RngCore,
     ) -> Result<(Commitment, PrivateCommitment), Error> {
         let two_to_l_plus_e = (Integer::ONE << (security.l + security.epsilon)).complete();
         let hat_n_at_two_to_l = (Integer::ONE << security.l).complete() * &aux.rsa_modulo;
@@ -252,13 +254,37 @@ pub mod interactive {
         challenge: &Challenge,
         proof: &Proof,
     ) -> Result<(), InvalidProof> {
-        {
-            fail_if_ne(
-                InvalidProofReason::EqualityCheck(1),
-                &data.ciphertext.gcd_ref(data.key.n()).complete(),
-                Integer::ONE,
-            )?;
-        }
+        fail_if(
+            InvalidProofReason::RangeCheck(1),
+            data.ciphertext.is_in_mult_group(data.key.nn()),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(2),
+            aux.is_in_mult_group(&commitment.s),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(3),
+            commitment.a.is_in_mult_group(data.key.nn()),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(4),
+            aux.is_in_mult_group(&commitment.c),
+        )?;
+
+        fail_if(
+            InvalidProofReason::RangeCheck(5),
+            proof
+                .z1
+                .is_in_half_pm(&(Integer::ONE << (security.l + security.epsilon)).complete()),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(6),
+            proof.z3.is_in_half_pm(
+                &(&aux.rsa_modulo
+                    * (Integer::ONE << (security.l + security.epsilon + 1)).complete()),
+            ),
+        )?;
+
         {
             let lhs = data
                 .key
@@ -283,20 +309,13 @@ pub mod interactive {
             fail_if_ne(InvalidProofReason::EqualityCheck(3), lhs, rhs)?;
         }
 
-        fail_if(
-            InvalidProofReason::RangeCheck(4),
-            proof
-                .z1
-                .is_in_half_pm(&(Integer::ONE << (security.l + security.epsilon)).complete()),
-        )?;
-
         Ok(())
     }
 
     /// Generate random challenge
     ///
     /// `security` parameter is used to generate challenge in correct range
-    pub fn challenge<R: RngCore>(security: &SecurityParams, rng: &mut R) -> Challenge {
+    pub fn challenge(rng: &mut impl rand_core::RngCore, security: &SecurityParams) -> Challenge {
         Integer::from_rng_half_pm(&security.q, rng)
     }
 }
@@ -338,13 +357,14 @@ pub mod non_interactive {
     ) -> Challenge {
         let tag = "paillier_zk.encryption_in_range.ni_challenge";
         let seed = udigest::inline_struct!(tag {
+            security,
             shared_state,
             aux: aux.digest_public_data(),
             data,
             commitment,
         });
         let mut rng = rand_hash::HashRng::<D, _>::from_seed(seed);
-        super::interactive::challenge(security, &mut rng)
+        super::interactive::challenge(&mut rng, security)
     }
 
     /// Verify the proof, deriving challenge independently from same data
@@ -405,7 +425,7 @@ mod test {
         let security = super::SecurityParams {
             l: 1024,
             epsilon: 256,
-            q: (Integer::ONE << 128_u32).complete() - 1,
+            q: Integer::curve_order::<generic_ec::curves::Secp256k1>(),
         };
         let plaintext =
             Integer::from_rng_half_pm(&(Integer::ONE << security.l).complete(), &mut rng);
@@ -421,7 +441,7 @@ mod test {
         let security = super::SecurityParams {
             l: 1024,
             epsilon: 256,
-            q: (Integer::ONE << 128_u32).complete() - 1,
+            q: Integer::curve_order::<generic_ec::curves::Secp256k1>(),
         };
         let plaintext = (Integer::ONE << (security.l + security.epsilon)).complete() + 1;
         let r = run_with::<sha2::Sha256>(&mut rng, security, plaintext);

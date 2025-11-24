@@ -186,7 +186,7 @@ let key_share = /* completed key share */;
 let data_to_sign = cggmp24::DataToSign::digest::<Sha256>(b"data to be signed");
 
 let signature = cggmp24::signing(eid, i, &parties_indexes_at_keygen, &key_share)
-    .sign(&mut OsRng, party, data_to_sign)
+    .sign(&mut OsRng, party, &data_to_sign)
     .await?;
 ```
 
