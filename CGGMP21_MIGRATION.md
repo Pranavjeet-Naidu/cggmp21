@@ -4,7 +4,11 @@ This guide provides the necessary steps to migrate your project from the older `
 implementation to the latest `cggmp24` version. This upgrade is essential to align with the most
 recent CGGMP24 paper revision.
 
-## Step 1: Update `Cargo.toml`
+There's many breaking changes in this release, so for convinience, we split them into several `alpha`
+releases. This instruction guides you through updating `cggmp21 v0.6` → `cggmp24 v0.7.0-alpha.1` →
+`v0.7.0-alpha.2` → `v0.7.0-alpha.3`.
+
+## Step 1: Update `Cargo.toml` to use `cggmp24 v0.7.0-alpha.1`
 The first step is to update your project's dependencies. Modify your `Cargo.toml` file to point to the
 new version of the library.
 
@@ -12,8 +16,12 @@ Replace the existing line for `cggmp21` with the following:
 
 ```toml
 [dependencies]
-cggmp24 = "0.7"
+cggmp24 = "0.7.0-alpha.1"
 ```
+
+If your `Cargo.toml` references `cggmp21-keygen` or `paillier-zk` crates, do the same with them:
+* `cggmp21-keygen` becomes `cggmp24-keygen`
+* New version for both crates is `0.7.0-alpha.1`
 
 ## Step 2: Update Code References
 Next, you need to update all references to cggmp21 within your Rust source code. E.g. `cggmp21::keygen(eid, i, n)`
@@ -58,15 +66,69 @@ and extract the "core".
 Once you have the core key share, you can combine it with your newly generated auxiliary data to
 reconstruct a complete, compatible key share.
 
-## Step 4: Finalize and Test
+## Step 4: Compile and Test
 
-After having followed all the instructions above, you can clean your build artifacts and run your
-project's tests to ensure the migration was successful.
+At this point, your project should compile and work perfectly fine with `cggmp24 v0.7.0-alpha.1`.
+Make sure it is the case:
 
 ```bash
 cargo clean
 cargo test
 ```
 
-If the code bulds, all tests pass, then your migration is complete. You are now using the latest
-`cggmp24` implementation.
+If there are issues, please fix them before proceeding to the next step.
+
+## Step 5: Update `Cargo.toml` to use `cggmp24 v0.7.0-alpha.2`
+Update version of `cggmp24`:
+
+```toml
+[dependencies]
+cggmp24 = "0.7.0-alpha.2"
+```
+
+## Step 6: Presignatures API changes
+
+From this version, our API explicitly prohibits using presignatures:
+* With "raw signing" (when we sign a hash of message, and original message is not known to the signer)
+* With HD wallet derivation
+
+In both cases, attacks have been found that break or significantly decrease security of the signing.
+Read the [vulnerability disclosure][vuln-disclosure] to learn more about these attacks.
+
+We changed API to prohibit "raw signing" with presignatures: now we provide `ccgmp24::{DataToSign,
+PrehashedDataToSign}`. `DataToSign` can only be constructed when original message is provided, by
+using `DataToSign::{digest, from_digest}` constructors that take an original message and a hash
+function, and they perform hashing internally.
+
+Now signing using presignature, i.e. `cggmp24::signing::Presignature::issue_partial_signature` **only**
+accepts `DataToSign`, which serves as a type-guard that original message has been observed.
+
+Otherwise, for regular signing via `cggmp24::signing().sign(...)` you can provide both `DataToSign` and
+`PrehashedDataToSign` (the latter can be constructed from any scalar/hash), as `.sign(..)` accepts
+`&dyn AnyDataToSign`.
+
+Note: although highly discouraged, you may bypass API type-guards and convert `PrehashedDataToSign`
+into `DataToSign`. To do that, you need to enable a feature `insecure-assume-preimage-known` in
+`cggmp24` crate and call method `PrehashedDataToSign::insecure_assume_preimage_known`. Use it
+only if you can completely trust the source of the prehashed data, and beware of possible attack
+described in the [blog][vuln-disclosure].
+
+Lastly, `Presignature::{set_derivation_path, set_derivation_path_with_algo}` methods have been removed to
+address second attack.
+
+[vuln-disclosure]: https://www.dfns.co/article/cggmp21-vulnerabilities-patched-and-explained
+
+Update your code to comply with the new API.
+
+## Step 7: Compile and Test
+
+At this point, your project should compile and work perfectly fine with `cggmp24 v0.7.0-alpha.2`.
+Make sure it is the case:
+
+```bash
+cargo clean
+cargo test
+```
+
+If there are issues, please fix them before proceeding to the next step.
+
