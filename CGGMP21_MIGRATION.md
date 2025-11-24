@@ -132,3 +132,71 @@ cargo test
 
 If there are issues, please fix them before proceeding to the next step.
 
+## Step 8: Update `Cargo.toml` to use `cggmp24 v0.7.0-alpha.3`
+Update version of `cggmp24`:
+
+```toml
+[dependencies]
+cggmp24 = "0.7.0-alpha.3"
+```
+
+## Step 9: Use the New Big Integer API
+Previously, cggmp lib has been relying on `rug` crate
+for big integer. Starting from this version, we use
+[`fast_paillier::backend::Integer`](https://docs.rs/fast-paillier/0.3/fast_paillier/backend/index.html)
+that internally uses either [`rug`](https://docs.rs/rug/latest/rug/) or
+[`num-bigint`](https://docs.rs/num-bigint/latest/num_bigint/) depending on
+enabled feature: by default, `num-bigint` is used, but you can change it back
+to `rug` by enabling `backend-rug` feature.
+
+Note: we re-export `fast-paillier` dependency as `cggmp24::fast_paillier`, and
+the backend it uses as `cggmp24::backend`, so you can reference integer using
+it.
+
+Integer type is exposed in library API, so you could have used it even if you
+don't have `rug` specified in your `Cargo.toml`. For instance,
+`cggmp24::key_share::DirtyAuxInfo` has fields `p` and `q` that are of type
+`Integer`.
+
+New `Integer` has different API from what `rug::Integer` has. For instance,
+serializing integer to bytes in MSF order looks like this:
+
+```rust
+let bytes: Vec<u8> = integer.to_digits::<u8>(rug::integer::Order::Msf);
+```
+
+With new API, it is done by calling `to_bytes_msf` method:
+```rust
+let bytes: Vec<u8> = integer.to_bytes_msf();
+```
+
+Also, note that we provide **limited stability guarantees** on Integer API that
+only applies to these methods:
+* `Integer::to_bytes_lsf`
+* `Integer::to_bytes_msf`
+* `Integer::from_bytes_msf`
+* `Integer::to_str_radix`
+* `Integer::from_str_radix`
+* `Integer::{to_num_bigint, from_num_bigint}`
+* `Integer::{to_rug, from_rug}`
+
+All other methods are unstable. We may introduce breaking changes on minor
+release as long as it doesn't break
+compilation of `cggmp24`.
+
+If you performed non-trivial operations on the rug integers previously, you may
+select the `backend-rug` feature and continue doing so, but you will need to
+use `Integer::to_rug` and `Integer::from_rug` methods to convert the numbers
+first.
+
+## Step 10: Compile and Test
+
+At this point, your project should compile and work perfectly fine with `cggmp24 v0.7.0-alpha.3`.
+Make sure it is the case:
+
+```bash
+cargo clean
+cargo test
+```
+
+If it compiles and all tests pass successfully, then you've completed migration!

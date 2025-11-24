@@ -17,6 +17,7 @@ Breaking changes:
   is now prohibited on API level, as it is insecure. Read our [blog post][vuln-disclosure] to learn more.
 * Using HD derivation when signing with presignature is prohibited, as it significantly decreases security.
   Read our [blog post][vuln-disclosure] to learn more.
+* Big Integer API has been changed
 
 Please refer to the [migration manual](./../CGGMP21_MIGRATION.md) for detailed instructions on how
 to upgrade your existing key share data.
