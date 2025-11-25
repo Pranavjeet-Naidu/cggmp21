@@ -868,9 +868,9 @@ dependencies = [
 
 [[package]]
 name = "fast-paillier"
-version = "0.3.0"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1508551853c688895dff13b40ab047b31ae9c90dccb3bb90183257ada04777d"
+checksum = "72f31977dae80ca360f5224c4073b0797851a11f4ea1635bdc86d08a3be87b3a"
 dependencies = [
  "bytemuck",
  "glass_pumpkin",
