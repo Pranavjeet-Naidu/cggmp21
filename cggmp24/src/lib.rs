@@ -257,6 +257,33 @@
 //! However, you may opt for them by enabling `spof` feature, then you can use [`trusted_dealer`]
 //! for key import and [`key_share::reconstruct_secret_key`] for key export.
 //!
+//! ## Big integer implementation
+//!
+//! This protocol relies heavily on big integer arithmetic, and provides a
+//! choice between two backends: rug and num-bigint.
+//!
+//! - To use rug, select the feature `backend-rug`. This backend is faster, in
+//! some applications by several times, but requires an LGPL dependency
+//! - To use num-bigint, select the feature `backend-num-bigint` (selected as
+//! **default** feature)
+//!
+//! ## no\_std compatability
+//!
+//! Every crate in this project is compatible with no\_std, provided that
+//! `num-bigint` backend is chosen. The presence of `alloc` is still required. This
+//! means that `cggmp24` and `cggmp24-keygen` can be run on a
+//! `wasm32-unknown-unknown` platform.
+//!
+//! To compile the crates for `no_std`, you need to disable the default feature
+//! "std" and instead enable `no_std` for some crates. The dependencies in your
+//! cargo file should look like this:
+//!
+//! ```toml
+//! cggmp24 = { version = "0.7", default-features = false, features = ["no_std", "backend-num-bigint"] }
+//! cggmp24-keygen = { version = "0.7", default-features = false }
+//! key-share = { version = "0.6", default-features = false }
+//! ```
+//!
 //! ## Differences between the implementation and CGGMP24
 //! [CGGMP24] only defines a non-threshold protocol. To support general thresholds,
 //! we defined our own CGGMP24-like key generation and threshold signing
@@ -301,7 +328,7 @@
 pub use hd_wallet;
 pub use {
     generic_ec, paillier_zk,
-    paillier_zk::{fast_paillier, rug},
+    paillier_zk::{backend, fast_paillier},
     round_based,
 };
 

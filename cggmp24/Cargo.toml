@@ -1,6 +1,6 @@
 [package]
 name = "cggmp24"
-version = "0.7.0-alpha.2"
+version = "0.7.0-alpha.3"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "TSS ECDSA implementation based on CGGMP24 paper"
@@ -19,7 +19,7 @@ generic-ec = { workspace = true, features = ["serde", "udigest", "hash-to-scalar
 generic-ec-zkp = { workspace = true, features = ["serde", "udigest"] }
 round-based = { workspace = true, features = ["derive"] }
 
-paillier-zk = { workspace = true, features = ["serde"] }
+paillier-zk = { workspace = true, default-features = false, features = ["serde"] }
 udigest = { workspace = true, features = ["std", "derive"]}
 
 digest = { workspace = true }
@@ -46,6 +46,8 @@ rand_dev = { workspace = true }
 generic-tests = { workspace = true }
 
 [features]
+default = ["std", "backend-num-bigint"]
+
 all-curves = ["curve-secp256k1", "curve-secp256r1", "curve-stark"]
 curve-secp256k1 = ["generic-ec/curve-secp256k1", "hd-wallet?/curve-secp256k1"]
 curve-secp256r1 = ["generic-ec/curve-secp256r1", "hd-wallet?/curve-secp256r1"]
@@ -54,6 +56,12 @@ hd-wallet = ["dep:hd-wallet", "cggmp24-keygen/hd-wallet"]
 hd-slip10 = ["hd-wallet/slip10"]
 hd-stark = ["hd-wallet/stark"]
 spof = ["key-share/spof"]
+
+std = ["paillier-zk/std"]
+no_std = ["paillier-zk/no_std"]
+
+backend-rug = ["paillier-zk/backend-rug"]
+backend-num-bigint = ["paillier-zk/backend-num-bigint"]
 
 # Exposes insecure API which may lead to security vulnerabilities when used inappropriately. Only
 # for advanced users. Be sure you fully understand the implications if you enable this feature.

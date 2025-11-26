@@ -4,6 +4,7 @@
 
 Changes:
 * All protocols have been updated to follow the latest CGGMP24 paper revision.
+* Change big integer backend to be abstract, selectable between rug and num-bigint
 
 Breaking changes:
 * The structure `cggmp24::key_share::AuxInfo` has been updated and consequently `cggmp24::KeyShare`
@@ -16,6 +17,7 @@ Breaking changes:
   is now prohibited on API level, as it is insecure. Read our [blog post][vuln-disclosure] to learn more.
 * Using HD derivation when signing with presignature is prohibited, as it significantly decreases security.
   Read our [blog post][vuln-disclosure] to learn more.
+* Big Integer API has been changed
 
 Please refer to the [migration manual](./../CGGMP21_MIGRATION.md) for detailed instructions on how
 to upgrade your existing key share data.

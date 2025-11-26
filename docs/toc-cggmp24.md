@@ -11,6 +11,8 @@
 - [Sync API](#sync-api)
 - [HD wallets support](#hd-wallets-support)
 - [SPOF code: Key Import and Export](#spof-code-key-import-and-export)
+- [Big integer implementation](#big-integer-implementation)
+- [no\_std compatability](#no_std-compatability)
 - [Differences between the implementation and CGGMP24](#differences-between-the-implementation-and-cggmp24)
 - [Timing attacks](#timing-attacks)
 - [Join us in Discord!](#join-us-in-discord)

@@ -8,14 +8,14 @@
 //! ## Example
 //! ```rust
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use rug::{Integer, Complete};
+//! use fast_paillier::backend::Integer;
 //! let mut rng = rand_core::OsRng;
 //! # let mut rng = rand_dev::DevRng::new();
 //!
 //! // 0. Prover P derives two Blum primes and makes a Paillier-Blum modulus
-//! let p = fast_paillier::utils::generate_safe_prime(&mut rng, 256);
-//! let q = fast_paillier::utils::generate_safe_prime(&mut rng, 256);
-//! let n = (&p * &q).complete();
+//! let p = Integer::generate_safe_prime(&mut rng, 256);
+//! let q = Integer::generate_safe_prime(&mut rng, 256);
+//! let n = &p * &q;
 //!
 //! // 1. P computes a non-interactive proof that `n` is a Paillier-Blum modulus:
 //! use paillier_zk::paillier_blum_modulus as p;
@@ -50,12 +50,13 @@
 //!     &shared_state,
 //!     data,
 //!     &proof,
+//!     &mut rng,
 //! )?;
 //! # Ok(()) }
 //! ```
 //! If the verification succeeded, V can continue communication with P
 
-use rug::Integer;
+use fast_paillier::backend::Integer;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -127,15 +128,12 @@ pub struct NiProof<const M: usize> {
 /// prover commits to data, verifier responds with a random challenge, and
 /// prover gives proof with commitment and challenge.
 pub mod interactive {
+    use fast_paillier::backend::Integer;
     use rand_core::RngCore;
-    use rug::{Complete, Integer};
 
-    use crate::{
-        common::{
-            fail_if,
-            sqrt::{blum_sqrt, find_residue, sample_invertible_with_neg_jacobi},
-        },
-        IntegerExt,
+    use crate::common::{
+        fail_if,
+        sqrt::{blum_sqrt, find_residue, sample_invertible_with_neg_jacobi},
     };
     use crate::{BadExponent, Error, ErrorReason, InvalidProof, InvalidProofReason};
 
@@ -156,8 +154,8 @@ pub mod interactive {
         challenge: &Challenge<M>,
     ) -> Result<Proof<M>, Error> {
         let blum_sqrt = |x| blum_sqrt(&x, p, q, n);
-        let phi = (p - 1u8).complete() * (q - 1u8).complete();
-        let n_inverse = n.invert_ref(&phi).ok_or(ErrorReason::Invert)?.into();
+        let phi = (p - 1) * (q - 1);
+        let n_inverse = n.invert_ref(&phi).ok_or(ErrorReason::Invert)?;
 
         // We do an extra allocation as workaround while `array::try_map` is not stable
         let points = challenge
@@ -166,8 +164,7 @@ pub mod interactive {
             .map(|y| {
                 let z = y
                     .pow_mod_ref(&n_inverse, n)
-                    .ok_or(BadExponent::undefined())?
-                    .into();
+                    .ok_or(BadExponent::undefined())?;
                 let (a, b, y_) = find_residue(y, w, p, q, n).ok_or(ErrorReason::FindResidue)?;
                 let x = blum_sqrt(blum_sqrt(y_));
                 Ok(ProofPoint { x, a, b, z })
@@ -180,13 +177,16 @@ pub mod interactive {
 
     /// Verify the proof. If this succeeds, the relation Rmod holds with chance
     /// `1/2^M`
-    pub fn verify<const M: usize>(
+    ///
+    /// Rng is used for primality checking of input data
+    pub fn verify<const M: usize, R: RngCore>(
         data: Data,
         commitment: &Commitment,
         challenge: &Challenge<M>,
         proof: &Proof<M>,
+        rng: &mut R,
     ) -> Result<(), InvalidProof> {
-        if data.n.is_probably_prime(25) != rug::integer::IsPrime::No {
+        if data.n.is_probably_prime(25, rng) != fast_paillier::backend::IsPrime::No {
             return Err(InvalidProofReason::ModulusIsPrime.into());
         }
         if data.n.is_even() {
@@ -194,40 +194,37 @@ pub mod interactive {
         }
         fail_if(
             InvalidProofReason::RangeCheck(1),
-            commitment.w.is_in_mult_group(data.n),
+            commitment.w.in_mult_group_of(data.n),
         )?;
 
         for (point, y) in proof.points.iter().zip(challenge.ys.iter()) {
             fail_if(
                 InvalidProofReason::RangeCheck(2),
-                point.x.is_in_mult_group(data.n),
+                point.x.in_mult_group_of(data.n),
             )?;
             fail_if(
                 InvalidProofReason::RangeCheck(3),
-                point.z.is_in_mult_group(data.n),
+                point.z.in_mult_group_of(data.n),
             )?;
-            if Integer::from(
-                point
-                    .z
-                    .pow_mod_ref(data.n, data.n)
-                    .ok_or(InvalidProofReason::ModPow)?,
-            ) != *y
+            if point
+                .z
+                .pow_mod_ref(data.n, data.n)
+                .ok_or(InvalidProofReason::ModPow)?
+                != *y
             {
                 return Err(InvalidProofReason::IncorrectNthRoot.into());
             }
-            let y = y.clone();
-            let y = if point.a { data.n - y } else { y };
+            let y = if point.a { data.n - y } else { y.clone() };
             let y = if point.b {
                 (y * &commitment.w).modulo(data.n)
             } else {
                 y
             };
-            if Integer::from(
-                point
-                    .x
-                    .pow_mod_ref(&4.into(), data.n)
-                    .ok_or(InvalidProofReason::ModPow)?,
-            ) != y
+            if point
+                .x
+                .pow_mod_ref(&4.into(), data.n)
+                .ok_or(InvalidProofReason::ModPow)?
+                != y
             {
                 return Err(InvalidProofReason::IncorrectFourthRoot.into());
             }
@@ -239,7 +236,7 @@ pub mod interactive {
     ///
     /// `data` parameter is used to generate challenge in correct range
     pub fn challenge<const M: usize, R: RngCore>(Data { n }: Data, rng: &mut R) -> Challenge<M> {
-        let ys = [(); M].map(|()| Integer::gen_invertible(n, rng));
+        let ys = [(); M].map(|()| Integer::sample_in_mult_group_of(rng, n));
         Challenge { ys }
     }
 }
@@ -270,13 +267,16 @@ pub mod non_interactive {
     }
 
     /// Verify the proof, deriving challenge independently from same data
+    ///
+    /// Rng is used for primality checking of input data
     pub fn verify<const M: usize, D: Digest>(
         shared_state: &impl udigest::Digestable,
         data: Data,
         proof: &NiProof<M>,
+        rng: &mut impl rand_core::RngCore,
     ) -> Result<(), InvalidProof> {
         let challenge = challenge::<M, D>(shared_state, data, &proof.commitment);
-        super::interactive::verify(data, &proof.commitment, &challenge, &proof.proof)
+        super::interactive::verify(data, &proof.commitment, &challenge, &proof.proof, rng)
     }
 
     /// Deterministically compute challenge based on prior known values in protocol
@@ -299,9 +299,7 @@ pub mod non_interactive {
 
 #[cfg(test)]
 mod test {
-    use rug::Complete;
-
-    use crate::common::test::{generate_blum_prime, generate_prime};
+    use crate::common::test::generate_blum_prime;
 
     type D = sha2::Sha256;
 
@@ -310,13 +308,13 @@ mod test {
         let mut rng = rand_dev::DevRng::new();
         let p = generate_blum_prime(&mut rng, 256);
         let q = generate_blum_prime(&mut rng, 256);
-        let n = (&p * &q).complete();
+        let n = &p * &q;
         let data = super::Data { n: &n };
         let pdata = super::PrivateData { p: &p, q: &q };
         let shared_state = "shared state";
         let proof =
             super::non_interactive::prove::<65, D>(&shared_state, data, pdata, &mut rng).unwrap();
-        let r = super::non_interactive::verify::<65, D>(&shared_state, data, &proof);
+        let r = super::non_interactive::verify::<65, D>(&shared_state, data, &proof, &mut rng);
         match r {
             Ok(()) => (),
             Err(e) => panic!("{e:?}"),
@@ -329,18 +327,18 @@ mod test {
         let p = generate_blum_prime(&mut rng, 256);
         let q = loop {
             // non blum prime
-            let q = generate_prime(&mut rng, 256);
+            let q = fast_paillier::backend::Integer::generate_prime(&mut rng, 256);
             if q.mod_u(4) == 1 {
                 break q;
             }
         };
-        let n = (&p * &q).complete();
+        let n = &p * &q;
         let data = super::Data { n: &n };
         let pdata = super::PrivateData { p: &p, q: &q };
         let shared_state = "shared state";
         let proof =
             super::non_interactive::prove::<65, D>(&shared_state, data, pdata, &mut rng).unwrap();
-        let r = super::non_interactive::verify::<65, D>(&shared_state, data, &proof);
+        let r = super::non_interactive::verify::<65, D>(&shared_state, data, &proof, &mut rng);
         if r.is_ok() {
             panic!("proof should not pass");
         }
