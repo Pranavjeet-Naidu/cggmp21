@@ -190,9 +190,17 @@ impl generic_ec::core::One for Scalar {
     }
 }
 
-impl generic_ec::core::Samplable for Scalar {
-    fn random<R: rand_core::RngCore>(rng: &mut R) -> Self {
+impl generic_ec::core::SamplableVartime for Scalar {
+    fn random_vartime(rng: &mut impl rand_core::RngCore) -> Self {
         rng.next_u64().into()
+    }
+}
+
+impl generic_ec::core::FromUniformBytes for Scalar {
+    type Bytes = [u8; 8];
+
+    fn from_uniform_bytes(bytes: &Self::Bytes) -> Self {
+        Self(u64::from_be_bytes(*bytes))
     }
 }
 

@@ -18,8 +18,8 @@ key-share = { version = "0.6.1", path = "key-share", default-features = false }
 paillier-zk = { version = "0.7.0-alpha.3", path = "paillier-zk", default-features = false }
 
 fast-paillier = { version = "0.3.2", default-features = false }
-generic-ec = { version = "0.4.1", default-features = false }
-generic-ec-zkp = { version = "0.4.1", default-features = false }
+generic-ec = { version = "0.5", default-features = false }
+generic-ec-zkp = { version = "0.5", default-features = false }
 round-based = { version = "0.4.1", default-features = false }
 
 udigest = { version = "0.2.1", default-features = false }
@@ -54,3 +54,13 @@ num-bigint.opt-level = 3
 num-traits.opt-level = 3
 num-integer.opt-level = 3
 glass_pumpkin.opt-level = 3
+
+[patch.crates-io.generic-ec-curves]
+git = "https://github.com/sridhar-panigrahi/generic-ec.git"
+rev = "5168020e97af1148f5703ad5c5b8b35c98511a8d"
+[patch.crates-io.generic-ec]
+git = "https://github.com/sridhar-panigrahi/generic-ec.git"
+rev = "5168020e97af1148f5703ad5c5b8b35c98511a8d"
+[patch.crates-io.generic-ec-zkp]
+git = "https://github.com/sridhar-panigrahi/generic-ec.git"
+rev = "5168020e97af1148f5703ad5c5b8b35c98511a8d"

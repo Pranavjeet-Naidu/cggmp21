@@ -31,7 +31,7 @@ where
 
 fn run_keygen<E>(t: u16, n: u16, hd_enabled: bool, rng: &mut DevRng) -> Vec<IncompleteKeyShare<E>>
 where
-    E: Curve,
+    E: Curve + cggmp24_tests::CurveParams,
 {
     #[cfg(not(feature = "hd-wallet"))]
     assert!(!hd_enabled);
@@ -44,7 +44,9 @@ where
         let mut party_rng = rng.fork();
 
         async move {
-            let keygen = cggmp24::keygen(eid, i, n).set_threshold(t);
+            let keygen = cggmp24::keygen(eid, i, n)
+                .set_threshold(t)
+                .set_security_level::<E::SecurityLevel>();
 
             #[cfg(feature = "hd-wallet")]
             let keygen = keygen.hd_wallet(hd_enabled);
@@ -57,9 +59,12 @@ where
     .into_vec()
 }
 
-fn run_aux_gen<E>(shares: Vec<IncompleteKeyShare<E>>, rng: &mut DevRng) -> Vec<KeyShare<E>>
+fn run_aux_gen<E>(
+    shares: Vec<IncompleteKeyShare<E>>,
+    rng: &mut DevRng,
+) -> Vec<KeyShare<E, E::SecurityLevel>>
 where
-    E: Curve,
+    E: Curve + cggmp24_tests::CurveParams,
 {
     let mut primes = cggmp24_tests::CACHED_PRIMES.iter();
     let n = shares.len().try_into().unwrap();
@@ -72,7 +77,7 @@ where
         let mut party_rng = rng.fork();
         let pregenerated_data = primes.next().expect("Can't fetch primes");
         async move {
-            cggmp24::aux_info_gen(eid, i, n, pregenerated_data)
+            cggmp24::aux_info_gen::<E::SecurityLevel>(eid, i, n, pregenerated_data)
                 .start(&mut party_rng, party)
                 .await
         }
@@ -90,8 +95,11 @@ where
         .collect()
 }
 
-fn run_signing<E>(shares: &[KeyShare<E>], random_derivation_path: bool, rng: &mut DevRng)
-where
+fn run_signing<E>(
+    shares: &[KeyShare<E, E::SecurityLevel>],
+    random_derivation_path: bool,
+    rng: &mut DevRng,
+) where
     E: Curve + cggmp24_tests::CurveParams,
     Point<E>: generic_ec::coords::HasAffineX<E>,
 {

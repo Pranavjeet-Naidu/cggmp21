@@ -48,7 +48,7 @@ fn precompute_shares() -> Result<()> {
 
     eprintln!("precompute aux data");
     let max_n = 10;
-    let primes = PregeneratedPrimes::generate::<_, SecurityLevel128>(max_n, &mut rng);
+    let primes = PregeneratedPrimes::generate(max_n, &mut rng);
     let primes = primes.iter::<SecurityLevel128>().collect::<Vec<_>>();
 
     let aux = cggmp24::trusted_dealer::generate_aux_data_with_primes(&mut rng, primes, true)
@@ -68,7 +68,7 @@ fn precompute_shares() -> Result<()> {
 
 fn precompute_primes() -> Result<()> {
     let mut rng = OsRng;
-    let json = PregeneratedPrimes::generate::<_, SecurityLevel128>(10, &mut rng).to_serialized()?;
+    let json = PregeneratedPrimes::generate(10, &mut rng).to_serialized()?;
     println!("{json}");
     Ok(())
 }

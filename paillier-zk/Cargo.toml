@@ -11,7 +11,7 @@ keywords = ["paillier", "zk-proofs", "zero-knowledge"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-generic-ec = { version = "0.4", features = ["udigest"] }
+generic-ec = { workspace = true, features = ["udigest"] }
 rand_core = { version = "0.6", default-features = false }
 digest = "0.10"
 fast-paillier = { workspace = true }
@@ -25,7 +25,7 @@ udigest = { version = "0.2.1", default-features = false, features = ["inline-str
 rand_hash = "0.1"
 
 [dev-dependencies]
-generic-ec = { version = "0.4", features = ["udigest", "all-curves"] }
+generic-ec = { workspace = true, features = ["udigest", "all-curves"] }
 rand = { workspace = true }
 rand_dev = { version = "0.1", default-features = false }
 sha2 = { version = "0.10", default-features = false }

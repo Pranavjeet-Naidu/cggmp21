@@ -207,10 +207,10 @@ impl PrecomputedKeyShares {
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct PregeneratedPrimes {
-    // It would be better to use key_refresh::PregeneratedPrimes here, but
-    // adding serialization to that is an enormous pain in the ass
-    primes: Vec<Integer>,
-    bitsize: u32,
+    /// Primes of appropriate size that can be used as Paillier private key meeting 128 bits of security
+    primes_1536bits: Vec<Integer>,
+    /// Primes of appropriate size that can be used as Paillier private key meeting 192 bits of security
+    primes_3840bits: Vec<Integer>,
 }
 
 impl PregeneratedPrimes {
@@ -227,10 +227,22 @@ impl PregeneratedPrimes {
     where
         L: cggmp24::security_level::SecurityLevel,
     {
-        if self.bitsize != L::RSA_PRIME_BITLEN {
-            panic!("Attempting to use generated primes while expecting wrong bit size");
+        match L::RSA_PRIME_BITLEN {
+            1536 => Self::iter_inner::<L>(&self.primes_1536bits),
+            3840 => Self::iter_inner::<L>(&self.primes_3840bits),
+            x => {
+                panic!("we did not pregenerate {x} bits primes")
+            }
         }
-        self.primes.chunks(4).map(|primes| {
+    }
+
+    fn iter_inner<L>(
+        primes: &[Integer],
+    ) -> impl Iterator<Item = cggmp24::key_refresh::PregeneratedPrimes<L>> + '_
+    where
+        L: cggmp24::security_level::SecurityLevel,
+    {
+        primes.chunks(4).map(|primes| {
             let primes = [
                 primes[0].clone(),
                 primes[1].clone(),
@@ -243,17 +255,18 @@ impl PregeneratedPrimes {
     }
 
     /// Generate enough primes so that you can do `amount` of key refreshes
-    pub fn generate<R, L>(amount: usize, rng: &mut R) -> Self
+    pub fn generate<R>(amount: usize, rng: &mut R) -> Self
     where
-        L: cggmp24::security_level::SecurityLevel,
         R: RngCore,
     {
-        let bitsize = L::RSA_PRIME_BITLEN;
-        let primes = (0..amount * 4)
-            .map(|_| generate_blum_prime(rng, bitsize))
-            .collect();
-
-        Self { primes, bitsize }
+        Self {
+            primes_1536bits: (0..amount * 4)
+                .map(|_| generate_blum_prime(rng, 1536))
+                .collect(),
+            primes_3840bits: (0..amount * 4)
+                .map(|_| generate_blum_prime(rng, 3840))
+                .collect(),
+        }
     }
 }
 
@@ -306,24 +319,35 @@ pub trait CurveParams: Curve {
     type HdAlgo: cggmp24::hd_wallet::HdWallet<Self>;
     /// External verifier for signatures on this curve
     type ExVerifier: external_verifier::ExternalVerifier<Self>;
+    type SecurityLevel: cggmp24::security_level::SecurityLevel;
 }
 
 impl CurveParams for cggmp24::supported_curves::Secp256k1 {
     #[cfg(feature = "hd-wallet")]
     type HdAlgo = cggmp24::hd_wallet::Slip10;
     type ExVerifier = external_verifier::blockchains::Bitcoin;
+    type SecurityLevel = cggmp24::security_level::SecurityLevel128;
 }
 
 impl CurveParams for cggmp24::supported_curves::Secp256r1 {
     #[cfg(feature = "hd-wallet")]
     type HdAlgo = cggmp24::hd_wallet::Slip10;
     type ExVerifier = external_verifier::Noop;
+    type SecurityLevel = cggmp24::security_level::SecurityLevel128;
+}
+
+impl CurveParams for cggmp24::supported_curves::Secp384r1 {
+    #[cfg(feature = "hd-wallet")]
+    type HdAlgo = cggmp24::hd_wallet::Slip10;
+    type ExVerifier = external_verifier::Noop;
+    type SecurityLevel = cggmp24::security_level::SecurityLevel192;
 }
 
 impl CurveParams for cggmp24::supported_curves::Stark {
     #[cfg(feature = "hd-wallet")]
     type HdAlgo = cggmp24::hd_wallet::Stark;
     type ExVerifier = external_verifier::blockchains::StarkNet;
+    type SecurityLevel = cggmp24::security_level::SecurityLevel128;
 }
 
 #[macro_export]
@@ -341,6 +365,7 @@ macro_rules! test_suite {
             generics: {
                 secp256k1: <cggmp24::supported_curves::Secp256k1>,
                 secp256r1: <cggmp24::supported_curves::Secp256r1>,
+                secp384r1: <cggmp24::supported_curves::Secp384r1>,
                 stark: <cggmp24::supported_curves::Stark>,
             },
             suites: {$($suites)*}
