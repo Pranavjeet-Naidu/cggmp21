@@ -303,7 +303,7 @@ dependencies = [
  "cggmp24-keygen",
  "digest",
  "futures",
- "generic-ec 0.5.0",
+ "generic-ec",
  "generic-ec-zkp",
  "generic-tests",
  "hd-wallet",
@@ -329,7 +329,7 @@ dependencies = [
  "digest",
  "displaydoc",
  "futures-util",
- "generic-ec 0.5.0",
+ "generic-ec",
  "generic-ec-zkp",
  "hd-wallet",
  "hex",
@@ -352,8 +352,10 @@ dependencies = [
  "cggmp24",
  "ciborium",
  "criterion",
+ "digest",
  "futures",
- "generic-ec 0.5.0",
+ "generic-ec",
+ "hd-wallet",
  "hex",
  "include_dir",
  "lazy_static",
@@ -1065,27 +1067,13 @@ dependencies = [
 
 [[package]]
 name = "generic-ec"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a88871287d5618d728c21ef0bea4dc5dc3097cbfa2efd3e1b6e85a33df74083"
-dependencies = [
- "generic-ec-core 0.2.0",
- "generic-ec-curves 0.2.1",
- "phantom-type 0.4.2",
- "rand_core",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "generic-ec"
 version = "0.5.0"
 source = "git+https://github.com/sridhar-panigrahi/generic-ec.git?rev=5168020e97af1148f5703ad5c5b8b35c98511a8d#5168020e97af1148f5703ad5c5b8b35c98511a8d"
 dependencies = [
  "curve25519-dalek",
  "digest",
- "generic-ec-core 0.3.0",
- "generic-ec-curves 0.3.0",
+ "generic-ec-core",
+ "generic-ec-curves",
  "hex",
  "phantom-type 0.4.2",
  "rand_core",
@@ -1099,18 +1087,6 @@ dependencies = [
 
 [[package]]
 name = "generic-ec-core"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f156564cc8aa47456da807826b1a0aa9cf420474d9f41593ffbdde65133d4bea"
-dependencies = [
- "generic-array",
- "rand_core",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "generic-ec-core"
 version = "0.3.0"
 source = "git+https://github.com/sridhar-panigrahi/generic-ec.git?rev=5168020e97af1148f5703ad5c5b8b35c98511a8d#5168020e97af1148f5703ad5c5b8b35c98511a8d"
 dependencies = [
@@ -1123,29 +1099,12 @@ dependencies = [
 
 [[package]]
 name = "generic-ec-curves"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5926949b758d01801c7edd75357495fe54c5fc25580a193de4c994c94d22307"
-dependencies = [
- "elliptic-curve",
- "generic-ec-core 0.2.0",
- "k256",
- "p256",
- "rand_core",
- "sha2",
- "stark-curve",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "generic-ec-curves"
 version = "0.3.0"
 source = "git+https://github.com/sridhar-panigrahi/generic-ec.git?rev=5168020e97af1148f5703ad5c5b8b35c98511a8d#5168020e97af1148f5703ad5c5b8b35c98511a8d"
 dependencies = [
  "curve25519-dalek",
  "elliptic-curve",
- "generic-ec-core 0.3.0",
+ "generic-ec-core",
  "group",
  "k256",
  "p256",
@@ -1164,7 +1123,7 @@ source = "git+https://github.com/sridhar-panigrahi/generic-ec.git?rev=5168020e97
 dependencies = [
  "digest",
  "generic-array",
- "generic-ec 0.5.0",
+ "generic-ec",
  "rand_core",
  "serde",
  "subtle",
@@ -1273,12 +1232,11 @@ checksum = "2c6201b9ff9fd90a5a3bac2e56a830d0caa509576f0e503818ee82c181b3437a"
 
 [[package]]
 name = "hd-wallet"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d1e8b25f89c813ea3f4317b86c1e89ecc86843601ca8657448e47e4f68f69af"
+version = "0.7.0"
+source = "git+https://github.com/lfdt-lockness/hd-wallet?branch=generic-ec%2Fv0.5.0#df0b0306271e7c9062b6ce085db77c2319f76bea"
 dependencies = [
  "generic-array",
- "generic-ec 0.4.1",
+ "generic-ec",
  "hmac",
  "sha2",
  "subtle",
@@ -1578,7 +1536,7 @@ name = "key-share"
 version = "0.6.1"
 dependencies = [
  "displaydoc",
- "generic-ec 0.5.0",
+ "generic-ec",
  "generic-ec-zkp",
  "hd-wallet",
  "hex",
@@ -1738,7 +1696,7 @@ dependencies = [
  "anyhow",
  "digest",
  "fast-paillier",
- "generic-ec 0.5.0",
+ "generic-ec",
  "rand",
  "rand_core",
  "rand_dev",

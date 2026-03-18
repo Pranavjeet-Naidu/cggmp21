@@ -7,35 +7,33 @@ use cggmp24::{
     key_share::{AnyKeyShare, IncompleteKeyShare, KeyShare},
     ExecutionId,
 };
+use cggmp24_tests::OptionalHd;
 
 cggmp24_tests::test_suite! {
     test: full_pipeline_works,
-    generics: all_curves,
+    generics: all_curves_and_hd,
     suites: {
-        t2n3: (2, 3, false),
-        t3n5: (3, 5, false),
-        #[cfg(feature = "hd-wallet")]
-        t3n5_hd: (3, 5, true),
+        t2n3: (2, 3),
+        t3n5: (3, 5),
     }
 }
-fn full_pipeline_works<E>(t: u16, n: u16, hd_enabled: bool)
+fn full_pipeline_works<E, Hd>(t: u16, n: u16)
 where
     E: Curve + cggmp24_tests::CurveParams,
     Point<E>: generic_ec::coords::HasAffineX<E>,
+    Hd: OptionalHd<E>,
 {
     let mut rng = DevRng::new();
-    let incomplete_shares = run_keygen(t, n, hd_enabled, &mut rng);
+    let incomplete_shares = run_keygen::<E, Hd>(t, n, &mut rng);
     let shares = run_aux_gen(incomplete_shares, &mut rng);
-    run_signing(&shares, hd_enabled, &mut rng);
+    run_signing::<E, Hd>(&shares, &mut rng);
 }
 
-fn run_keygen<E>(t: u16, n: u16, hd_enabled: bool, rng: &mut DevRng) -> Vec<IncompleteKeyShare<E>>
+fn run_keygen<E, Hd>(t: u16, n: u16, rng: &mut DevRng) -> Vec<IncompleteKeyShare<E>>
 where
     E: Curve + cggmp24_tests::CurveParams,
+    Hd: OptionalHd<E>,
 {
-    #[cfg(not(feature = "hd-wallet"))]
-    assert!(!hd_enabled);
-
     let eid: [u8; 32] = rng.gen();
     let eid = ExecutionId::new(&eid);
 
@@ -49,7 +47,7 @@ where
                 .set_security_level::<E::SecurityLevel>();
 
             #[cfg(feature = "hd-wallet")]
-            let keygen = keygen.hd_wallet(hd_enabled);
+            let keygen = keygen.hd_wallet(Hd::ENABLED);
 
             keygen.start(&mut party_rng, party).await
         }
@@ -95,26 +93,16 @@ where
         .collect()
 }
 
-fn run_signing<E>(
-    shares: &[KeyShare<E, E::SecurityLevel>],
-    random_derivation_path: bool,
-    rng: &mut DevRng,
-) where
+fn run_signing<E, Hd>(shares: &[KeyShare<E, E::SecurityLevel>], rng: &mut DevRng)
+where
     E: Curve + cggmp24_tests::CurveParams,
     Point<E>: generic_ec::coords::HasAffineX<E>,
+    Hd: OptionalHd<E>,
 {
-    #[cfg(not(feature = "hd-wallet"))]
-    assert!(!random_derivation_path);
-
     let t = shares[0].min_signers();
     let n = shares.len().try_into().unwrap();
 
-    #[cfg(feature = "hd-wallet")]
-    let derivation_path = if random_derivation_path {
-        Some(cggmp24_tests::random_derivation_path(rng))
-    } else {
-        None
-    };
+    let optional_hd = Hd::generate_derivation_path(rng);
 
     let eid: [u8; 32] = rng.gen();
     let eid = ExecutionId::new(&eid);
@@ -134,20 +122,11 @@ fn run_signing<E>(
         let party = cggmp24_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
 
-        #[cfg(feature = "hd-wallet")]
-        let derivation_path = derivation_path.clone();
+        let optional_hd = optional_hd.clone();
 
         async move {
             let signing = cggmp24::signing(eid, i, participants, share);
-
-            #[cfg(feature = "hd-wallet")]
-            let signing = if let Some(derivation_path) = derivation_path {
-                signing
-                    .set_derivation_path_with_algo::<E::HdAlgo, _>(derivation_path)
-                    .unwrap()
-            } else {
-                signing
-            };
+            let signing = optional_hd.apply(signing);
 
             signing.sign(&mut party_rng, party, &message_to_sign).await
         }
@@ -156,20 +135,7 @@ fn run_signing<E>(
     .expect_ok()
     .expect_eq();
 
-    #[cfg(feature = "hd-wallet")]
-    let public_key = if let Some(path) = &derivation_path {
-        generic_ec::NonZero::from_point(
-            shares[0]
-                .derive_child_public_key::<E::HdAlgo, _>(path.iter().cloned())
-                .unwrap()
-                .public_key,
-        )
-        .unwrap()
-    } else {
-        shares[0].shared_public_key
-    };
-    #[cfg(not(feature = "hd-wallet"))]
-    let public_key = shares[0].shared_public_key;
+    let public_key = optional_hd.derive_child_pk(&shares[0].core);
 
     sig.verify(&public_key, &message_to_sign)
         .expect("signature is not valid");

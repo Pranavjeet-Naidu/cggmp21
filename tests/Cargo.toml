@@ -9,6 +9,8 @@ publish = false
 [dependencies]
 cggmp24 = { workspace = true, default-features = false, features = ["all-curves", "spof", "state-machine"] }
 
+hd-wallet = { workspace = true, optional = true }
+
 anyhow = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -17,6 +19,7 @@ hex = { workspace = true }
 rand = { workspace = true }
 rand_dev = { workspace = true }
 
+digest.workspace = true
 sha2 = { workspace = true }
 
 round-based = { workspace = true, features = ["derive", "sim", "state-machine"] }
@@ -46,7 +49,7 @@ criterion = "0.5"
 [features]
 default = ["backend-num-bigint"]
 
-hd-wallet = ["cggmp24/hd-wallet", "cggmp24/hd-slip10", "cggmp24/hd-stark"]
+hd-wallet = ["dep:hd-wallet", "cggmp24/hd-wallet", "cggmp24/hd-slip10", "cggmp24/hd-stark"]
 
 backend-rug = ["cggmp24/backend-rug"]
 backend-num-bigint = ["cggmp24/backend-num-bigint"]

@@ -338,7 +338,7 @@ impl CurveParams for cggmp24::supported_curves::Secp256r1 {
 
 impl CurveParams for cggmp24::supported_curves::Secp384r1 {
     #[cfg(feature = "hd-wallet")]
-    type HdAlgo = cggmp24::hd_wallet::Slip10;
+    type HdAlgo = NoHd;
     type ExVerifier = external_verifier::Noop;
     type SecurityLevel = cggmp24::security_level::SecurityLevel192;
 }
@@ -348,6 +348,154 @@ impl CurveParams for cggmp24::supported_curves::Stark {
     type HdAlgo = cggmp24::hd_wallet::Stark;
     type ExVerifier = external_verifier::blockchains::StarkNet;
     type SecurityLevel = cggmp24::security_level::SecurityLevel128;
+}
+
+// TODO: `NoHd` is to be removed before merging the PR. It's quick hack to make lib compile
+// before I do architectural changes
+#[cfg(feature = "hd-wallet")]
+pub struct NoHd;
+#[cfg(feature = "hd-wallet")]
+impl hd_wallet::DeriveShift<cggmp24::supported_curves::Secp384r1> for NoHd {
+    fn derive_public_shift(
+        _parent_public_key: &hd_wallet::ExtendedPublicKey<cggmp24::supported_curves::Secp384r1>,
+        _child_index: hd_wallet::NonHardenedIndex,
+    ) -> hd_wallet::DerivedShift<cggmp24::supported_curves::Secp384r1> {
+        panic!("no HD for this curve, sorry")
+    }
+
+    fn derive_hardened_shift(
+        _parent_key: &hd_wallet::ExtendedKeyPair<cggmp24::supported_curves::Secp384r1>,
+        _child_index: hd_wallet::HardenedIndex,
+    ) -> hd_wallet::DerivedShift<cggmp24::supported_curves::Secp384r1> {
+        panic!("no HD for this curve, sorry")
+    }
+}
+
+/// Trait used by the tests to enable/disable HD wallets
+///
+/// Motivation for this trait is to have one test function that tests the code (keygen or signing)
+/// with and without HD derivation, with and without `feature = "hd-wallet"`, taking into account
+/// that some curves do not have support of HD derivation at all
+///
+/// Two structs implement this trait:
+/// - [`HdDisabled`] that does no HD. All trait methods are no-op.
+/// - [`HdEnabled<Algo>`](HdEnabled) that does HD derivation with `Algo`.
+pub trait OptionalHd<E: Curve>: Clone {
+    /// Indicates whether HD derivation is enabled
+    const ENABLED: bool;
+
+    /// Generates derivation path if HD is enabled
+    fn generate_derivation_path(rng: &mut impl RngCore) -> Self;
+
+    /// Applies derivation path (if enabled) to the signing builder
+    fn apply<'r, L, D>(
+        &self,
+        builder: cggmp24::signing::SigningBuilder<'r, E, L, D>,
+    ) -> cggmp24::signing::SigningBuilder<'r, E, L, D>
+    where
+        generic_ec::NonZero<generic_ec::Point<E>>: generic_ec::coords::AlwaysHasAffineX<E>,
+        L: cggmp24::security_level::SecurityLevel,
+        D: digest::Digest<OutputSize = digest::typenum::U32> + Clone + 'static;
+
+    /// Uses derivation path to derive a child public key
+    ///
+    /// If HD is disabled, this function returns the public key as is.
+    fn derive_child_pk(
+        &self,
+        share: &cggmp24::key_share::DirtyIncompleteKeyShare<E>,
+    ) -> generic_ec::NonZero<generic_ec::Point<E>>;
+}
+
+#[derive(Clone)]
+pub struct HdDisabled;
+impl<E: Curve> OptionalHd<E> for HdDisabled {
+    const ENABLED: bool = false;
+    fn generate_derivation_path(_rng: &mut impl RngCore) -> Self {
+        Self
+    }
+
+    fn apply<'r, L, D>(
+        &self,
+        builder: cggmp24::signing::SigningBuilder<'r, E, L, D>,
+    ) -> cggmp24::signing::SigningBuilder<'r, E, L, D>
+    where
+        generic_ec::NonZero<generic_ec::Point<E>>: generic_ec::coords::AlwaysHasAffineX<E>,
+        L: cggmp24::security_level::SecurityLevel,
+        D: digest::Digest<OutputSize = digest::typenum::U32> + Clone + 'static,
+    {
+        builder
+    }
+
+    fn derive_child_pk(
+        &self,
+        share: &cggmp24::key_share::DirtyIncompleteKeyShare<E>,
+    ) -> generic_ec::NonZero<generic_ec::Point<E>> {
+        share.shared_public_key
+    }
+}
+
+#[cfg(feature = "hd-wallet")]
+pub struct HdEnabled<Algo> {
+    path: Vec<hd_wallet::NonHardenedIndex>,
+    _algo: core::marker::PhantomData<Algo>,
+}
+#[cfg(feature = "hd-wallet")]
+impl<E, Algo> OptionalHd<E> for HdEnabled<Algo>
+where
+    E: Curve,
+    Algo: hd_wallet::DeriveShift<E>,
+{
+    const ENABLED: bool = true;
+
+    fn generate_derivation_path(rng: &mut impl RngCore) -> Self {
+        use rand::Rng;
+        let len = rng.gen_range(1..=3);
+        let path = std::iter::repeat_with(|| rng.gen_range(0..cggmp24::hd_wallet::H))
+            .take(len)
+            .map(|index| index.try_into())
+            .collect::<Result<Vec<_>, _>>()
+            .expect("generated hardened index");
+        eprintln!("derivation path: {path:?}");
+        Self {
+            path,
+            _algo: core::marker::PhantomData,
+        }
+    }
+
+    fn apply<'r, L, D>(
+        &self,
+        builder: cggmp24::signing::SigningBuilder<'r, E, L, D>,
+    ) -> cggmp24::signing::SigningBuilder<'r, E, L, D>
+    where
+        generic_ec::NonZero<generic_ec::Point<E>>: generic_ec::coords::AlwaysHasAffineX<E>,
+        L: cggmp24::security_level::SecurityLevel,
+        D: digest::Digest<OutputSize = digest::typenum::U32> + Clone + 'static,
+    {
+        builder
+            .set_derivation_path_with_algo::<Algo, _>(self.path.iter().copied())
+            .expect("hd is disabled for this key")
+    }
+
+    fn derive_child_pk(
+        &self,
+        share: &cggmp24::key_share::DirtyIncompleteKeyShare<E>,
+    ) -> generic_ec::NonZero<generic_ec::Point<E>> {
+        generic_ec::NonZero::from_point(
+            share
+                .derive_child_public_key::<Algo, _>(self.path.iter().copied())
+                .expect("hd is disabled for this key")
+                .public_key,
+        )
+        .unwrap()
+    }
+}
+impl<Algo> Clone for HdEnabled<Algo> {
+    fn clone(&self) -> Self {
+        Self {
+            path: self.path.clone(),
+            _algo: core::marker::PhantomData,
+        }
+    }
 }
 
 #[macro_export]
@@ -374,7 +522,36 @@ macro_rules! test_suite {
     (
         $(async_test: $async_test:ident,)?
         $(test: $test:ident,)?
-        generics: {$($gmod:ident: <$($generic:path),*>),+$(,)?},
+        generics: all_curves_and_hd,
+        suites: {$($suites:tt)*}
+        $(,)?
+    ) => {
+        $crate::test_suite! {
+            $(async_test: $async_test,)?
+            $(test: $test,)?
+            generics: {
+                secp256k1: <cggmp24::supported_curves::Secp256k1, cggmp24_tests::HdDisabled>,
+                secp256r1: <cggmp24::supported_curves::Secp256r1, cggmp24_tests::HdDisabled>,
+                secp384r1: <cggmp24::supported_curves::Secp384r1, cggmp24_tests::HdDisabled>,
+                stark: <cggmp24::supported_curves::Stark, cggmp24_tests::HdDisabled>,
+
+                #[cfg(feature = "hd-wallet")]
+                secp256k1_hd: <cggmp24::supported_curves::Secp256k1, cggmp24_tests::HdEnabled<hd_wallet::Slip10>>,
+                #[cfg(feature = "hd-wallet")]
+                secp256r1_hd: <cggmp24::supported_curves::Secp256r1, cggmp24_tests::HdEnabled<hd_wallet::Slip10>>,
+                #[cfg(feature = "hd-wallet")]
+                stark_hd: <cggmp24::supported_curves::Stark, cggmp24_tests::HdEnabled<hd_wallet::Stark>>,
+            },
+            suites: {$($suites)*}
+        }
+    };
+    (
+        $(async_test: $async_test:ident,)?
+        $(test: $test:ident,)?
+        generics: {$(
+            $(#[$attr:meta])*
+            $gmod:ident: <$($generic:path),*>
+        ),+$(,)?},
         suites: {$($suites:tt)*}
         $(,)?
     ) => {
@@ -383,7 +560,7 @@ macro_rules! test_suite {
             $crate::test_suite_traverse! {
                 $(async_test: $async_test,)?
                 $(test: $test,)?
-                generics: {$($gmod: <$($generic),+>),+},
+                generics: {$($(#[$attr])* $gmod: <$($generic),+>),+},
                 suites: {$($suites)*}
             }
         }
@@ -399,11 +576,13 @@ macro_rules! test_suite_traverse {
         $(test: $test:ident,)?
         // we traverse over `generics`
         generics: {
+            $(#[$attr:meta])*
             $gmod:ident: <$($generic:path),*>
             $(, $($generics_rest:tt)*)?
         },
         suites: {$($suites:tt)*}
     ) => {
+        $(#[$attr])*
         mod $gmod {
             use super::$($test)? $($async_test)?;
             $crate::test_suite_traverse! {

@@ -44,7 +44,7 @@ serde_with = { version = "2", default-features = false }
 serde_json = "1"
 hex = { version = "0.4", default-features = false }
 
-hd-wallet = { version = "0.6", default-features = false }
+hd-wallet = { version = "0.7", default-features = false }
 
 generic-tests = "0.1"
 
@@ -64,3 +64,6 @@ rev = "5168020e97af1148f5703ad5c5b8b35c98511a8d"
 [patch.crates-io.generic-ec-zkp]
 git = "https://github.com/sridhar-panigrahi/generic-ec.git"
 rev = "5168020e97af1148f5703ad5c5b8b35c98511a8d"
+[patch.crates-io.hd-wallet]
+git = "https://github.com/lfdt-lockness/hd-wallet"
+branch = "generic-ec/v0.5.0"
