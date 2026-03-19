@@ -125,7 +125,7 @@ where
         R: RngCore + CryptoRng,
         M: Mpc<ProtocolMessage = aux_only::Msg<D, L>>,
         L: SecurityLevel,
-        D: Digest<OutputSize = digest::typenum::U32> + Clone + 'static,
+        D: Digest + Clone + 'static,
     {
         aux_only::run_aux_gen(
             self.i,

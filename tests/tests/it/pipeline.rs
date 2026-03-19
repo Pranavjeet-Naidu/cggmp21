@@ -44,7 +44,8 @@ where
         async move {
             let keygen = cggmp24::keygen(eid, i, n)
                 .set_threshold(t)
-                .set_security_level::<E::SecurityLevel>();
+                .set_security_level::<E::SecurityLevel>()
+                .set_digest::<E::Digest>();
 
             #[cfg(feature = "hd-wallet")]
             let keygen = keygen.hd_wallet(Hd::ENABLED);
@@ -76,6 +77,7 @@ where
         let pregenerated_data = primes.next().expect("Can't fetch primes");
         async move {
             cggmp24::aux_info_gen::<E::SecurityLevel>(eid, i, n, pregenerated_data)
+                .set_digest::<E::Digest>()
                 .start(&mut party_rng, party)
                 .await
         }
@@ -125,7 +127,7 @@ where
         let optional_hd = optional_hd.clone();
 
         async move {
-            let signing = cggmp24::signing(eid, i, participants, share);
+            let signing = cggmp24::signing(eid, i, participants, share).set_digest::<E::Digest>();
             let signing = optional_hd.apply(signing);
 
             signing.sign(&mut party_rng, party, &message_to_sign).await

@@ -320,6 +320,28 @@ pub trait CurveParams: Curve {
     /// External verifier for signatures on this curve
     type ExVerifier: external_verifier::ExternalVerifier<Self>;
     type SecurityLevel: cggmp24::security_level::SecurityLevel;
+
+    /// Hash function that should be used with this curve
+    ///
+    /// Note that we need digest output to be Unpin for protocol messages to be Unpin. It's not easy
+    /// to express that requirement in traits, we do that by introducing two dummy associated types:
+    /// [`CurveParams::DigestOutSize`] and [`CurveParams::DigestOutArray`]
+    type Digest: digest::Digest<OutputSize = Self::DigestOutSize> + Clone + 'static;
+    /// Dummy associated type to express that digest output must be `Unpin`
+    ///
+    /// Implementation should always write:
+    /// ```rust
+    /// type DigestOutSize = <Self::Digest as digest::OutputSizeUser>::OutputSize;
+    /// ```
+    type DigestOutSize: digest::generic_array::ArrayLength<u8, ArrayType = Self::DigestOutArray>;
+    /// Dummy associated type to express that digest output must be `Unpin`
+    ///
+    /// Implementation should always write:
+    /// ```rust
+    /// type DigestOutArray =
+    ///     <Self::DigestOutSize as digest::generic_array::ArrayLength<u8>>::ArrayType;
+    /// ```
+    type DigestOutArray: Unpin;
 }
 
 impl CurveParams for cggmp24::supported_curves::Secp256k1 {
@@ -327,6 +349,10 @@ impl CurveParams for cggmp24::supported_curves::Secp256k1 {
     type HdAlgo = cggmp24::hd_wallet::Slip10;
     type ExVerifier = external_verifier::blockchains::Bitcoin;
     type SecurityLevel = cggmp24::security_level::SecurityLevel128;
+    type Digest = sha2::Sha256;
+    type DigestOutSize = <Self::Digest as digest::OutputSizeUser>::OutputSize;
+    type DigestOutArray =
+        <Self::DigestOutSize as digest::generic_array::ArrayLength<u8>>::ArrayType;
 }
 
 impl CurveParams for cggmp24::supported_curves::Secp256r1 {
@@ -334,6 +360,10 @@ impl CurveParams for cggmp24::supported_curves::Secp256r1 {
     type HdAlgo = cggmp24::hd_wallet::Slip10;
     type ExVerifier = external_verifier::Noop;
     type SecurityLevel = cggmp24::security_level::SecurityLevel128;
+    type Digest = sha2::Sha256;
+    type DigestOutSize = <Self::Digest as digest::OutputSizeUser>::OutputSize;
+    type DigestOutArray =
+        <Self::DigestOutSize as digest::generic_array::ArrayLength<u8>>::ArrayType;
 }
 
 impl CurveParams for cggmp24::supported_curves::Secp384r1 {
@@ -341,6 +371,10 @@ impl CurveParams for cggmp24::supported_curves::Secp384r1 {
     type HdAlgo = NoHd;
     type ExVerifier = external_verifier::Noop;
     type SecurityLevel = cggmp24::security_level::SecurityLevel192;
+    type Digest = sha2::Sha384;
+    type DigestOutSize = <Self::Digest as digest::OutputSizeUser>::OutputSize;
+    type DigestOutArray =
+        <Self::DigestOutSize as digest::generic_array::ArrayLength<u8>>::ArrayType;
 }
 
 impl CurveParams for cggmp24::supported_curves::Stark {
@@ -348,6 +382,10 @@ impl CurveParams for cggmp24::supported_curves::Stark {
     type HdAlgo = cggmp24::hd_wallet::Stark;
     type ExVerifier = external_verifier::blockchains::StarkNet;
     type SecurityLevel = cggmp24::security_level::SecurityLevel128;
+    type Digest = sha2::Sha256;
+    type DigestOutSize = <Self::Digest as digest::OutputSizeUser>::OutputSize;
+    type DigestOutArray =
+        <Self::DigestOutSize as digest::generic_array::ArrayLength<u8>>::ArrayType;
 }
 
 // TODO: `NoHd` is to be removed before merging the PR. It's quick hack to make lib compile
@@ -395,7 +433,7 @@ pub trait OptionalHd<E: Curve>: Clone {
     where
         generic_ec::NonZero<generic_ec::Point<E>>: generic_ec::coords::AlwaysHasAffineX<E>,
         L: cggmp24::security_level::SecurityLevel,
-        D: digest::Digest<OutputSize = digest::typenum::U32> + Clone + 'static;
+        D: digest::Digest + Clone + 'static;
 
     /// Uses derivation path to derive a child public key
     ///
@@ -421,7 +459,7 @@ impl<E: Curve> OptionalHd<E> for HdDisabled {
     where
         generic_ec::NonZero<generic_ec::Point<E>>: generic_ec::coords::AlwaysHasAffineX<E>,
         L: cggmp24::security_level::SecurityLevel,
-        D: digest::Digest<OutputSize = digest::typenum::U32> + Clone + 'static,
+        D: digest::Digest + Clone + 'static,
     {
         builder
     }
@@ -469,7 +507,7 @@ where
     where
         generic_ec::NonZero<generic_ec::Point<E>>: generic_ec::coords::AlwaysHasAffineX<E>,
         L: cggmp24::security_level::SecurityLevel,
-        D: digest::Digest<OutputSize = digest::typenum::U32> + Clone + 'static,
+        D: digest::Digest + Clone + 'static,
     {
         builder
             .set_derivation_path_with_algo::<Algo, _>(self.path.iter().copied())
@@ -489,6 +527,7 @@ where
         .unwrap()
     }
 }
+#[cfg(feature = "hd-wallet")]
 impl<Algo> Clone for HdEnabled<Algo> {
     fn clone(&self) -> Self {
         Self {
