@@ -2,7 +2,6 @@ use anyhow::{bail, Context, Result};
 use cggmp24::{
     backend::Integer,
     key_share::{KeyShare, Validate},
-    security_level::SecurityLevel128,
     IncompleteKeyShare,
 };
 use generic_ec::Curve;
@@ -94,47 +93,45 @@ where
 pub mod external_verifier;
 
 lazy_static::lazy_static! {
-    pub static ref CACHED_SHARES: PrecomputedKeyShares =
-        PrecomputedKeyShares::from_serialized(
-            include_str!("../../test-data/precomputed_shares.json")
-        ).unwrap();
+    pub static ref CACHED_SHARES: PrecomputedKeyShares = {
+        // note: serialized pregenerated shares take so much space, my (virtualized) compiler gets killed
+        // on RAM overuse when trying to `include_str!` the file into the binary.
+        let mut path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("../test-data/precomputed_shares.json");
+
+        let file = std::fs::File::open(path).unwrap();
+        let reader = std::io::BufReader::new(file);
+        serde_json::from_reader(reader).unwrap()
+    };
     pub static ref CACHED_PRIMES: PregeneratedPrimes =
         PregeneratedPrimes::from_serialized(
             include_str!("../../test-data/pregenerated_primes.json")
         ).unwrap();
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Default)]
 pub struct PrecomputedKeyShares {
     /// contains only core key shares, that needs to be completed with `aux`
     shares: std::collections::BTreeMap<String, Vec<Value>>,
-    /// re-usable aux data
-    aux: Vec<cggmp24::key_share::AuxInfo<SecurityLevel128>>,
+    /// re-usable aux data, maps `security_bits -> Vec<AuxInfo<SecurityLevel{bits}>>`
+    aux: std::collections::BTreeMap<String, Vec<Value>>,
 }
 
 impl PrecomputedKeyShares {
     pub fn empty() -> Self {
-        Self {
-            shares: Default::default(),
-            aux: vec![],
-        }
-    }
-
-    #[allow(clippy::should_implement_trait)]
-    pub fn from_serialized(shares: &str) -> Result<Self> {
-        serde_json::from_str(shares).context("parse shares")
+        Self::default()
     }
 
     pub fn to_serialized(&self) -> Result<String> {
         serde_json::to_string_pretty(self).context("serialize shares")
     }
 
-    pub fn get_shares<E: Curve>(
+    pub fn get_shares<E: Curve + CurveParams>(
         &self,
         t: Option<u16>,
         n: u16,
         hd_enabled: bool,
-    ) -> Result<Vec<KeyShare<E, SecurityLevel128>>> {
+    ) -> Result<Vec<KeyShare<E, E::SecurityLevel>>> {
         let key_shares = self
             .shares
             .get(&Self::key::<E>(t, n, hd_enabled))
@@ -152,16 +149,30 @@ impl PrecomputedKeyShares {
     }
 
     /// Retrieves aux data for a set of `n` signers
-    fn get_aux(&self, n: u16) -> Result<Vec<cggmp24::key_share::AuxInfo<SecurityLevel128>>> {
-        let n: usize = n.into();
-        if n > self.aux.len() {
-            anyhow::bail!("too many parties")
-        }
-        self.aux
+    fn get_aux<L>(&self, n: u16) -> Result<Vec<cggmp24::key_share::AuxInfo<L>>>
+    where
+        L: cggmp24::security_level::SecurityLevel,
+    {
+        let security_bits = L::KAPPA_BITS / 2;
+        let aux = self
+            .aux
+            .get(&security_bits.to_string())
+            .context("unsupported security level")?;
+        // deserialize into DirtyAuxInfo to avoid double validation
+        let aux: Vec<cggmp24::key_share::DirtyAuxInfo<L>> = aux
             .iter()
             .cloned()
-            .map(|aux| {
-                let mut aux = aux.into_inner();
+            .map(serde_json::from_value)
+            .collect::<Result<Vec<_>, _>>()
+            .context("deserialize aux data")?;
+
+        let n: usize = n.into();
+        if n > aux.len() {
+            anyhow::bail!("too many parties")
+        }
+        aux.iter()
+            .cloned()
+            .map(|mut aux| {
                 aux.N.truncate(n);
                 aux.pedersen_params.truncate(n);
                 aux.validate()
@@ -180,9 +191,6 @@ impl PrecomputedKeyShares {
         if usize::from(n) != shares.len() {
             bail!("expected {n} key shares, only {} provided", shares.len());
         }
-        if usize::from(n) > self.aux.len() {
-            bail!("amount of key shares is greater than amount of aux data")
-        }
         let key_shares = shares
             .iter()
             .map(serde_json::to_value)
@@ -193,8 +201,17 @@ impl PrecomputedKeyShares {
         Ok(())
     }
 
-    pub fn add_aux(&mut self, aux: Vec<cggmp24::key_share::AuxInfo<SecurityLevel128>>) {
-        self.aux = aux;
+    pub fn add_aux<L>(&mut self, aux: Vec<cggmp24::key_share::AuxInfo<L>>)
+    where
+        L: cggmp24::security_level::SecurityLevel,
+    {
+        let security_bits = L::KAPPA_BITS / 2;
+        let aux = aux
+            .iter()
+            .map(serde_json::to_value)
+            .collect::<Result<Vec<_>, _>>()
+            .expect("serialzie aux");
+        self.aux.insert(security_bits.to_string(), aux);
     }
 
     fn key<E: Curve>(t: Option<u16>, n: u16, hd_enabled: bool) -> String {

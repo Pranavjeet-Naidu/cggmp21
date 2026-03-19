@@ -1,5 +1,6 @@
 use anyhow::{bail, Context, Result};
-use cggmp24::supported_curves::{Secp256k1, Secp256r1, Stark};
+use cggmp24::security_level::SecurityLevel192;
+use cggmp24::supported_curves::{Secp256k1, Secp256r1, Secp384r1, Stark};
 use cggmp24::{security_level::SecurityLevel128, trusted_dealer};
 use cggmp24_tests::{PrecomputedKeyShares, PregeneratedPrimes};
 use generic_ec::Curve;
@@ -50,15 +51,19 @@ fn precompute_shares() -> Result<()> {
     let max_n = 10;
     let primes = PregeneratedPrimes::generate(max_n, &mut rng);
     let primes = primes.iter::<SecurityLevel128>().collect::<Vec<_>>();
-
     let aux = cggmp24::trusted_dealer::generate_aux_data_with_primes(&mut rng, primes, true)
         .context("gen aux")?;
-
+    cache.add_aux(aux);
+    let primes = PregeneratedPrimes::generate(max_n, &mut rng);
+    let primes = primes.iter::<SecurityLevel192>().collect::<Vec<_>>();
+    let aux = cggmp24::trusted_dealer::generate_aux_data_with_primes(&mut rng, primes, true)
+        .context("gen aux")?;
     cache.add_aux(aux);
 
     eprintln!("precompute shares");
     precompute_shares_for_curve::<Secp256r1, _>(&mut rng, &mut cache)?;
     precompute_shares_for_curve::<Secp256k1, _>(&mut rng, &mut cache)?;
+    precompute_shares_for_curve::<Secp384r1, _>(&mut rng, &mut cache)?;
     precompute_shares_for_curve::<Stark, _>(&mut rng, &mut cache)?;
 
     let cache_json = cache.to_serialized().context("serialize cache")?;

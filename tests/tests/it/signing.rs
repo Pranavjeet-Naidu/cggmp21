@@ -13,36 +13,27 @@ use cggmp24::ExecutionId;
 
 cggmp24_tests::test_suite! {
     test: signing_works,
-    generics: all_curves,
+    generics: all_curves_and_hd,
     suites: {
-        n2: (None, 2, false, false),
-        n2_reliable: (None, 2, true, false),
-        t2n2: (Some(2), 2, false, false),
-        n3: (None, 3, false, false),
-        t2n3: (Some(2), 3, false, false),
-        t3n3: (Some(3), 3, false, false),
-
-        #[cfg(feature = "hd-wallet")]
-        n3_hd: (None, 3, false, true),
-        #[cfg(feature = "hd-wallet")]
-        t2n3_hd: (Some(2), 3, false, true),
-        #[cfg(feature = "hd-wallet")]
-        t3n3_hd: (Some(3), 3, false, true),
+        n2: (None, 2, false),
+        n2_reliable: (None, 2, true),
+        t2n2: (Some(2), 2, false),
+        n3: (None, 3, false),
+        t2n3: (Some(2), 3, false),
+        t3n3: (Some(3), 3, false),
     }
 }
 
-fn signing_works<E>(t: Option<u16>, n: u16, reliable_broadcast: bool, hd_wallet: bool)
+fn signing_works<E, Hd>(t: Option<u16>, n: u16, reliable_broadcast: bool)
 where
     E: Curve + cggmp24_tests::CurveParams,
     Point<E>: HasAffineX<E>,
+    Hd: cggmp24_tests::OptionalHd<E>,
 {
-    #[cfg(not(feature = "hd-wallet"))]
-    assert!(!hd_wallet);
-
     let mut rng = DevRng::new();
 
     let shares = cggmp24_tests::CACHED_SHARES
-        .get_shares::<E>(t, n, hd_wallet)
+        .get_shares::<E>(t, n, Hd::ENABLED)
         .expect("retrieve cached shares");
 
     let eid: [u8; 32] = rng.gen();
@@ -52,12 +43,7 @@ where
     rng.fill_bytes(&mut original_message_to_sign);
     let message_to_sign = DataToSign::digest::<Sha256>(&original_message_to_sign);
 
-    #[cfg(feature = "hd-wallet")]
-    let derivation_path = if hd_wallet {
-        Some(cggmp24_tests::random_derivation_path(&mut rng))
-    } else {
-        None
-    };
+    let optional_hd = Hd::generate_derivation_path(&mut rng);
 
     // Choose `t` signers to perform signing
     let t = shares[0].min_signers();
@@ -72,16 +58,10 @@ where
         let mut party_rng = rng.fork();
 
         let signing = cggmp24::signing(eid, i, participants, share)
+            .set_digest::<E::Digest>()
             .enforce_reliable_broadcast(reliable_broadcast);
 
-        #[cfg(feature = "hd-wallet")]
-        let signing = if let Some(derivation_path) = derivation_path.clone() {
-            signing
-                .set_derivation_path_with_algo::<E::HdAlgo, _>(derivation_path)
-                .unwrap()
-        } else {
-            signing
-        };
+        let signing = optional_hd.apply(signing);
 
         async move { signing.sign(&mut party_rng, party, &message_to_sign).await }
     })
@@ -89,20 +69,7 @@ where
     .expect_ok()
     .expect_eq();
 
-    #[cfg(feature = "hd-wallet")]
-    let public_key = if let Some(path) = &derivation_path {
-        generic_ec::NonZero::from_point(
-            shares[0]
-                .derive_child_public_key::<E::HdAlgo, _>(path.iter().cloned())
-                .unwrap()
-                .public_key,
-        )
-        .unwrap()
-    } else {
-        shares[0].shared_public_key
-    };
-    #[cfg(not(feature = "hd-wallet"))]
-    let public_key = shares[0].shared_public_key;
+    let public_key = optional_hd.derive_child_pk(&shares[0].core);
 
     sig.verify(&public_key, &message_to_sign)
         .expect("signature is not valid");
@@ -113,26 +80,22 @@ where
 
 cggmp24_tests::test_suite! {
     test: signing_with_presigs,
-    generics: all_curves,
+    generics: all_curves_and_hd,
     suites: {
-        t3n5: (Some(3), 5, false),
-        #[cfg(feature = "hd-wallet")]
-        t3n5_hd: (Some(3), 5, false),
+        t3n5: (Some(3), 5),
     }
 }
 
-fn signing_with_presigs<E>(t: Option<u16>, n: u16, hd_wallet: bool)
+fn signing_with_presigs<E, Hd>(t: Option<u16>, n: u16)
 where
     E: Curve + cggmp24_tests::CurveParams,
     Point<E>: HasAffineX<E>,
+    Hd: cggmp24_tests::OptionalHd<E>,
 {
-    #[cfg(not(feature = "hd-wallet"))]
-    assert!(!hd_wallet);
-
     let mut rng = DevRng::new();
 
     let shares = cggmp24_tests::CACHED_SHARES
-        .get_shares::<E>(t, n, hd_wallet)
+        .get_shares::<E>(t, n, Hd::ENABLED)
         .expect("retrieve cached shares");
 
     let eid: [u8; 32] = rng.gen();
@@ -147,29 +110,17 @@ where
 
     let participants_shares = participants.iter().map(|i| &shares[usize::from(*i)]);
 
-    #[cfg(feature = "hd-wallet")]
-    let derivation_path = if hd_wallet {
-        Some(cggmp24_tests::random_derivation_path(&mut rng))
-    } else {
-        None
-    };
+    let optional_hd = Hd::generate_derivation_path(&mut rng);
 
     let presigs = round_based::sim::run_with_setup(participants_shares, |i, party, share| {
         let party = cggmp24_tests::buffer_outgoing(party);
         let mut party_rng = rng.fork();
-        #[cfg(feature = "hd-wallet")]
-        let derivation_path = derivation_path.clone();
+        let optional_hd = optional_hd.clone();
 
         async move {
-            let signing = cggmp24::signing(eid, i, participants, share);
-            #[cfg(feature = "hd-wallet")]
-            let signing = if let Some(path) = derivation_path {
-                signing
-                    .set_derivation_path_with_algo::<E::HdAlgo, _>(path.iter().copied())
-                    .unwrap()
-            } else {
-                signing
-            };
+            let signing = cggmp24::signing(eid, i, participants, share)
+                .set_digest::<E::Digest>();
+            let signing = optional_hd.apply(signing);
             signing.generate_presignature(&mut party_rng, party).await
         }
     })
@@ -198,20 +149,7 @@ where
         cggmp24::PartialSignature::combine(&partial_signatures, &commitments, message_to_sign)
             .expect("invalid partial sigantures");
 
-    #[cfg(feature = "hd-wallet")]
-    let public_key = if let Some(path) = &derivation_path {
-        generic_ec::NonZero::from_point(
-            shares[0]
-                .derive_child_public_key::<E::HdAlgo, _>(path.iter().cloned())
-                .unwrap()
-                .public_key,
-        )
-        .unwrap()
-    } else {
-        shares[0].shared_public_key
-    };
-    #[cfg(not(feature = "hd-wallet"))]
-    let public_key = shares[0].shared_public_key;
+    let public_key = optional_hd.derive_child_pk(&shares[0].core);
 
     signature
         .verify(&public_key, &message_to_sign)
@@ -223,29 +161,23 @@ where
 
 cggmp24_tests::test_suite! {
     test: signing_sync,
-    generics: all_curves,
+    generics: all_curves_and_hd,
     suites: {
-        n3: (None, 3, false),
-        t3n5: (Some(3), 5, false),
-        #[cfg(feature = "hd-wallet")]
-        n3_hd: (None, 3, true),
-        #[cfg(feature = "hd-wallet")]
-        t3n5_hd: (Some(3), 5, true),
+        n3: (None, 3),
+        t3n5: (Some(3), 5),
     }
 }
 
-fn signing_sync<E>(t: Option<u16>, n: u16, hd_wallet: bool)
+fn signing_sync<E, Hd>(t: Option<u16>, n: u16)
 where
     E: Curve + cggmp24_tests::CurveParams,
     Point<E>: HasAffineX<E>,
+    Hd: cggmp24_tests::OptionalHd<E>,
 {
-    #[cfg(not(feature = "hd-wallet"))]
-    assert!(!hd_wallet);
-
     let mut rng = DevRng::new();
 
     let shares = cggmp24_tests::CACHED_SHARES
-        .get_shares::<E>(t, n, hd_wallet)
+        .get_shares::<E>(t, n, Hd::ENABLED)
         .expect("retrieve cached shares");
 
     let eid: [u8; 32] = rng.gen();
@@ -255,12 +187,7 @@ where
     rng.fill_bytes(&mut original_message_to_sign);
     let message_to_sign = DataToSign::digest::<Sha256>(&original_message_to_sign);
 
-    #[cfg(feature = "hd-wallet")]
-    let derivation_path = if hd_wallet {
-        Some(cggmp24_tests::random_derivation_path(&mut rng))
-    } else {
-        None
-    };
+    let optional_hd = Hd::generate_derivation_path(&mut rng);
 
     // Choose `t` signers to perform signing
     let t = shares[0].min_signers();
@@ -278,16 +205,9 @@ where
 
     for ((i, share), signer_rng) in (0..).zip(participants_shares).zip(&mut signer_rng) {
         simulation.add_party({
-            let signing = cggmp24::signing(eid, i, participants, share);
-
-            #[cfg(feature = "hd-wallet")]
-            let signing = if let Some(derivation_path) = derivation_path.clone() {
-                signing
-                    .set_derivation_path_with_algo::<E::HdAlgo, _>(derivation_path)
-                    .unwrap()
-            } else {
-                signing
-            };
+            let signing = cggmp24::signing(eid, i, participants, share)
+                .set_digest::<E::Digest>();
+            let signing = optional_hd.apply(signing);
 
             signing.sign_sync(signer_rng, &message_to_sign)
         })
@@ -295,20 +215,7 @@ where
 
     let sig = simulation.run().unwrap().expect_ok().expect_eq();
 
-    #[cfg(feature = "hd-wallet")]
-    let public_key = if let Some(path) = &derivation_path {
-        generic_ec::NonZero::from_point(
-            shares[0]
-                .derive_child_public_key::<E::HdAlgo, _>(path.iter().cloned())
-                .unwrap()
-                .public_key,
-        )
-        .unwrap()
-    } else {
-        shares[0].shared_public_key
-    };
-    #[cfg(not(feature = "hd-wallet"))]
-    let public_key = shares[0].shared_public_key;
+    let public_key = optional_hd.derive_child_pk(&shares[0].core);
 
     sig.verify(&public_key, &message_to_sign)
         .expect("signature is not valid");
