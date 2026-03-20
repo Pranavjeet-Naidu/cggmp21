@@ -331,11 +331,9 @@ pub fn random_derivation_path(rng: &mut impl rand::RngCore) -> Vec<u32> {
 
 /// Parameters per each curve that are needed in tests
 pub trait CurveParams: Curve {
-    /// Which HD derivation algorithm to use with that curve
-    #[cfg(feature = "hd-wallet")]
-    type HdAlgo: cggmp24::hd_wallet::HdWallet<Self>;
     /// External verifier for signatures on this curve
     type ExVerifier: external_verifier::ExternalVerifier<Self>;
+    /// Security level appropriate to the curve
     type SecurityLevel: cggmp24::security_level::SecurityLevel;
 
     /// Hash function that should be used with this curve
@@ -362,8 +360,6 @@ pub trait CurveParams: Curve {
 }
 
 impl CurveParams for cggmp24::supported_curves::Secp256k1 {
-    #[cfg(feature = "hd-wallet")]
-    type HdAlgo = cggmp24::hd_wallet::Slip10;
     type ExVerifier = external_verifier::blockchains::Bitcoin;
     type SecurityLevel = cggmp24::security_level::SecurityLevel128;
     type Digest = sha2::Sha256;
@@ -373,8 +369,6 @@ impl CurveParams for cggmp24::supported_curves::Secp256k1 {
 }
 
 impl CurveParams for cggmp24::supported_curves::Secp256r1 {
-    #[cfg(feature = "hd-wallet")]
-    type HdAlgo = cggmp24::hd_wallet::Slip10;
     type ExVerifier = external_verifier::Noop;
     type SecurityLevel = cggmp24::security_level::SecurityLevel128;
     type Digest = sha2::Sha256;
@@ -384,8 +378,6 @@ impl CurveParams for cggmp24::supported_curves::Secp256r1 {
 }
 
 impl CurveParams for cggmp24::supported_curves::Secp384r1 {
-    #[cfg(feature = "hd-wallet")]
-    type HdAlgo = NoHd;
     type ExVerifier = external_verifier::Noop;
     type SecurityLevel = cggmp24::security_level::SecurityLevel192;
     type Digest = sha2::Sha384;
@@ -395,35 +387,12 @@ impl CurveParams for cggmp24::supported_curves::Secp384r1 {
 }
 
 impl CurveParams for cggmp24::supported_curves::Stark {
-    #[cfg(feature = "hd-wallet")]
-    type HdAlgo = cggmp24::hd_wallet::Stark;
     type ExVerifier = external_verifier::blockchains::StarkNet;
     type SecurityLevel = cggmp24::security_level::SecurityLevel128;
     type Digest = sha2::Sha256;
     type DigestOutSize = <Self::Digest as digest::OutputSizeUser>::OutputSize;
     type DigestOutArray =
         <Self::DigestOutSize as digest::generic_array::ArrayLength<u8>>::ArrayType;
-}
-
-// TODO: `NoHd` is to be removed before merging the PR. It's quick hack to make lib compile
-// before I do architectural changes
-#[cfg(feature = "hd-wallet")]
-pub struct NoHd;
-#[cfg(feature = "hd-wallet")]
-impl hd_wallet::DeriveShift<cggmp24::supported_curves::Secp384r1> for NoHd {
-    fn derive_public_shift(
-        _parent_public_key: &hd_wallet::ExtendedPublicKey<cggmp24::supported_curves::Secp384r1>,
-        _child_index: hd_wallet::NonHardenedIndex,
-    ) -> hd_wallet::DerivedShift<cggmp24::supported_curves::Secp384r1> {
-        panic!("no HD for this curve, sorry")
-    }
-
-    fn derive_hardened_shift(
-        _parent_key: &hd_wallet::ExtendedKeyPair<cggmp24::supported_curves::Secp384r1>,
-        _child_index: hd_wallet::HardenedIndex,
-    ) -> hd_wallet::DerivedShift<cggmp24::supported_curves::Secp384r1> {
-        panic!("no HD for this curve, sorry")
-    }
 }
 
 /// Trait used by the tests to enable/disable HD wallets
