@@ -345,14 +345,14 @@ pub trait CurveParams: Curve {
     /// Dummy associated type to express that digest output must be `Unpin`
     ///
     /// Implementation should always write:
-    /// ```rust
+    /// ```rust,ignore
     /// type DigestOutSize = <Self::Digest as digest::OutputSizeUser>::OutputSize;
     /// ```
     type DigestOutSize: digest::generic_array::ArrayLength<u8, ArrayType = Self::DigestOutArray>;
     /// Dummy associated type to express that digest output must be `Unpin`
     ///
     /// Implementation should always write:
-    /// ```rust
+    /// ```rust,ignore
     /// type DigestOutArray =
     ///     <Self::DigestOutSize as digest::generic_array::ArrayLength<u8>>::ArrayType;
     /// ```
