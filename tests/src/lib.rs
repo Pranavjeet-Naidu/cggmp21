@@ -175,7 +175,7 @@ impl PrecomputedKeyShares {
             .map(|mut aux| {
                 aux.N.truncate(n);
                 aux.pedersen_params.truncate(n);
-                aux.validate()
+                aux.validate().map_err(|err| err.into_error())
             })
             .collect::<Result<_, _>>()
             .context("invalid resulting aux")

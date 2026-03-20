@@ -231,6 +231,7 @@ fn do_becnhmarks<L: SecurityLevel>(args: Args) {
                 .zip(aux_data.expect("aux data is not generated"))
                 .map(|(key_share, aux_data)| {
                     cggmp24::key_share::KeyShare::from_parts((key_share, aux_data))
+                        .map_err(|err| err.into_error())
                 })
                 .collect::<Result<Vec<_>, _>>()
                 .expect("couldn't complete a share");

@@ -163,9 +163,9 @@ impl<E: Curve, L: SecurityLevel> TrustedDealerBuilder<E, L> {
         let key_shares = core_key_shares
             .into_iter()
             .zip(aux_data)
-            .map(|(core, aux)| KeyShare::from_parts((core, aux)))
+            .map(|(core, aux)| KeyShare::from_parts((core, aux)).map_err(|err| err.into_error()))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|err| Reason::InvalidKeyShare(err.into_error()))?;
+            .map_err(Reason::InvalidKeyShare)?;
 
         Ok(key_shares)
     }
