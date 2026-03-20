@@ -200,7 +200,7 @@ impl generic_ec::core::FromUniformBytes for Scalar {
     type Bytes = [u8; 8];
 
     fn from_uniform_bytes(bytes: &Self::Bytes) -> Self {
-        Self(u64::from_be_bytes(*bytes))
+        Self(u64::from_be_bytes(*bytes) % MODULO)
     }
 }
 
