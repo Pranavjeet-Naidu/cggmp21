@@ -118,8 +118,7 @@ where
         let optional_hd = optional_hd.clone();
 
         async move {
-            let signing = cggmp24::signing(eid, i, participants, share)
-                .set_digest::<E::Digest>();
+            let signing = cggmp24::signing(eid, i, participants, share).set_digest::<E::Digest>();
             let signing = optional_hd.apply(signing);
             signing.generate_presignature(&mut party_rng, party).await
         }
@@ -205,8 +204,7 @@ where
 
     for ((i, share), signer_rng) in (0..).zip(participants_shares).zip(&mut signer_rng) {
         simulation.add_party({
-            let signing = cggmp24::signing(eid, i, participants, share)
-                .set_digest::<E::Digest>();
+            let signing = cggmp24::signing(eid, i, participants, share).set_digest::<E::Digest>();
             let signing = optional_hd.apply(signing);
 
             signing.sign_sync(signer_rng, &message_to_sign)
