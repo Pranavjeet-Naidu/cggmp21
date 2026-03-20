@@ -1,7 +1,11 @@
 # CGGMP24 releases
 
 ## v0.7.0
-Update key generation protocol to follow the latest CGGMP24 paper revision.
+* Update key generation protocol to follow the latest CGGMP24 paper revision.
+* Add support of `secp384r1` curve [#173]
+* Update `generic-ec` dep to `v0.5` [#173]
+
+[#173]: https://github.com/LFDT-Lockness/cggmp21/pull/173
 
 # CGGMP21 releases
 

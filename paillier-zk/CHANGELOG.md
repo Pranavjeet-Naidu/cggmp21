@@ -3,6 +3,9 @@
 ## v0.7.0
 * Proofs are updated to follow the latest CGGMP24 paper revision.
 * Change big integer backend to be abstract, selectable between rug and num-bigint
+* Update `generic-ec` to `v0.5` [#173]
+
+[#173]: https://github.com/LFDT-Lockness/cggmp21/pull/173
 
 # CGGMP21 releases
 
