@@ -1,7 +1,9 @@
 use anyhow::{bail, Context, Result};
-use cggmp24::security_level::SecurityLevel192;
-use cggmp24::supported_curves::{Secp256k1, Secp256r1, Secp384r1, Stark};
-use cggmp24::{security_level::SecurityLevel128, trusted_dealer};
+use cggmp24::{
+    security_level::{SecurityLevel128, SecurityLevel192},
+    supported_curves::{Secp256k1, Secp256r1, Secp384r1, Stark},
+    trusted_dealer,
+};
 use cggmp24_tests::{PrecomputedKeyShares, PregeneratedPrimes};
 use generic_ec::Curve;
 use rand::{rngs::OsRng, CryptoRng, RngCore};
