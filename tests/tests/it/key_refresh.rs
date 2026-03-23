@@ -23,10 +23,10 @@ where
 {
     let mut rng = rand_dev::DevRng::new();
 
-    let shares = cggmp24_tests::CACHED_SHARES
+    let shares = cggmp24_tests::cached::SHARES
         .get_shares::<E>(Some(t), n, false)
         .expect("retrieve cached shares");
-    let mut primes = cggmp24_tests::CACHED_PRIMES.iter::<E::SecurityLevel>();
+    let mut primes = cggmp24_tests::cached::PRIMES.iter::<E::SecurityLevel>();
 
     // Perform refresh
 

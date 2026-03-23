@@ -92,21 +92,28 @@ where
 
 pub mod external_verifier;
 
-lazy_static::lazy_static! {
-    pub static ref CACHED_SHARES: PrecomputedKeyShares = {
-        // note: serialized pregenerated shares take so much space, my (virtualized) compiler gets killed
-        // on RAM overuse when trying to `include_str!` the file into the binary.
+pub mod cached {
+    // serialized pregenerated data take so much space, my (virtualized) compiler gets killed
+    // on RAM overuse when trying to `include_str!` the file into the binary. For this reason,
+    // we load and parse on-the-fly the data when it's first accessed.
+    fn read_cached<T>(relative_path: &(impl AsRef<std::path::Path> + ?Sized)) -> T
+    where
+        T: serde::de::DeserializeOwned,
+    {
         let mut path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        path.push("../test-data/precomputed_shares.json");
+        path.push(relative_path);
 
         let file = std::fs::File::open(path).unwrap();
         let reader = std::io::BufReader::new(file);
         serde_json::from_reader(reader).unwrap()
-    };
-    pub static ref CACHED_PRIMES: PregeneratedPrimes =
-        PregeneratedPrimes::from_serialized(
-            include_str!("../../test-data/pregenerated_primes.json")
-        ).unwrap();
+    }
+
+    lazy_static::lazy_static! {
+        pub static ref SHARES: super::PrecomputedKeyShares =
+            read_cached("../test-data/precomputed_shares.json");
+        pub static ref PRIMES: super::PregeneratedPrimes =
+            read_cached("../test-data/pregenerated_primes.json");
+    }
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Default)]
@@ -231,10 +238,6 @@ pub struct PregeneratedPrimes {
 }
 
 impl PregeneratedPrimes {
-    pub fn from_serialized(repr: &str) -> Result<Self> {
-        serde_json::from_str(repr).context("parse primes")
-    }
-
     pub fn to_serialized(&self) -> Result<String> {
         serde_json::to_string_pretty(self).context("serialize primes")
     }

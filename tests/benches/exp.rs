@@ -18,7 +18,7 @@ fn criterion_benchmark(c: &mut criterion::Criterion) {
         )
     });
 
-    let primes = cggmp24_tests::CACHED_PRIMES
+    let primes = cggmp24_tests::cached::PRIMES
         .iter::<SecurityLevel128>()
         .next()
         .unwrap();

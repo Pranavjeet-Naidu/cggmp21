@@ -32,7 +32,7 @@ where
 {
     let mut rng = DevRng::new();
 
-    let shares = cggmp24_tests::CACHED_SHARES
+    let shares = cggmp24_tests::cached::SHARES
         .get_shares::<E>(t, n, Hd::ENABLED)
         .expect("retrieve cached shares");
 
@@ -94,7 +94,7 @@ where
 {
     let mut rng = DevRng::new();
 
-    let shares = cggmp24_tests::CACHED_SHARES
+    let shares = cggmp24_tests::cached::SHARES
         .get_shares::<E>(t, n, Hd::ENABLED)
         .expect("retrieve cached shares");
 
@@ -175,7 +175,7 @@ where
 {
     let mut rng = DevRng::new();
 
-    let shares = cggmp24_tests::CACHED_SHARES
+    let shares = cggmp24_tests::cached::SHARES
         .get_shares::<E>(t, n, Hd::ENABLED)
         .expect("retrieve cached shares");
 

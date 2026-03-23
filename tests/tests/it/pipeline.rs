@@ -65,7 +65,7 @@ fn run_aux_gen<E>(
 where
     E: Curve + cggmp24_tests::CurveParams,
 {
-    let mut primes = cggmp24_tests::CACHED_PRIMES.iter();
+    let mut primes = cggmp24_tests::cached::PRIMES.iter();
     let n = shares.len().try_into().unwrap();
 
     let eid: [u8; 32] = rng.gen();
