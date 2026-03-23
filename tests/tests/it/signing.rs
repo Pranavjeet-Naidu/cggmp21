@@ -29,12 +29,11 @@ where
     E: Curve + cggmp24_tests::CurveParams,
     Point<E>: HasAffineX<E>,
     Hd: cggmp24_tests::OptionalHd<E>,
+    cggmp24_tests::PrecomputedKeyShares: cggmp24_tests::HasAuxOfLevel<E::SecurityLevel>,
 {
     let mut rng = DevRng::new();
 
-    let shares = cggmp24_tests::cached::SHARES
-        .get_shares::<E>(t, n, Hd::ENABLED)
-        .expect("retrieve cached shares");
+    let shares = cggmp24_tests::cached::SHARES.get_shares::<E>(t, n, Hd::ENABLED);
 
     let eid: [u8; 32] = rng.gen();
     let eid = ExecutionId::new(&eid);
@@ -91,12 +90,11 @@ where
     E: Curve + cggmp24_tests::CurveParams,
     Point<E>: HasAffineX<E>,
     Hd: cggmp24_tests::OptionalHd<E>,
+    cggmp24_tests::PrecomputedKeyShares: cggmp24_tests::HasAuxOfLevel<E::SecurityLevel>,
 {
     let mut rng = DevRng::new();
 
-    let shares = cggmp24_tests::cached::SHARES
-        .get_shares::<E>(t, n, Hd::ENABLED)
-        .expect("retrieve cached shares");
+    let shares = cggmp24_tests::cached::SHARES.get_shares::<E>(t, n, Hd::ENABLED);
 
     let eid: [u8; 32] = rng.gen();
     let eid = ExecutionId::new(&eid);
@@ -172,12 +170,11 @@ where
     E: Curve + cggmp24_tests::CurveParams,
     Point<E>: HasAffineX<E>,
     Hd: cggmp24_tests::OptionalHd<E>,
+    cggmp24_tests::PrecomputedKeyShares: cggmp24_tests::HasAuxOfLevel<E::SecurityLevel>,
 {
     let mut rng = DevRng::new();
 
-    let shares = cggmp24_tests::cached::SHARES
-        .get_shares::<E>(t, n, Hd::ENABLED)
-        .expect("retrieve cached shares");
+    let shares = cggmp24_tests::cached::SHARES.get_shares::<E>(t, n, Hd::ENABLED);
 
     let eid: [u8; 32] = rng.gen();
     let eid = ExecutionId::new(&eid);

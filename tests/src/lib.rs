@@ -1,9 +1,5 @@
-use anyhow::{bail, Context, Result};
-use cggmp24::{
-    backend::Integer,
-    key_share::{KeyShare, Validate},
-    IncompleteKeyShare,
-};
+use anyhow::{Context, Result};
+use cggmp24::{backend::Integer, key_share::Validate as _};
 use generic_ec::Curve;
 use rand::RngCore;
 use serde_json::Value;
@@ -116,116 +112,248 @@ pub mod cached {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Default)]
+#[serde_with::serde_as]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct PrecomputedKeyShares {
-    /// contains only core key shares, that needs to be completed with `aux`
-    shares: std::collections::BTreeMap<String, Vec<Value>>,
-    /// re-usable aux data, maps `security_bits -> Vec<AuxInfo<SecurityLevel{bits}>>`
-    aux: std::collections::BTreeMap<String, Vec<Value>>,
+    shares: std::collections::BTreeMap<String, Value>,
+    aux: std::collections::BTreeMap<String, Vec<PrecomputedAux>>,
+    #[serde_as(as = "serde_with::hex::Hex")]
+    chain_code: [u8; 32],
+
+    #[serde(skip)]
+    aux_128bits: std::sync::OnceLock<
+        Vec<cggmp24::key_share::DirtyAuxInfo<cggmp24::security_level::SecurityLevel128>>,
+    >,
+    #[serde(skip)]
+    aux_192bits: std::sync::OnceLock<
+        Vec<cggmp24::key_share::DirtyAuxInfo<cggmp24::security_level::SecurityLevel192>>,
+    >,
+}
+
+#[serde_with::serde_as]
+#[derive(serde::Serialize, serde::Deserialize)]
+struct PrecomputedCoreShares<E: generic_ec::Curve> {
+    #[serde_as(as = "generic_ec::serde::Compact")]
+    public_key: generic_ec::NonZero<generic_ec::Point<E>>,
+    #[serde_as(as = "Vec<generic_ec::serde::Compact>")]
+    shares: Vec<generic_ec::NonZero<generic_ec::SecretScalar<E>>>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+struct PrecomputedAux {
+    p: Integer,
+    q: Integer,
+    hat_p: Integer,
+    hat_q: Integer,
+    s: Integer,
+    t: Integer,
 }
 
 impl PrecomputedKeyShares {
-    pub fn empty() -> Self {
-        Self::default()
-    }
-
-    pub fn to_serialized(&self) -> Result<String> {
-        serde_json::to_string_pretty(self).context("serialize shares")
-    }
-
-    pub fn get_shares<E: Curve + CurveParams>(
+    pub fn get_shares<E>(
         &self,
         t: Option<u16>,
         n: u16,
         hd_enabled: bool,
-    ) -> Result<Vec<KeyShare<E, E::SecurityLevel>>> {
-        let key_shares = self
+    ) -> Vec<cggmp24::key_share::KeyShare<E, E::SecurityLevel>>
+    where
+        E: Curve + CurveParams,
+        Self: HasAuxOfLevel<E::SecurityLevel>,
+    {
+        #[cfg(not(feature = "hd-wallet"))]
+        assert!(!hd_enabled);
+
+        let core = self
             .shares
-            .get(&Self::key::<E>(t, n, hd_enabled))
-            .context("shares not found")?;
-        let aux = self.get_aux(n).context("get aux")?;
-        key_shares
+            .get(&Self::key::<E>(t, n))
+            .expect("key shares not found");
+        let core: PrecomputedCoreShares<E> = serde_json::from_value(core.clone()).unwrap();
+
+        let public_shares: Vec<generic_ec::NonZero<generic_ec::Point<E>>> = core
+            .shares
             .iter()
-            .cloned()
+            .map(|s| s * generic_ec::Point::generator())
+            .collect();
+
+        let vss = match t {
+            None => None,
+            Some(t) => Some(cggmp24::key_share::VssSetup::<E> {
+                min_signers: t,
+                I: (1u16..=n)
+                    .map(|i| generic_ec::NonZero::from_scalar(generic_ec::Scalar::from(i)).unwrap())
+                    .collect(),
+            }),
+        };
+
+        let core_shares = (0..).zip(core.shares).map(|(i, x)| {
+            cggmp24::key_share::DirtyIncompleteKeyShare {
+                i,
+                key_info: cggmp24::key_share::DirtyKeyInfo {
+                    curve: Default::default(),
+                    shared_public_key: core.public_key,
+                    public_shares: public_shares.clone(),
+                    vss_setup: vss.clone(),
+                    #[cfg(feature = "hd-wallet")]
+                    chain_code: if hd_enabled {
+                        Some(self.chain_code)
+                    } else {
+                        None
+                    },
+                },
+                x,
+            }
+            .validate()
+            .unwrap()
+        });
+
+        let aux = self.get_aux().iter().map(|aux| {
+            let mut aux = aux.clone();
+            aux.N.truncate(usize::from(n));
+            aux.pedersen_params.truncate(usize::from(n));
+            aux.validate().unwrap()
+        });
+
+        core_shares
             .zip(aux)
-            .map(|(share, aux)| {
-                let share = serde_json::from_value(share).context("parse key share")?;
-                cggmp24::KeyShare::from_parts((share, aux)).context("invalid key share")
-            })
+            .map(|(core, aux)| cggmp24::KeyShare::from_parts((core, aux)).unwrap())
             .collect()
     }
+    fn key<E: Curve>(t: Option<u16>, n: u16) -> String {
+        format!("t={t:?},n={n},curve={}", E::CURVE_NAME)
+    }
 
-    /// Retrieves aux data for a set of `n` signers
-    fn get_aux<L>(&self, n: u16) -> Result<Vec<cggmp24::key_share::AuxInfo<L>>>
+    #[allow(non_snake_case)]
+    fn get_aux_inner<'l, L>(
+        lock: &'l std::sync::OnceLock<Vec<cggmp24::key_share::DirtyAuxInfo<L>>>,
+        aux: &std::collections::BTreeMap<String, Vec<PrecomputedAux>>,
+        aux_key: &'static str,
+    ) -> &'l [cggmp24::key_share::DirtyAuxInfo<L>]
     where
         L: cggmp24::security_level::SecurityLevel,
     {
-        let security_bits = L::KAPPA_BITS / 2;
-        let aux = self
-            .aux
-            .get(&security_bits.to_string())
-            .context("unsupported security level")?;
-        // deserialize into DirtyAuxInfo to avoid double validation
-        let aux: Vec<cggmp24::key_share::DirtyAuxInfo<L>> = aux
-            .iter()
-            .cloned()
-            .map(serde_json::from_value)
-            .collect::<Result<Vec<_>, _>>()
-            .context("deserialize aux data")?;
+        lock.get_or_init(|| {
+            let aux = aux.get(aux_key).expect("no primes of appropriate size");
 
-        let n: usize = n.into();
-        if n > aux.len() {
-            anyhow::bail!("too many parties")
-        }
-        aux.iter()
-            .cloned()
-            .map(|mut aux| {
-                aux.N.truncate(n);
-                aux.pedersen_params.truncate(n);
-                aux.validate().map_err(|err| err.into_error())
+            let pedersen_params = aux
+                .iter()
+                .map(|aux| {
+                    let mut params = cggmp24::key_share::PedersenParams {
+                        hat_N: &aux.hat_p * &aux.hat_q,
+                        s: aux.s.clone(),
+                        t: aux.t.clone(),
+                        multiexp: None,
+                        crt: None,
+                    };
+                    params.precompute_crt(&aux.hat_p, &aux.hat_q).unwrap();
+                    params
+                        .precompute_multiexp_table::<cggmp24::security_level::SecurityLevel128>()
+                        .unwrap();
+                    params
+                })
+                .collect::<Vec<_>>();
+
+            let N = aux.iter().map(|aux| &aux.p * &aux.q).collect::<Vec<_>>();
+
+            aux.iter()
+                .map(|aux| cggmp24::key_share::DirtyAuxInfo {
+                    p: aux.p.clone(),
+                    q: aux.q.clone(),
+                    N: N.clone(),
+                    pedersen_params: pedersen_params.clone(),
+                    security_level: std::marker::PhantomData,
+                })
+                .collect()
+        })
+    }
+
+    pub fn precompute_aux<L>(&mut self, rng: &mut (impl rand::RngCore + rand::CryptoRng), n: usize)
+    where
+        L: cggmp24::security_level::SecurityLevel,
+    {
+        let primes = (0..n)
+            .map(|_| {
+                [
+                    generate_blum_prime(rng, L::RSA_PRIME_BITLEN),
+                    generate_blum_prime(rng, L::RSA_PRIME_BITLEN),
+                    generate_blum_prime(rng, L::RSA_PRIME_BITLEN),
+                    generate_blum_prime(rng, L::RSA_PRIME_BITLEN),
+                ]
             })
-            .collect::<Result<_, _>>()
-            .context("invalid resulting aux")
-    }
-
-    pub fn add_shares<E: Curve>(
-        &mut self,
-        t: Option<u16>,
-        n: u16,
-        hd_enabled: bool,
-        shares: &[IncompleteKeyShare<E>],
-    ) -> Result<()> {
-        if usize::from(n) != shares.len() {
-            bail!("expected {n} key shares, only {} provided", shares.len());
-        }
-        let key_shares = shares
+            .collect::<Vec<_>>();
+        let aux = cggmp24::trusted_dealer::generate_aux_data_with_primes::<L, _>(
+            rng,
+            primes
+                .iter()
+                .cloned()
+                .map(|primes| cggmp24::key_refresh::PregeneratedPrimes::try_from(primes).unwrap())
+                .collect(),
+            false,
+        )
+        .unwrap();
+        let s_t = aux[0]
+            .pedersen_params
             .iter()
-            .map(serde_json::to_value)
-            .collect::<Result<_, _>>()
-            .context("serialize key shares")?;
-        self.shares
-            .insert(Self::key::<E>(t, n, hd_enabled), key_shares);
-        Ok(())
-    }
+            .map(|p| (p.s.clone(), p.t.clone()));
 
-    pub fn add_aux<L>(&mut self, aux: Vec<cggmp24::key_share::AuxInfo<L>>)
-    where
-        L: cggmp24::security_level::SecurityLevel,
-    {
+        let aux = s_t
+            .zip(primes)
+            .map(|((s, t), [p, q, hat_p, hat_q])| PrecomputedAux {
+                p,
+                q,
+                hat_p,
+                hat_q,
+                s,
+                t,
+            })
+            .collect();
+
         let security_bits = L::KAPPA_BITS / 2;
-        let aux = aux
-            .iter()
-            .map(serde_json::to_value)
-            .collect::<Result<Vec<_>, _>>()
-            .expect("serialzie aux");
         self.aux.insert(security_bits.to_string(), aux);
     }
 
-    fn key<E: Curve>(t: Option<u16>, n: u16, hd_enabled: bool) -> String {
-        format!(
-            "t={t:?},n={n},curve={},hd_wallet={hd_enabled}",
-            E::CURVE_NAME
-        )
+    pub fn add_shares<E>(
+        &mut self,
+        t: Option<u16>,
+        n: u16,
+        shares: &[cggmp24::key_share::IncompleteKeyShare<E>],
+    ) where
+        E: Curve,
+    {
+        assert_eq!(shares.len(), usize::from(n));
+        let shares = PrecomputedCoreShares::<E> {
+            public_key: shares[0].shared_public_key,
+            shares: shares.iter().map(|s| s.x.clone()).collect(),
+        };
+        let shares = serde_json::to_value(shares).unwrap();
+
+        self.shares.insert(Self::key::<E>(t, n), shares);
+    }
+
+    pub fn empty(chain_code: [u8; 32]) -> Self {
+        Self {
+            shares: Default::default(),
+            aux: Default::default(),
+            chain_code,
+            aux_128bits: Default::default(),
+            aux_192bits: Default::default(),
+        }
+    }
+}
+
+pub trait HasAuxOfLevel<L: cggmp24::security_level::SecurityLevel> {
+    fn get_aux(&self) -> &[cggmp24::key_share::DirtyAuxInfo<L>];
+}
+impl HasAuxOfLevel<cggmp24::security_level::SecurityLevel128> for PrecomputedKeyShares {
+    fn get_aux(
+        &self,
+    ) -> &[cggmp24::key_share::DirtyAuxInfo<cggmp24::security_level::SecurityLevel128>] {
+        Self::get_aux_inner(&self.aux_128bits, &self.aux, "128")
+    }
+}
+impl HasAuxOfLevel<cggmp24::security_level::SecurityLevel192> for PrecomputedKeyShares {
+    fn get_aux(
+        &self,
+    ) -> &[cggmp24::key_share::DirtyAuxInfo<cggmp24::security_level::SecurityLevel192>] {
+        Self::get_aux_inner(&self.aux_192bits, &self.aux, "192")
     }
 }
 

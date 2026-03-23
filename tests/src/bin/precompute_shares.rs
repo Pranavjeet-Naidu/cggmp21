@@ -4,7 +4,7 @@ use cggmp24::{
     supported_curves::{Secp256k1, Secp256r1, Secp384r1, Stark},
     trusted_dealer,
 };
-use cggmp24_tests::{PrecomputedKeyShares, PregeneratedPrimes};
+use cggmp24_tests::{CurveParams, PregeneratedPrimes};
 use generic_ec::Curve;
 use rand::{rngs::OsRng, CryptoRng, RngCore};
 
@@ -47,20 +47,15 @@ fn args() -> Operation {
 
 fn precompute_shares() -> Result<()> {
     let mut rng = OsRng;
-    let mut cache = PrecomputedKeyShares::empty();
+    let chain_code = rand::Rng::r#gen(&mut rng);
+    let mut cache = cggmp24_tests::PrecomputedKeyShares::empty(chain_code);
 
     eprintln!("precompute aux data");
     let max_n = 10;
-    let primes = PregeneratedPrimes::generate(max_n, &mut rng);
-    let primes = primes.iter::<SecurityLevel128>().collect::<Vec<_>>();
-    let aux = cggmp24::trusted_dealer::generate_aux_data_with_primes(&mut rng, primes, true)
-        .context("gen aux")?;
-    cache.add_aux(aux);
-    let primes = PregeneratedPrimes::generate(max_n, &mut rng);
-    let primes = primes.iter::<SecurityLevel192>().collect::<Vec<_>>();
-    let aux = cggmp24::trusted_dealer::generate_aux_data_with_primes(&mut rng, primes, true)
-        .context("gen aux")?;
-    cache.add_aux(aux);
+    eprintln!("precompute aux data, security_level = 128 bits");
+    cache.precompute_aux::<SecurityLevel128>(&mut rng, max_n);
+    eprintln!("precompute aux data, security_level = 192 bits");
+    cache.precompute_aux::<SecurityLevel192>(&mut rng, max_n);
 
     eprintln!("precompute shares");
     precompute_shares_for_curve::<Secp256r1, _>(&mut rng, &mut cache)?;
@@ -68,7 +63,7 @@ fn precompute_shares() -> Result<()> {
     precompute_shares_for_curve::<Secp384r1, _>(&mut rng, &mut cache)?;
     precompute_shares_for_curve::<Stark, _>(&mut rng, &mut cache)?;
 
-    let cache_json = cache.to_serialized().context("serialize cache")?;
+    let cache_json = serde_json::to_string_pretty(&cache).context("serialize cache")?;
     println!("{cache_json}");
     Ok(())
 }
@@ -80,30 +75,26 @@ fn precompute_primes() -> Result<()> {
     Ok(())
 }
 
-fn precompute_shares_for_curve<E: Curve, R: RngCore + CryptoRng>(
+fn precompute_shares_for_curve<E, R>(
     rng: &mut R,
-    cache: &mut PrecomputedKeyShares,
-) -> Result<()> {
+    cache: &mut cggmp24_tests::PrecomputedKeyShares,
+) -> Result<()>
+where
+    E: Curve + CurveParams,
+    R: RngCore + CryptoRng,
+{
     for n in [2, 3, 5, 7, 10] {
         let threshold_values = [None, Some(2), Some(3), Some(5), Some(7)];
         for t in threshold_values
             .into_iter()
             .filter(|t| t.map(|t| t <= n).unwrap_or(true))
         {
-            for hd_enabled in [false, true] {
-                eprintln!(
-                    "t={t:?},n={n},curve={},hd_enabled={hd_enabled}",
-                    E::CURVE_NAME
-                );
-                let shares = trusted_dealer::builder::<E, SecurityLevel128>(n)
-                    .set_threshold(t)
-                    .hd_wallet(hd_enabled)
-                    .generate_core_shares(rng)
-                    .context("generate shares")?;
-                cache
-                    .add_shares(t, n, hd_enabled, &shares)
-                    .context("add shares")?;
-            }
+            eprintln!("t={t:?},n={n},curve={}", E::CURVE_NAME);
+            let shares = trusted_dealer::builder::<E, E::SecurityLevel>(n)
+                .set_threshold(t)
+                .generate_core_shares(rng)
+                .context("generate shares")?;
+            cache.add_shares(t, n, &shares);
         }
     }
     Ok(())

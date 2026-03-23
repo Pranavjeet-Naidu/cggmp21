@@ -20,12 +20,11 @@ fn aux_gen_works<E>(t: u16, n: u16, reliable_broadcast: bool)
 where
     E: generic_ec::Curve + cggmp24_tests::CurveParams,
     Point<E>: generic_ec::coords::HasAffineX<E>,
+    cggmp24_tests::PrecomputedKeyShares: cggmp24_tests::HasAuxOfLevel<E::SecurityLevel>,
 {
     let mut rng = rand_dev::DevRng::new();
 
-    let shares = cggmp24_tests::cached::SHARES
-        .get_shares::<E>(Some(t), n, false)
-        .expect("retrieve cached shares");
+    let shares = cggmp24_tests::cached::SHARES.get_shares::<E>(Some(t), n, false);
     let mut primes = cggmp24_tests::cached::PRIMES.iter::<E::SecurityLevel>();
 
     // Perform refresh
