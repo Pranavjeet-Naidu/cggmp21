@@ -55,15 +55,6 @@ num-traits.opt-level = 3
 num-integer.opt-level = 3
 glass_pumpkin.opt-level = 3
 
-[patch.crates-io.generic-ec-curves]
-git = "https://github.com/sridhar-panigrahi/generic-ec.git"
-rev = "5168020e97af1148f5703ad5c5b8b35c98511a8d"
-[patch.crates-io.generic-ec]
-git = "https://github.com/sridhar-panigrahi/generic-ec.git"
-rev = "5168020e97af1148f5703ad5c5b8b35c98511a8d"
-[patch.crates-io.generic-ec-zkp]
-git = "https://github.com/sridhar-panigrahi/generic-ec.git"
-rev = "5168020e97af1148f5703ad5c5b8b35c98511a8d"
 [patch.crates-io.hd-wallet]
 git = "https://github.com/lfdt-lockness/hd-wallet"
 branch = "generic-ec/v0.5.0"
