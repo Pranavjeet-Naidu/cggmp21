@@ -89,9 +89,7 @@ where
 pub mod external_verifier;
 
 pub mod cached {
-    // serialized pregenerated data take so much space, my (virtualized) compiler gets killed
-    // on RAM overuse when trying to `include_str!` the file into the binary. For this reason,
-    // we load and parse on-the-fly the data when it's first accessed.
+    // we've decided to load cached data in runtime to avoid exploding the tests binary size
     fn read_cached<T>(relative_path: &(impl AsRef<std::path::Path> + ?Sized)) -> T
     where
         T: serde::de::DeserializeOwned,
