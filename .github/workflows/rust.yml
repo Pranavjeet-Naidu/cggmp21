@@ -72,8 +72,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-      with:
-        lfs: true
     - uses: Swatinem/rust-cache@v2
       with:
         cache-on-failure: "true"
@@ -85,8 +83,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-      with:
-        lfs: true
     - uses: Swatinem/rust-cache@v2
       with:
         cache-on-failure: "true"
@@ -100,8 +96,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-      with:
-        lfs: true
     - uses: Swatinem/rust-cache@v2
       with:
         cache-on-failure: "true"
@@ -112,8 +106,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-      with:
-        lfs: true
     - uses: Swatinem/rust-cache@v2
       with:
         cache-on-failure: "true"
