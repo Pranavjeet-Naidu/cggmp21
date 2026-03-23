@@ -10,9 +10,7 @@ fn sign_transaction() {
     let t = Some(2);
     let n = 3;
 
-    let shares = cggmp24_tests::CACHED_SHARES
-        .get_shares::<Stark>(t, n, false)
-        .expect("retrieve cached shares");
+    let shares = cggmp24_tests::cached::SHARES.get_shares::<Stark>(t, n, false);
 
     let eid: [u8; 32] = rng.gen();
     let eid = cggmp24::ExecutionId::new(&eid);

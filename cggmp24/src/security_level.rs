@@ -164,6 +164,17 @@ define_security_level!(SecurityLevel128 {
     m: 128,
 });
 
+#[doc(inline)]
+pub use cggmp24_keygen::security_level::SecurityLevel192;
+define_security_level!(SecurityLevel192 {
+    rsa_prime_bitlen: 7680 / 2,
+    rsa_pubkey_bitlen: 7679,
+    epsilon: Self::KAPPA_BITS as usize * 2,
+    ell: Self::KAPPA_BITS as usize,
+    ell_prime: Self::KAPPA_BITS as usize * 5,
+    m: 128,
+});
+
 /// Checks that public paillier key meets security level constraints
 pub(crate) fn validate_public_paillier_key_size<L: SecurityLevel>(N: &Integer) -> bool {
     N.significant_bits() >= u64::from(L::RSA_PUBKEY_BITLEN)

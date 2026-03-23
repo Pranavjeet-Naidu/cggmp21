@@ -5,6 +5,7 @@
 Changes:
 * All protocols have been updated to follow the latest CGGMP24 paper revision.
 * Change big integer backend to be abstract, selectable between rug and num-bigint
+* Add support of `secp384r1` curve [#173]
 
 Breaking changes:
 * The structure `cggmp24::key_share::AuxInfo` has been updated and consequently `cggmp24::KeyShare`
@@ -18,10 +19,12 @@ Breaking changes:
 * Using HD derivation when signing with presignature is prohibited, as it significantly decreases security.
   Read our [blog post][vuln-disclosure] to learn more.
 * Big Integer API has been changed
+* Update `generic-ec` dep to `v0.5` [#173]
 
 Please refer to the [migration manual](./../CGGMP21_MIGRATION.md) for detailed instructions on how
 to upgrade your existing key share data.
 
+[#173]: https://github.com/LFDT-Lockness/cggmp21/pull/173
 [vuln-disclosure]: https://www.dfns.co/article/cggmp21-vulnerabilities-patched-and-explained
 
 # CGGMP21 releases

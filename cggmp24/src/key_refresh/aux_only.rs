@@ -163,7 +163,7 @@ where
     R: RngCore + CryptoRng,
     M: Mpc<ProtocolMessage = Msg<D, L>>,
     L: SecurityLevel,
-    D: Digest<OutputSize = digest::typenum::U32> + Clone + 'static,
+    D: Digest + Clone + 'static,
 {
     tracer.protocol_begins();
 
@@ -263,7 +263,7 @@ where
         tracer.send_msg();
         outgoings
             .send(Outgoing::broadcast(Msg::ReliabilityCheck(
-                MsgReliabilityCheck(h_i),
+                MsgReliabilityCheck(h_i.clone()),
             )))
             .await
             .map_err(IoError::send_message)?;

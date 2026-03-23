@@ -1,11 +1,9 @@
 use generic_ec::Point;
 use rand::seq::SliceRandom;
 use rand::Rng;
-use sha2::Sha256;
 
 use cggmp24::{
     key_share::{DirtyKeyShare, Validate},
-    security_level::SecurityLevel128,
     ExecutionId,
 };
 
@@ -18,16 +16,16 @@ cggmp24_tests::test_suite! {
         t3n5_reliable: (3, 5, true),
     }
 }
-fn aux_gen_works<E: generic_ec::Curve>(t: u16, n: u16, reliable_broadcast: bool)
+fn aux_gen_works<E>(t: u16, n: u16, reliable_broadcast: bool)
 where
+    E: generic_ec::Curve + cggmp24_tests::CurveParams,
     Point<E>: generic_ec::coords::HasAffineX<E>,
+    cggmp24_tests::PrecomputedKeyShares: cggmp24_tests::HasAuxOfLevel<E::SecurityLevel>,
 {
     let mut rng = rand_dev::DevRng::new();
 
-    let shares = cggmp24_tests::CACHED_SHARES
-        .get_shares::<E>(Some(t), n, false)
-        .expect("retrieve cached shares");
-    let mut primes = cggmp24_tests::CACHED_PRIMES.iter::<SecurityLevel128>();
+    let shares = cggmp24_tests::cached::SHARES.get_shares::<E>(Some(t), n, false);
+    let mut primes = cggmp24_tests::cached::PRIMES.iter::<E::SecurityLevel>();
 
     // Perform refresh
 
@@ -40,6 +38,7 @@ where
         let pregenerated_data = primes.next().expect("Can't fetch primes");
         async move {
             cggmp24::aux_info_gen(eid, i, n, pregenerated_data)
+                .set_digest::<E::Digest>()
                 .enforce_reliable_broadcast(reliable_broadcast)
                 .start(&mut party_rng, party)
                 .await
@@ -69,7 +68,7 @@ where
     let eid: [u8; 32] = rng.gen();
     let eid = ExecutionId::new(&eid);
 
-    let message_to_sign = cggmp24::signing::DataToSign::digest::<Sha256>(&[42; 100]);
+    let message_to_sign = cggmp24::signing::DataToSign::digest::<E::Digest>(&[42; 100]);
 
     // choose t participants
     let mut participants = (0..n).collect::<Vec<_>>();

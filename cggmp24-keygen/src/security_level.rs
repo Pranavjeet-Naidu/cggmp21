@@ -104,3 +104,8 @@ pub use define_security_level;
 #[derive(Clone)]
 pub struct SecurityLevel128;
 define_security_level!(SecurityLevel128 { kappa_bits: 256 });
+
+/// 192-bits security level
+#[derive(Clone)]
+pub struct SecurityLevel192;
+define_security_level!(SecurityLevel192 { kappa_bits: 48 * 8 });

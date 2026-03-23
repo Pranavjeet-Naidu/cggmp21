@@ -199,4 +199,39 @@ cargo clean
 cargo test
 ```
 
+## Step 11: Update `Cargo.toml` to use `cggmp24 v0.7.0-alpha.4`
+Update version of `cggmp24`:
+
+```toml
+[dependencies]
+cggmp24 = "0.7.0-alpha.4"
+```
+
+## Step 12: New release of `generic-ec`
+In this release, a few deps were updated:
+* `generic-ec` to `v0.5`
+* `key-share` to `v0.7`
+
+If you use one of those dependency directly, make sure to update your `Cargo.toml`:
+
+```toml
+[dependencies]
+generic-ec = "0.5" # only if you're using
+key-share = "0.7"  # them directly
+```
+
+Although the releases contain breaking changes, they are minimal, you're not likely to encounter
+any problems unless you implemented your own `generic_ec::Curve` (in this case, you need to change
+implementation of a few traits but that's it). Resolve any errors before proceeding.
+
+## Step 13: Compile and Test
+
+At this point, your project should compile and work perfectly fine with `cggmp24 v0.7.0-alpha.3`.
+Make sure it is the case:
+
+```bash
+cargo clean
+cargo test
+```
+
 If it compiles and all tests pass successfully, then you've completed migration!

@@ -425,7 +425,7 @@ where
     E: Curve,
     NonZero<Point<E>>: AlwaysHasAffineX<E>,
     L: SecurityLevel,
-    D: Digest<OutputSize = digest::typenum::U32> + Clone + 'static,
+    D: Digest + Clone + 'static,
 {
     /// Construct a signing builder
     pub fn new(
@@ -668,7 +668,7 @@ where
     M: Mpc<ProtocolMessage = Msg<E, D>>,
     E: Curve,
     L: SecurityLevel,
-    D: Digest<OutputSize = digest::typenum::U32> + Clone + 'static,
+    D: Digest + Clone + 'static,
     R: RngCore + CryptoRng,
     NonZero<Point<E>>: AlwaysHasAffineX<E>,
 {
@@ -792,7 +792,7 @@ where
     M: Mpc<ProtocolMessage = Msg<E, D>>,
     E: Curve,
     L: SecurityLevel,
-    D: Digest<OutputSize = digest::typenum::U32> + Clone + 'static,
+    D: Digest + Clone + 'static,
     R: RngCore + CryptoRng,
     NonZero<Point<E>>: AlwaysHasAffineX<E>,
 {
@@ -972,7 +972,7 @@ where
         tracer.send_msg();
         outgoings
             .send(Outgoing::broadcast(Msg::ReliabilityCheck(
-                MsgReliabilityCheck(h_i),
+                MsgReliabilityCheck(h_i.clone()),
             )))
             .await
             .map_err(IoError::send_message)?;

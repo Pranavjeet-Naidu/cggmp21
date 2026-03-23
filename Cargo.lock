@@ -298,7 +298,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "cggmp24"
-version = "0.7.0-alpha.3"
+version = "0.7.0-alpha.4"
 dependencies = [
  "cggmp24-keygen",
  "digest",
@@ -316,7 +316,7 @@ dependencies = [
  "rand_hash",
  "round-based",
  "serde",
- "serde_with 2.3.3",
+ "serde_with",
  "sha2",
  "thiserror 1.0.48",
  "udigest",
@@ -324,7 +324,7 @@ dependencies = [
 
 [[package]]
 name = "cggmp24-keygen"
-version = "0.7.0-alpha.3"
+version = "0.7.0-alpha.4"
 dependencies = [
  "digest",
  "displaydoc",
@@ -337,7 +337,7 @@ dependencies = [
  "rand_core",
  "round-based",
  "serde",
- "serde_with 2.3.3",
+ "serde_with",
  "sha2",
  "thiserror 1.0.48",
  "udigest",
@@ -352,8 +352,10 @@ dependencies = [
  "cggmp24",
  "ciborium",
  "criterion",
+ "digest",
  "futures",
  "generic-ec",
+ "hd-wallet",
  "hex",
  "include_dir",
  "lazy_static",
@@ -364,6 +366,7 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
+ "serde_with",
  "sha2",
  "starknet-accounts",
  "starknet-core",
@@ -1065,9 +1068,9 @@ dependencies = [
 
 [[package]]
 name = "generic-ec"
-version = "0.4.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a88871287d5618d728c21ef0bea4dc5dc3097cbfa2efd3e1b6e85a33df74083"
+checksum = "508a3270730504f9a5cd1dcd7ac743cb06e9b414db28b3a835554bd1268ebd75"
 dependencies = [
  "curve25519-dalek",
  "digest",
@@ -1078,7 +1081,7 @@ dependencies = [
  "rand_core",
  "rand_hash",
  "serde",
- "serde_with 2.3.3",
+ "serde_with",
  "subtle",
  "udigest",
  "zeroize",
@@ -1086,9 +1089,9 @@ dependencies = [
 
 [[package]]
 name = "generic-ec-core"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f156564cc8aa47456da807826b1a0aa9cf420474d9f41593ffbdde65133d4bea"
+checksum = "ffea0573b3bdde9a0bbbf17433b19f9628942e075d723702c2f495f0a2f65268"
 dependencies = [
  "generic-array",
  "rand_core",
@@ -1099,9 +1102,9 @@ dependencies = [
 
 [[package]]
 name = "generic-ec-curves"
-version = "0.2.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5926949b758d01801c7edd75357495fe54c5fc25580a193de4c994c94d22307"
+checksum = "ffbc925fd3e3679dc46eb028029be23f3eb215f9392847d10223d853a459ab3c"
 dependencies = [
  "curve25519-dalek",
  "elliptic-curve",
@@ -1109,6 +1112,7 @@ dependencies = [
  "group",
  "k256",
  "p256",
+ "p384",
  "rand_core",
  "sha2",
  "stark-curve",
@@ -1118,10 +1122,11 @@ dependencies = [
 
 [[package]]
 name = "generic-ec-zkp"
-version = "0.4.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1743ab486bf2fd0a82fa36c3df29b7a32f3870dbab57cd2d49c420b8342031dd"
+checksum = "b19b88bd3d9b24d30d21ee91c0feb9480e4fec008a1b8b9bf2c16e0afbf43a2e"
 dependencies = [
+ "digest",
  "generic-array",
  "generic-ec",
  "rand_core",
@@ -1232,9 +1237,9 @@ checksum = "2c6201b9ff9fd90a5a3bac2e56a830d0caa509576f0e503818ee82c181b3437a"
 
 [[package]]
 name = "hd-wallet"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d1e8b25f89c813ea3f4317b86c1e89ecc86843601ca8657448e47e4f68f69af"
+checksum = "4acb098522f1e1b49854dd4c7b39b819669d35691446a5a01a082d1ecf25b72b"
 dependencies = [
  "generic-array",
  "generic-ec",
@@ -1534,7 +1539,7 @@ dependencies = [
 
 [[package]]
 name = "key-share"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "displaydoc",
  "generic-ec",
@@ -1543,7 +1548,7 @@ dependencies = [
  "hex",
  "rand_core",
  "serde",
- "serde_with 2.3.3",
+ "serde_with",
  "thiserror 1.0.48",
  "udigest",
 ]
@@ -1681,8 +1686,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "p384"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe42f1670a52a47d448f14b6a5c61dd78fce51856e68edaa38f7ae3a46b8d6b6"
+dependencies = [
+ "elliptic-curve",
+ "primeorder",
+]
+
+[[package]]
 name = "paillier-zk"
-version = "0.7.0-alpha.3"
+version = "0.7.0-alpha.4"
 dependencies = [
  "anyhow",
  "digest",
@@ -1694,7 +1709,7 @@ dependencies = [
  "rand_hash",
  "serde",
  "serde_json",
- "serde_with 3.0.0",
+ "serde_with",
  "sha2",
  "subtle",
  "thiserror 1.0.48",
@@ -2338,18 +2353,8 @@ dependencies = [
  "indexmap 1.9.2",
  "serde",
  "serde_json",
- "serde_with_macros 2.3.3",
+ "serde_with_macros",
  "time",
-]
-
-[[package]]
-name = "serde_with"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f02d8aa6e3c385bf084924f660ce2a3a6bd333ba55b35e8590b321f35d88513"
-dependencies = [
- "serde",
- "serde_with_macros 3.0.0",
 ]
 
 [[package]]
@@ -2357,18 +2362,6 @@ name = "serde_with_macros"
 version = "2.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "881b6f881b17d13214e5d494c939ebab463d01264ce1811e9d4ac3a882e7695f"
-dependencies = [
- "darling",
- "proc-macro2",
- "quote",
- "syn 2.0.90",
-]
-
-[[package]]
-name = "serde_with_macros"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edc7d5d3932fb12ce722ee5e64dd38c504efba37567f0c402f6ca728c3b8b070"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -2461,7 +2454,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_json_pythonic",
- "serde_with 2.3.3",
+ "serde_with",
  "sha3",
  "starknet-crypto",
  "starknet-ff",
@@ -2535,7 +2528,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "serde_with 2.3.3",
+ "serde_with",
  "starknet-core",
  "thiserror 1.0.48",
  "url",

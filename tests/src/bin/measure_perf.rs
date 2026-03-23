@@ -160,7 +160,7 @@ fn do_becnhmarks<L: SecurityLevel>(args: Args) {
                 let eid: [u8; 32] = rng.gen();
                 let eid = ExecutionId::new(&eid);
 
-                let mut primes = cggmp24_tests::CACHED_PRIMES.iter::<L>();
+                let mut primes = cggmp24_tests::cached::PRIMES.iter::<L>();
 
                 let outputs = round_based::sim::run(n, |i, party| {
                     let mut party_rng = rng.fork();
@@ -231,6 +231,7 @@ fn do_becnhmarks<L: SecurityLevel>(args: Args) {
                 .zip(aux_data.expect("aux data is not generated"))
                 .map(|(key_share, aux_data)| {
                     cggmp24::key_share::KeyShare::from_parts((key_share, aux_data))
+                        .map_err(|err| err.into_error())
                 })
                 .collect::<Result<Vec<_>, _>>()
                 .expect("couldn't complete a share");

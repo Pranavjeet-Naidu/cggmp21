@@ -11,6 +11,8 @@
 pub use generic_ec::curves::Secp256k1;
 #[cfg(feature = "curve-secp256r1")]
 pub use generic_ec::curves::Secp256r1;
+#[cfg(feature = "curve-secp384r1")]
+pub use generic_ec::curves::Secp384r1;
 #[cfg(feature = "curve-stark")]
 pub use generic_ec::curves::Stark;
 
@@ -32,6 +34,8 @@ mod check_compatibility {
         curve_is_compatible::<super::Secp256k1>();
         #[cfg(feature = "curve-secp256r1")]
         curve_is_compatible::<super::Secp256r1>();
+        #[cfg(feature = "curve-secp384r1")]
+        curve_is_compatible::<super::Secp384r1>();
         #[cfg(feature = "curve-stark")]
         curve_is_compatible::<super::Stark>();
     }

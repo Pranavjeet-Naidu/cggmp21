@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.7.0
+* Update `generic-ec` dep to `v0.5` [#173]
+
+[#173]: https://github.com/LFDT-Lockness/cggmp21/pull/173
+
 ## v0.6.1
 * Trusted dealer can generate shares at random or non-standard preimages [#137]
 
