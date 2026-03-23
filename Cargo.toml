@@ -54,7 +54,3 @@ num-bigint.opt-level = 3
 num-traits.opt-level = 3
 num-integer.opt-level = 3
 glass_pumpkin.opt-level = 3
-
-[patch.crates-io.hd-wallet]
-git = "https://github.com/lfdt-lockness/hd-wallet"
-branch = "generic-ec/v0.5.0"
