@@ -369,7 +369,7 @@ where
         l: L::ELL,
         epsilon: L::EPSILON,
     };
-    let n_sqrt = utils::sqrt(&N);
+    let n_sqrt = utils::sqrt(&N).expect("Own modulus N is always positive");
 
     // message to each party
     for (j, _, d) in decommitments.iter_indexed() {
@@ -456,6 +456,10 @@ where
         &decommitments,
         &shares_msg_b,
         |j, decommitment, proof_msg| {
+            let n_root = match utils::sqrt(&decommitment.N) {
+                Some(root) => root,
+                None => return true,
+            };
             π_fac::non_interactive::verify::<D>(
                 &unambiguous::ProofFac {
                     sid,
@@ -465,7 +469,7 @@ where
                 &phi_common_aux,
                 π_fac::Data {
                     n: &decommitment.N,
-                    n_root: &utils::sqrt(&decommitment.N),
+                    n_root: &n_root,
                 },
                 &π_fac_security,
                 &proof_msg.fac_proof,
