@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [ "**" ]
   push:
-    branches: [ "m" ]
+    branches: [ "cggmp24/m" ]
 
 env:
   CARGO_TERM_COLOR: always
