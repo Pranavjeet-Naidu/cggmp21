@@ -369,7 +369,7 @@ where
         l: L::ELL,
         epsilon: L::EPSILON,
     };
-    let n_sqrt = utils::sqrt(&N).expect("Own modulus N is always positive");
+    let n_sqrt = N.sqrt_ref().ok_or(Bug::NegativeModulus)?;
 
     // message to each party
     for (j, _, d) in decommitments.iter_indexed() {
@@ -456,7 +456,7 @@ where
         &decommitments,
         &shares_msg_b,
         |j, decommitment, proof_msg| {
-            let n_root = match utils::sqrt(&decommitment.N) {
+            let n_root = match decommitment.N.sqrt_ref() {
                 Some(root) => root,
                 None => return true,
             };

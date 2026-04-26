@@ -245,6 +245,8 @@ enum Bug {
     BuildMultiexpTables(#[source] crate::key_share::InvalidKeyShare),
     #[error("generate pedersen params")]
     GenPedersen(#[source] utils::GenPedersenError),
+    #[error("own modulus N is not positive")]
+    NegativeModulus,
 }
 
 /// Error indicating that protocol was aborted by malicious party

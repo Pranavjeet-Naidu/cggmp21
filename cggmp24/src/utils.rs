@@ -145,12 +145,6 @@ pub fn iter_peers(i: u16, n: u16) -> impl Iterator<Item = u16> {
     (0..n).filter(move |x| *x != i)
 }
 
-/// Binary search for rounded down square root. Returns `None` for negative
-/// numbers
-pub fn sqrt(x: &Integer) -> Option<Integer> {
-    x.sqrt_ref()
-}
-
 /// Returns `[list[indexes[0]], list[indexes[1]], ..., list[indexes[n-1]]]`
 ///
 /// Result is `None` if any of `indexes[i]` is out of range of `list`
@@ -227,38 +221,6 @@ pub mod encoding {
             encoder: udigest::encoding::EncodeValue<B>,
         ) {
             encoder.encode_leaf_value(x.to_bytes_msf())
-        }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    #[test]
-    fn test_sqrt() {
-        use super::{sqrt, Integer};
-        assert_eq!(sqrt(&Integer::from(-5)), None);
-        assert_eq!(sqrt(&Integer::from(1)).unwrap(), Integer::from(1));
-        assert_eq!(sqrt(&Integer::from(2)).unwrap(), Integer::from(1));
-        assert_eq!(sqrt(&Integer::from(3)).unwrap(), Integer::from(1));
-        assert_eq!(sqrt(&Integer::from(4)).unwrap(), Integer::from(2));
-        assert_eq!(sqrt(&Integer::from(5)).unwrap(), Integer::from(2));
-        assert_eq!(sqrt(&Integer::from(6)).unwrap(), Integer::from(2));
-        assert_eq!(sqrt(&Integer::from(7)).unwrap(), Integer::from(2));
-        assert_eq!(sqrt(&Integer::from(8)).unwrap(), Integer::from(2));
-        assert_eq!(sqrt(&Integer::from(9)).unwrap(), Integer::from(3));
-        assert_eq!(
-            sqrt(&(Integer::from(1) << 1024)).unwrap(),
-            Integer::from(1) << 512
-        );
-
-        let modulo = Integer::one() << 1024_u32;
-        let mut rng = rand_dev::DevRng::new();
-        for _ in 0..100 {
-            let x = modulo.random_below_ref(&mut rng);
-            let root = sqrt(&x).unwrap();
-            assert!(root.square_ref() <= x);
-            let root = root + 1u8;
-            assert!(root.square_ref() > x);
         }
     }
 }
