@@ -277,6 +277,9 @@ impl<E: Curve, L: SecurityLevel> DirtyKeyShare<E, L> {
         if core.public_shares.len() != aux.pedersen_params.len() {
             return Err(InvalidKeyShareReason::AuxLen.into());
         }
+        if core.public_shares.len() != aux.N.len() {
+            return Err(InvalidKeyShareReason::AuxLen.into());
+        }
 
         let N_i = &aux.N[usize::from(core.i)];
         if *N_i != &aux.p * &aux.q {
