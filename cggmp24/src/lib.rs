@@ -2,6 +2,7 @@
 //! [![Docs](https://docs.rs/cggmp24/badge.svg)](https://docs.rs/cggmp24)
 //! [![Crates io](https://img.shields.io/crates/v/cggmp24.svg)](https://crates.io/crates/cggmp24)
 //! [![Discord](https://img.shields.io/discord/905194001349627914?logo=discord&logoColor=ffffff&label=Discord)][in Discord]
+//! [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/LFDT-Lockness/cggmp21/badge)](https://scorecard.dev/viewer/?uri=github.com/LFDT-Lockness/cggmp21)
 //!
 //! # Threshold ECDSA based on [CGGMP24] paper
 //!
