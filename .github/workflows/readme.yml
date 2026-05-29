@@ -22,12 +22,6 @@ jobs:
         cp README.md README-copy.md
         make readme
         diff README.md README-copy.md
-    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 #v4
-      with:
-        node-version: 20
-        cache: 'npm'
-    - name: Install toc-markdown
-      run: npm install -g markdown-toc
     - name: Check that table of contents matches docs/toc-cggmp24.md
       run: |
         cp docs/toc-cggmp24.md docs/toc-cggmp24-copy.md
