@@ -25,7 +25,21 @@ readme:
 toc-cggmp24:
 	echo '<!-- TOC STARTS -->' > docs/toc-cggmp24.md
 	echo >> docs/toc-cggmp24.md
-	npx markdown-toc --no-firsth1 - < README.md >> docs/toc-cggmp24.md
-	echo >> docs/toc-cggmp24.md
+	# Take the readme, match the headings.
+	# Skip the first line (it's the main header).
+	# Convert the header text into markdown links: the link body replaces space
+	# with dash, and removes most symbols.
+	# Replace the header prefixes with correctly offset TOC list
+	grep '^#\+ ' README.md \
+		| tail -n +2 \
+		| gawk 'match($$0, /^#(#+) (.*)$$/, m) { \
+			link=tolower(m[2]); \
+			gsub(/ /, "-", link); \
+			gsub(/[^a-zA-Z0-9_-]/, "", link); \
+			print m[1] " [" m[2] "](#" link ")"; \
+			next \
+		}' \
+		| sed 's/^###/    +/' | sed 's/^##/  */' | sed 's/^#/-/' \
+		>> docs/toc-cggmp24.md
 	echo >> docs/toc-cggmp24.md
 	echo '<!-- TOC ENDS -->' >> docs/toc-cggmp24.md
