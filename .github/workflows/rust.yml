@@ -158,7 +158,7 @@ jobs:
   check-doc:
     runs-on: ubuntu-latest
     steps:
-    - uses: dtolnay/rust-toolchain@nightly
+    - uses: dtolnay/rust-toolchain@5b842231ba77f5c045dba54ac5560fed2db780e2 #nightly on 2026-05-29
     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
     - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae #v2
       with:
