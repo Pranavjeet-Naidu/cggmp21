@@ -12,9 +12,9 @@ jobs:
   check_readme:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
     - name: Install cargo-hakari
-      uses: baptiste0928/cargo-install@v1
+      uses: baptiste0928/cargo-install@77fc781ff2a66b362d815793ec7bd69b50d0e549 #v1
       with:
         crate: cargo-rdme
     - name: Check that readme matches lib.rs
@@ -22,7 +22,7 @@ jobs:
         cp README.md README-copy.md
         make readme
         diff README.md README-copy.md
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 #v4
       with:
         node-version: 20
         cache: 'npm'
