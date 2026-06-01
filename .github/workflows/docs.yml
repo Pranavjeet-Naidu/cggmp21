@@ -1,5 +1,8 @@
 name: Build CGGMP24 Spec & Docs
 
+permissions:
+  contents: read
+
 on:
   pull_request:
     branches: [ "**" ]
