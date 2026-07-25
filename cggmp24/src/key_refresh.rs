@@ -3,7 +3,13 @@
 /// Auxiliary info (re)generation protocol specific types
 mod aux_only;
 
+/// Share refresh protocol specific types
+mod share_refresh;
+
+pub use share_refresh::ShareRefreshOutput;
+
 use digest::Digest;
+use generic_ec::Curve;
 use rand_core::{CryptoRng, RngCore};
 use round_based::Mpc;
 use thiserror::Error;
@@ -11,7 +17,7 @@ use thiserror::Error;
 use crate::backend::Integer;
 use crate::utils;
 use crate::{
-    errors::IoError, key_share::AuxInfo, progress::Tracer, security_level::SecurityLevel,
+    errors::IoError, key_share::{AuxInfo, IncompleteKeyShare}, progress::Tracer, security_level::SecurityLevel,
     utils::AbortBlame, ExecutionId,
 };
 
@@ -205,6 +211,171 @@ where
     }
 }
 
+/// Entry point for non-threshold share refresh protocol
+pub struct ShareRefreshBuilder<'a, E, L = crate::default_choice::SecurityLevel, D = crate::default_choice::Digest>
+where
+    E: Curve,
+    L: SecurityLevel,
+    D: Digest,
+{
+    i: u16,
+    n: u16,
+    execution_id: ExecutionId<'a>,
+    core: &'a IncompleteKeyShare<E>,
+    tracer: Option<&'a mut dyn Tracer>,
+    enforce_reliable_broadcast: bool,
+    _curve: std::marker::PhantomData<E>,
+    _level: std::marker::PhantomData<L>,
+    _digest: std::marker::PhantomData<D>,
+}
+
+impl<'a, E, L, D> ShareRefreshBuilder<'a, E, L, D>
+where
+    E: Curve,
+    L: SecurityLevel,
+    D: Digest,
+{
+    /// Build share refresh operation. Start it with [`start`](Self::start).
+    pub fn new_share_refresh(
+        eid: ExecutionId<'a>,
+        i: u16,
+        n: u16,
+        core: &'a IncompleteKeyShare<E>,
+    ) -> Self {
+        Self {
+            i,
+            n,
+            execution_id: eid,
+            core,
+            tracer: None,
+            enforce_reliable_broadcast: true,
+            _curve: std::marker::PhantomData,
+            _level: std::marker::PhantomData,
+            _digest: std::marker::PhantomData,
+        }
+    }
+
+    /// Carry out the share refresh procedure
+    pub async fn start<R, M>(
+        self,
+        rng: &mut R,
+        party: M,
+    ) -> Result<ShareRefreshOutput<E, L>, ShareRefreshError>
+    where
+        R: RngCore + CryptoRng,
+        M: Mpc<ProtocolMessage = share_refresh::Msg<E, L, D>>,
+        D: Digest + Clone + 'static,
+    {
+        share_refresh::run_share_refresh(
+            self.i,
+            self.n,
+            rng,
+            party,
+            self.execution_id,
+            self.core,
+            self.tracer,
+            self.enforce_reliable_broadcast,
+        )
+        .await
+    }
+
+    /// Returns a state machine that can be used to carry out the share refresh protocol
+    ///
+    /// See [`round_based::state_machine`] for details on how that can be done.
+    #[cfg(feature = "state-machine")]
+    pub fn into_state_machine<R>(
+        self,
+        rng: &'a mut R,
+    ) -> impl round_based::state_machine::StateMachine<
+        Output = Result<ShareRefreshOutput<E, L>, ShareRefreshError>,
+        Msg = share_refresh::Msg<E, L, D>,
+    > + 'a
+    where
+        R: RngCore + CryptoRng,
+        D: Digest<OutputSize = digest::typenum::U32> + Clone + 'static,
+    {
+        round_based::state_machine::wrap_protocol(|party| self.start(rng, party))
+    }
+}
+
+impl<'a, E, L, D> ShareRefreshBuilder<'a, E, L, D>
+where
+    E: Curve,
+    L: SecurityLevel,
+    D: Digest,
+{
+    /// Specifies another hash function to use
+    pub fn set_digest<D2: Digest>(self) -> ShareRefreshBuilder<'a, E, L, D2> {
+        ShareRefreshBuilder {
+            i: self.i,
+            n: self.n,
+            execution_id: self.execution_id,
+            core: self.core,
+            tracer: self.tracer,
+            enforce_reliable_broadcast: self.enforce_reliable_broadcast,
+            _curve: std::marker::PhantomData,
+            _level: std::marker::PhantomData,
+            _digest: std::marker::PhantomData,
+        }
+    }
+
+    /// Sets a tracer that tracks progress of protocol execution
+    pub fn set_progress_tracer(mut self, tracer: &'a mut dyn Tracer) -> Self {
+        self.tracer = Some(tracer);
+        self
+    }
+
+    #[doc = include_str!("../docs/enforce_reliable_broadcast.md")]
+    pub fn enforce_reliable_broadcast(self, v: bool) -> Self {
+        Self {
+            enforce_reliable_broadcast: v,
+            ..self
+        }
+    }
+}
+
+/// Error of the non-threshold share refresh protocol
+#[derive(Debug, Error)]
+#[error("share refresh protocol failed to complete")]
+pub struct ShareRefreshError(#[source] ShareRefreshReason);
+
+crate::errors::impl_from! {
+    impl From for ShareRefreshError {
+        err: ProtocolAborted => ShareRefreshError(ShareRefreshReason::Aborted(err)),
+        err: IoError => ShareRefreshError(ShareRefreshReason::IoError(err)),
+        err: ShareRefreshBug => ShareRefreshError(ShareRefreshReason::InternalError(err)),
+        err: ShareRefreshReason => ShareRefreshError(err),
+    }
+}
+
+#[derive(Debug, Error)]
+enum ShareRefreshReason {
+    /// Protocol was maliciously aborted by another party
+    #[error("protocol was aborted by malicious party")]
+    Aborted(#[source] ProtocolAborted),
+    #[error("i/o error")]
+    IoError(#[source] IoError),
+    #[error("internal error")]
+    InternalError(#[from] ShareRefreshBug),
+    /// Share refresh only supports additive (non-threshold) keys
+    #[error("share refresh only supports additive (non-threshold) keys")]
+    NotAdditive,
+    /// Party index or `n` does not match the input key share
+    #[error("party index or n does not match key share")]
+    BadPartyIndex,
+}
+
+/// Unexpected error in share refresh not caused by other parties
+#[derive(Debug, Error)]
+enum ShareRefreshBug {
+    #[error("invalid key share generated")]
+    InvalidShare(#[source] crate::key_share::InvalidIncompleteKeyShare),
+    #[error("refreshed secret share is zero")]
+    ZeroShare,
+    #[error("refreshed public share is zero")]
+    ZeroPublicShare,
+}
+
 /// Error of key refresh and aux info generation protocols
 #[derive(Debug, Error)]
 #[error("key refresh protocol failed to complete")]
@@ -272,6 +443,10 @@ enum ProtocolAbortReason {
     InvalidRingPedersenParameters,
     #[error("round 1 was not reliable")]
     Round1NotReliable,
+    #[error("party provided invalid masked share")]
+    InvalidMaskedShare,
+    #[error("party provided invalid schnorr proof")]
+    InvalidSchnorrProof,
 }
 
 macro_rules! make_factory {
@@ -293,4 +468,6 @@ impl ProtocolAborted {
         InvalidRingPedersenParameters
     );
     make_factory!(round1_not_reliable, Round1NotReliable);
+    make_factory!(invalid_masked_share, InvalidMaskedShare);
+    make_factory!(invalid_schnorr_proof, InvalidSchnorrProof);
 }

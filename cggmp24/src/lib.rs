@@ -377,13 +377,37 @@ pub mod keygen {
 }
 
 pub use self::{
-    key_refresh::{KeyRefreshError, PregeneratedPrimes},
+    key_refresh::{KeyRefreshError, PregeneratedPrimes, ShareRefreshError},
     key_share::{IncompleteKeyShare, KeyShare},
     keygen::KeygenError,
     signing::{
         DataToSign, PartialSignature, PrehashedDataToSign, Presignature, Signature, SigningError,
     },
 };
+
+/// Protocol for refreshing key shares.
+///
+/// Refreshes additive (n-out-of-n) [`IncompleteKeyShare`] in place, producing updated secret
+/// and public shares while preserving [`IncompleteKeyShare::shared_public_key`].
+///
+/// Index `i` and number of parties `n` must match the input key share. Only non-threshold
+/// (additive) keys are supported; threshold keys will cause the protocol to abort.
+///
+/// # Concurrency Remark
+///
+/// Do not run signing, presigning, or another share refresh on the same key concurrently
+pub fn share_refresh<'a, E, L>(
+    eid: ExecutionId<'a>,
+    i: u16,
+    n: u16,
+    core: &'a IncompleteKeyShare<E>,
+) -> key_refresh::ShareRefreshBuilder<'a, E, L>
+where
+    E: Curve,
+    L: SecurityLevel,
+{
+    key_refresh::ShareRefreshBuilder::new_share_refresh(eid, i, n, core)
+}
 
 /// Protocol for finalizing the keygen by generating aux info.
 ///
@@ -457,6 +481,7 @@ mod tests {
         crate::keygen::msg::threshold::Msg<E, L, D>,
 
         crate::key_refresh::msg::Msg<D, L>,
+        crate::key_refresh::share_refresh::Msg<E, L, D>,
 
         crate::signing::msg::Msg<E, D>,
         crate::signing::Presignature<E>,
