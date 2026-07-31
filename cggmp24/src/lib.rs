@@ -481,7 +481,7 @@ mod tests {
         crate::keygen::msg::threshold::Msg<E, L, D>,
 
         crate::key_refresh::msg::Msg<D, L>,
-        crate::key_refresh::share_refresh::Msg<E, L, D>,
+        crate::key_refresh::share_refresh_msg::Msg<E, L, D>,
 
         crate::signing::msg::Msg<E, D>,
         crate::signing::Presignature<E>,

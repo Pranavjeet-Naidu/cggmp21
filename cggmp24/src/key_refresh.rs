@@ -17,8 +17,12 @@ use thiserror::Error;
 use crate::backend::Integer;
 use crate::utils;
 use crate::{
-    errors::IoError, key_share::{AuxInfo, IncompleteKeyShare}, progress::Tracer, security_level::SecurityLevel,
-    utils::AbortBlame, ExecutionId,
+    errors::IoError,
+    key_share::{AuxInfo, IncompleteKeyShare},
+    progress::Tracer,
+    security_level::SecurityLevel,
+    utils::AbortBlame,
+    ExecutionId,
 };
 
 #[doc(no_inline)]
@@ -28,6 +32,13 @@ pub use self::msg::Msg;
 pub mod msg {
     pub use crate::key_refresh::aux_only::{
         Msg, MsgReliabilityCheck, MsgRound1, MsgRound2, MsgRound3,
+    };
+}
+
+#[doc = include_str!("../docs/mpc_message.md")]
+pub mod share_refresh_msg {
+    pub use crate::key_refresh::share_refresh::{
+        Msg, MsgReliabilityCheck, MsgRound1, MsgRound2, MsgRound3Broadcast, MsgRound3Unicast,
     };
 }
 
@@ -212,8 +223,12 @@ where
 }
 
 /// Entry point for non-threshold share refresh protocol
-pub struct ShareRefreshBuilder<'a, E, L = crate::default_choice::SecurityLevel, D = crate::default_choice::Digest>
-where
+pub struct ShareRefreshBuilder<
+    'a,
+    E,
+    L = crate::default_choice::SecurityLevel,
+    D = crate::default_choice::Digest,
+> where
     E: Curve,
     L: SecurityLevel,
     D: Digest,
@@ -369,11 +384,11 @@ enum ShareRefreshReason {
 #[derive(Debug, Error)]
 enum ShareRefreshBug {
     #[error("invalid key share generated")]
-    InvalidShare(#[source] crate::key_share::InvalidIncompleteKeyShare),
+    Invalid(#[source] crate::key_share::InvalidIncompleteKeyShare),
     #[error("refreshed secret share is zero")]
-    ZeroShare,
+    ZeroSecret,
     #[error("refreshed public share is zero")]
-    ZeroPublicShare,
+    ZeroPublic,
 }
 
 /// Error of key refresh and aux info generation protocols

@@ -187,20 +187,14 @@ where
 
     tracer.round_begins();
     let y_secrets: Vec<SecretScalar<E>> = (0..n).map(|_| SecretScalar::random(rng)).collect();
-    let y_points: Vec<Point<E>> = y_secrets
-        .iter()
-        .map(|y| Point::generator() * y)
-        .collect();
+    let y_points: Vec<Point<E>> = y_secrets.iter().map(|y| Point::generator() * y).collect();
 
     let mut x_prime: Vec<Scalar<E>> = (0..n - 1).map(|_| Scalar::random(rng)).collect();
     let sum_head: Scalar<E> = x_prime.iter().sum();
     x_prime.push(-sum_head);
     debug_assert!(x_prime.iter().sum::<Scalar<E>>() == Scalar::zero());
 
-    let x_prime_points: Vec<Point<E>> = x_prime
-        .iter()
-        .map(|x| Point::generator() * x)
-        .collect();
+    let x_prime_points: Vec<Point<E>> = x_prime.iter().map(|x| Point::generator() * x).collect();
 
     let mut sch_secrets = Vec::with_capacity(usize::from(n));
     let mut sch_commits = Vec::with_capacity(usize::from(n));
@@ -278,9 +272,7 @@ where
             .map(|(j, msg_id, _)| AbortBlame::new(j, msg_id, msg_id))
             .collect::<Vec<_>>();
         if !parties_have_different_hashes.is_empty() {
-            return Err(
-                ProtocolAborted::round1_not_reliable(parties_have_different_hashes).into(),
-            );
+            return Err(ProtocolAborted::round1_not_reliable(parties_have_different_hashes).into());
         }
     }
 
@@ -328,7 +320,7 @@ where
     let mut masked_out = vec![Scalar::zero(); usize::from(n)];
     for (j, _msg_id, decom_j) in decommitments.iter_indexed() {
         let j_usize = usize::from(j);
-        let dh = &decom_j.y_points[usize::from(i)] * &y_secrets[j_usize];
+        let dh = decom_j.y_points[usize::from(i)] * &y_secrets[j_usize];
         let rho = Scalar::from_hash::<D>(&unambiguous::RefreshMask {
             sid,
             rid: rid.as_ref(),
@@ -349,18 +341,16 @@ where
             sch_commit: &sch_commits[k],
         });
         let challenge = schnorr_pok::Challenge { nonce: e };
-        sch_proofs.push(schnorr_pok::prove(
-            &sch_secrets[k],
-            &challenge,
-            &x_prime[k],
-        ));
+        sch_proofs.push(schnorr_pok::prove(&sch_secrets[k], &challenge, x_prime[k]));
     }
 
     tracer.send_msg();
     outgoings
-        .send(Outgoing::broadcast(Msg::Round3Broadcast(MsgRound3Broadcast {
-            sch_proofs: sch_proofs.clone(),
-        })))
+        .send(Outgoing::broadcast(Msg::Round3Broadcast(
+            MsgRound3Broadcast {
+                sch_proofs: sch_proofs.clone(),
+            },
+        )))
         .await
         .map_err(IoError::send_message)?;
 
@@ -390,9 +380,7 @@ where
         .map_err(IoError::receive_message)?;
     tracer.msgs_received();
 
-    let all_decoms: Vec<_> = decommitments
-        .iter_including_me(&my_decommitment)
-        .collect();
+    let all_decoms: Vec<_> = decommitments.iter_including_me(&my_decommitment).collect();
 
     tracer.stage("Unmask refresh contributions");
     let mut contribs = vec![Scalar::zero(); usize::from(n)];
@@ -401,7 +389,7 @@ where
     let mut masked_blame = Vec::new();
     for (j, msg_id, msg) in masked.iter_indexed() {
         let decom_j = all_decoms[usize::from(j)];
-        let dh = &decom_j.y_points[usize::from(i)] * &y_secrets[usize::from(j)];
+        let dh = decom_j.y_points[usize::from(i)] * &y_secrets[usize::from(j)];
         let rho = Scalar::from_hash::<D>(&unambiguous::RefreshMask {
             sid,
             rid: rid.as_ref(),
@@ -409,7 +397,7 @@ where
             dh_shared: &dh,
         });
         let x_ji = msg.c - rho;
-        if Point::generator() * &x_ji != decom_j.x_prime_points[usize::from(i)] {
+        if Point::generator() * x_ji != decom_j.x_prime_points[usize::from(i)] {
             masked_blame.push(AbortBlame::new(j, msg_id, msg_id));
             continue;
         }
@@ -437,11 +425,7 @@ where
             });
             let challenge = schnorr_pok::Challenge { nonce: challenge };
             msg.sch_proofs[k]
-                .verify(
-                    &decom.sch_commits[k],
-                    &challenge,
-                    &decom.x_prime_points[k],
-                )
+                .verify(&decom.sch_commits[k], &challenge, &decom.x_prime_points[k])
                 .is_err()
         })
     });
@@ -453,15 +437,13 @@ where
     let delta: Scalar<E> = contribs.iter().sum();
     let mut x_star_scalar = *AsRef::<Scalar<E>>::as_ref(&core.x) + delta;
     let x_star = NonZero::from_secret_scalar(SecretScalar::new(&mut x_star_scalar))
-        .ok_or(ShareRefreshBug::ZeroShare)?;
+        .ok_or(ShareRefreshBug::ZeroSecret)?;
 
     let mut public_shares = Vec::with_capacity(usize::from(n));
     for k in 0..usize::from(n) {
         let add: Point<E> = all_decoms.iter().map(|d| d.x_prime_points[k]).sum();
         let xk = core.public_shares[k] + add;
-        public_shares.push(
-            NonZero::from_point(xk).ok_or(ShareRefreshBug::ZeroPublicShare)?,
-        );
+        public_shares.push(NonZero::from_point(xk).ok_or(ShareRefreshBug::ZeroPublic)?);
     }
 
     let core_out = DirtyIncompleteKeyShare {
@@ -477,7 +459,7 @@ where
         },
     }
     .validate()
-    .map_err(|err| ShareRefreshBug::InvalidShare(err.into_error()))?;
+    .map_err(|err| ShareRefreshBug::Invalid(err.into_error()))?;
 
     tracer.protocol_ends();
 

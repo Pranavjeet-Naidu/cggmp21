@@ -1,10 +1,7 @@
 use generic_ec::Point;
 use rand::Rng;
 
-use cggmp24::{
-    key_share::KeyShare,
-    ExecutionId,
-};
+use cggmp24::{key_share::KeyShare, ExecutionId};
 
 cggmp24_tests::test_suite! {
     test: share_refresh_works,
@@ -103,21 +100,18 @@ where
     let message_to_sign = cggmp24::signing::DataToSign::digest::<E::Digest>(&[42; 100]);
     let participants: Vec<u16> = (0..n).collect();
 
-    let sig = round_based::sim::run_with_setup(
-        refreshed_key_shares.iter(),
-        |i, party, share| {
-            let party = cggmp24_tests::buffer_outgoing(party);
-            let mut party_rng = rng.fork();
-            let participants = participants.clone();
-            async move {
-                cggmp24::signing(eid, i, &participants, share)
-                    .set_digest::<E::Digest>()
-                    .enforce_reliable_broadcast(reliable_broadcast)
-                    .sign(&mut party_rng, party, &message_to_sign)
-                    .await
-            }
-        },
-    )
+    let sig = round_based::sim::run_with_setup(refreshed_key_shares.iter(), |i, party, share| {
+        let party = cggmp24_tests::buffer_outgoing(party);
+        let mut party_rng = rng.fork();
+        let participants = participants.clone();
+        async move {
+            cggmp24::signing(eid, i, &participants, share)
+                .set_digest::<E::Digest>()
+                .enforce_reliable_broadcast(reliable_broadcast)
+                .sign(&mut party_rng, party, &message_to_sign)
+                .await
+        }
+    })
     .unwrap()
     .expect_ok()
     .expect_eq();
