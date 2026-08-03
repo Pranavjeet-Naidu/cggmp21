@@ -3,10 +3,10 @@
 /// Auxiliary info (re)generation protocol specific types
 mod aux_only;
 
-/// Share refresh protocol specific types
-mod share_refresh;
+/// Key refresh protocol specific types
+mod key_refresh;
 
-pub use share_refresh::ShareRefreshOutput;
+pub use key_refresh::KeyRefreshOutput;
 
 use digest::Digest;
 use generic_ec::Curve;
@@ -36,8 +36,8 @@ pub mod msg {
 }
 
 #[doc = include_str!("../docs/mpc_message.md")]
-pub mod share_refresh_msg {
-    pub use crate::key_refresh::share_refresh::{
+pub mod key_refresh_msg {
+    pub use crate::key_refresh::key_refresh::{
         Msg, MsgReliabilityCheck, MsgRound1, MsgRound2, MsgRound3Broadcast, MsgRound3Unicast,
     };
 }
@@ -137,7 +137,7 @@ where
     }
 
     /// Carry out the aux info generation procedure. Takes a lot of time
-    pub async fn start<R, M>(self, rng: &mut R, party: M) -> Result<AuxInfo<L>, KeyRefreshError>
+    pub async fn start<R, M>(self, rng: &mut R, party: M) -> Result<AuxInfo<L>, AuxInfoError>
     where
         R: RngCore + CryptoRng,
         M: Mpc<ProtocolMessage = aux_only::Msg<D, L>>,
@@ -166,7 +166,7 @@ where
         self,
         rng: &'a mut R,
     ) -> impl round_based::state_machine::StateMachine<
-        Output = Result<AuxInfo<L>, KeyRefreshError>,
+        Output = Result<AuxInfo<L>, AuxInfoError>,
         Msg = aux_only::Msg<D, L>,
     > + 'a
     where
@@ -222,8 +222,8 @@ where
     }
 }
 
-/// Entry point for non-threshold share refresh protocol
-pub struct ShareRefreshBuilder<
+/// Entry point for non-threshold key refresh protocol
+pub struct KeyRefreshBuilder<
     'a,
     E,
     L = crate::default_choice::SecurityLevel,
@@ -233,10 +233,8 @@ pub struct ShareRefreshBuilder<
     L: SecurityLevel,
     D: Digest,
 {
-    i: u16,
-    n: u16,
     execution_id: ExecutionId<'a>,
-    core: &'a IncompleteKeyShare<E>,
+    share: &'a IncompleteKeyShare<E>,
     tracer: Option<&'a mut dyn Tracer>,
     enforce_reliable_broadcast: bool,
     _curve: std::marker::PhantomData<E>,
@@ -244,24 +242,20 @@ pub struct ShareRefreshBuilder<
     _digest: std::marker::PhantomData<D>,
 }
 
-impl<'a, E, L, D> ShareRefreshBuilder<'a, E, L, D>
+impl<'a, E, L, D> KeyRefreshBuilder<'a, E, L, D>
 where
     E: Curve,
     L: SecurityLevel,
     D: Digest,
 {
-    /// Build share refresh operation. Start it with [`start`](Self::start).
-    pub fn new_share_refresh(
+    /// Build key refresh operation. Start it with [`start`](Self::start).
+    pub fn new_key_refresh(
         eid: ExecutionId<'a>,
-        i: u16,
-        n: u16,
-        core: &'a IncompleteKeyShare<E>,
+        share: &'a IncompleteKeyShare<E>,
     ) -> Self {
         Self {
-            i,
-            n,
             execution_id: eid,
-            core,
+            share,
             tracer: None,
             enforce_reliable_broadcast: true,
             _curve: std::marker::PhantomData,
@@ -270,31 +264,29 @@ where
         }
     }
 
-    /// Carry out the share refresh procedure
+    /// Carry out the key refresh procedure
     pub async fn start<R, M>(
         self,
         rng: &mut R,
         party: M,
-    ) -> Result<ShareRefreshOutput<E, L>, ShareRefreshError>
+    ) -> Result<KeyRefreshOutput<E, L>, KeyRefreshError>
     where
         R: RngCore + CryptoRng,
-        M: Mpc<ProtocolMessage = share_refresh::Msg<E, L, D>>,
+        M: Mpc<ProtocolMessage = key_refresh::Msg<E, L, D>>,
         D: Digest + Clone + 'static,
     {
-        share_refresh::run_share_refresh(
-            self.i,
-            self.n,
+        key_refresh::run_key_refresh(
             rng,
             party,
             self.execution_id,
-            self.core,
+            self.share,
             self.tracer,
             self.enforce_reliable_broadcast,
         )
         .await
     }
 
-    /// Returns a state machine that can be used to carry out the share refresh protocol
+    /// Returns a state machine that can be used to carry out the key refresh protocol
     ///
     /// See [`round_based::state_machine`] for details on how that can be done.
     #[cfg(feature = "state-machine")]
@@ -302,8 +294,8 @@ where
         self,
         rng: &'a mut R,
     ) -> impl round_based::state_machine::StateMachine<
-        Output = Result<ShareRefreshOutput<E, L>, ShareRefreshError>,
-        Msg = share_refresh::Msg<E, L, D>,
+        Output = Result<KeyRefreshOutput<E, L>, KeyRefreshError>,
+        Msg = key_refresh::Msg<E, L, D>,
     > + 'a
     where
         R: RngCore + CryptoRng,
@@ -313,19 +305,17 @@ where
     }
 }
 
-impl<'a, E, L, D> ShareRefreshBuilder<'a, E, L, D>
+impl<'a, E, L, D> KeyRefreshBuilder<'a, E, L, D>
 where
     E: Curve,
     L: SecurityLevel,
     D: Digest,
 {
     /// Specifies another hash function to use
-    pub fn set_digest<D2: Digest>(self) -> ShareRefreshBuilder<'a, E, L, D2> {
-        ShareRefreshBuilder {
-            i: self.i,
-            n: self.n,
+    pub fn set_digest<D2: Digest>(self) -> KeyRefreshBuilder<'a, E, L, D2> {
+        KeyRefreshBuilder {
             execution_id: self.execution_id,
-            core: self.core,
+            share: self.share,
             tracer: self.tracer,
             enforce_reliable_broadcast: self.enforce_reliable_broadcast,
             _curve: std::marker::PhantomData,
@@ -349,40 +339,37 @@ where
     }
 }
 
-/// Error of the non-threshold share refresh protocol
+/// Error of the non-threshold key refresh protocol
 #[derive(Debug, Error)]
-#[error("share refresh protocol failed to complete")]
-pub struct ShareRefreshError(#[source] ShareRefreshReason);
+#[error("key refresh protocol failed to complete")]
+pub struct KeyRefreshError(#[source] KeyRefreshReason);
 
 crate::errors::impl_from! {
-    impl From for ShareRefreshError {
-        err: ProtocolAborted => ShareRefreshError(ShareRefreshReason::Aborted(err)),
-        err: IoError => ShareRefreshError(ShareRefreshReason::IoError(err)),
-        err: ShareRefreshBug => ShareRefreshError(ShareRefreshReason::InternalError(err)),
-        err: ShareRefreshReason => ShareRefreshError(err),
+    impl From for KeyRefreshError {
+        err: ProtocolAborted => KeyRefreshError(KeyRefreshReason::Aborted(err)),
+        err: IoError => KeyRefreshError(KeyRefreshReason::IoError(err)),
+        err: KeyRefreshBug => KeyRefreshError(KeyRefreshReason::InternalError(err)),
+        err: KeyRefreshReason => KeyRefreshError(err),
     }
 }
 
 #[derive(Debug, Error)]
-enum ShareRefreshReason {
+enum KeyRefreshReason {
     /// Protocol was maliciously aborted by another party
     #[error("protocol was aborted by malicious party")]
     Aborted(#[source] ProtocolAborted),
     #[error("i/o error")]
     IoError(#[source] IoError),
     #[error("internal error")]
-    InternalError(#[from] ShareRefreshBug),
-    /// Share refresh only supports additive (non-threshold) keys
-    #[error("share refresh only supports additive (non-threshold) keys")]
+    InternalError(#[from] KeyRefreshBug),
+    /// Key refresh only supports additive (non-threshold) keys
+    #[error("key refresh only supports additive (non-threshold) keys")]
     NotAdditive,
-    /// Party index or `n` does not match the input key share
-    #[error("party index or n does not match key share")]
-    BadPartyIndex,
 }
 
-/// Unexpected error in share refresh not caused by other parties
+/// Unexpected error in key refresh not caused by other parties
 #[derive(Debug, Error)]
-enum ShareRefreshBug {
+enum KeyRefreshBug {
     #[error("invalid key share generated")]
     Invalid(#[source] crate::key_share::InvalidIncompleteKeyShare),
     #[error("refreshed secret share is zero")]
@@ -391,16 +378,16 @@ enum ShareRefreshBug {
     ZeroPublic,
 }
 
-/// Error of key refresh and aux info generation protocols
+/// Error of auxiliary info generation protocol
 #[derive(Debug, Error)]
-#[error("key refresh protocol failed to complete")]
-pub struct KeyRefreshError(#[source] Reason);
+#[error("auxiliary info generation protocol failed to complete")]
+pub struct AuxInfoError(#[source] Reason);
 
 crate::errors::impl_from! {
-    impl From for KeyRefreshError {
-        err: ProtocolAborted => KeyRefreshError(Reason::Aborted(err)),
-        err: IoError => KeyRefreshError(Reason::IoError(err)),
-        err: Bug => KeyRefreshError(Reason::InternalError(err)),
+    impl From for AuxInfoError {
+        err: ProtocolAborted => AuxInfoError(Reason::Aborted(err)),
+        err: IoError => AuxInfoError(Reason::IoError(err)),
+        err: Bug => AuxInfoError(Reason::InternalError(err)),
         err: utils::GenPedersenError => Bug::GenPedersen(err).into(),
     }
 }

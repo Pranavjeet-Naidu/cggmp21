@@ -2327,7 +2327,8 @@ Share-refresh protocol from~\cite[Figure~7]{cggmp24}, without Paillier/Pedersen 
         \EndFor
         \State Compute $\rid = \bigoplus_{j \in [n]} \rid_j$
         \For{$j \in [n] \setminus \{i\}$}
-            \State Compute $\rho_{i,j} \in \Z_q = \hashtoscalar\bigl(\Encode[refresh\_mask](\sid, \rid, i, y_{i,j} \cdot Y_{j,i})\bigr)$
+            \State Compute $\rho_{i,j} \in \Z_q = \hashtoscalar\bigl(\Encode[refresh\_mask](\sid, \rid, i, j, y_{i,j} \cdot Y_{j,i})\bigr)$
+                   \Comment{\parbox[t]{.45\linewidth}{$i$ is sender, $j$ is recipient; explicit recipient index for domain separation}}
             \State Compute $C_{j,i} = x'_{i,j} + \rho_{i,j} \bmod q$
         \EndFor
         \For{$j \in [n]$}
@@ -2343,7 +2344,8 @@ Share-refresh protocol from~\cite[Figure~7]{cggmp24}, without Paillier/Pedersen 
         \State Receive $(\hat\psi_{j,k})_{k \in [n]} \in \Z_q^n$ from all parties,
                and $C_{i,j} \in \Z_q$ from each $P_j$ with $j \neq i$
         \For{$j \in [n] \setminus \{i\}$}
-            \State Compute $\rho_{j,i} \in \Z_q = \hashtoscalar\bigl(\Encode[refresh\_mask](\sid, \rid, j, y_{j,i} \cdot Y_{i,j})\bigr)$
+            \State Compute $\rho_{j,i} \in \Z_q = \hashtoscalar\bigl(\Encode[refresh\_mask](\sid, \rid, j, i, y_{j,i} \cdot Y_{i,j})\bigr)$
+                   \Comment{\parbox[t]{.45\linewidth}{$j$ is sender, $i$ is recipient}}
             \State Compute $x'_{j,i} = C_{i,j} - \rho_{j,i} \bmod q$
             \State Assert $x'_{j,i} \cdot G \? = X'_{j,i}$
         \EndFor

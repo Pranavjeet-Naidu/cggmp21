@@ -144,6 +144,20 @@ where
 pub fn iter_peers(i: u16, n: u16) -> impl Iterator<Item = u16> {
     (0..n).filter(move |x| *x != i)
 }
+/// Iterates over elements of `iter` skipping the element at index `i`
+pub fn skip_ith<I>(i: usize, iter: I) -> impl Iterator<Item = I::Item>
+where
+    I: IntoIterator,
+{
+    iter.into_iter()
+        .enumerate()
+        .filter_map(move |(j, x)| (i != j).then_some(x))
+}
+
+mod hex_or_bin {
+    include!("../../hex_or_bin/hex_or_bin.rs");
+}
+pub use hex_or_bin::HexOrBin;
 
 /// Returns `[list[indexes[0]], list[indexes[1]], ..., list[indexes[n-1]]]`
 ///

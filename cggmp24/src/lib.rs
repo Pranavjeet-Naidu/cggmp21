@@ -106,7 +106,7 @@
 //! run as follows:
 //!
 //! ```rust,no_run
-//! # async fn doc() -> Result<(), cggmp24::KeyRefreshError> {
+//! # async fn doc() -> Result<(), cggmp24::AuxInfoError> {
 //! # type Msg = cggmp24::key_refresh::msg::Msg<sha2::Sha256, cggmp24::security_level::SecurityLevel128>;
 //! # let incoming = futures::stream::pending::<Result<round_based::Incoming<Msg>, std::convert::Infallible>>();
 //! # let outgoing = futures::sink::drain::<round_based::Outgoing<Msg>>();
@@ -377,7 +377,7 @@ pub mod keygen {
 }
 
 pub use self::{
-    key_refresh::{KeyRefreshError, PregeneratedPrimes, ShareRefreshError},
+    key_refresh::{AuxInfoError, KeyRefreshError, PregeneratedPrimes},
     key_share::{IncompleteKeyShare, KeyShare},
     keygen::KeygenError,
     signing::{
@@ -390,23 +390,21 @@ pub use self::{
 /// Refreshes additive (n-out-of-n) [`IncompleteKeyShare`] in place, producing updated secret
 /// and public shares while preserving [`IncompleteKeyShare::shared_public_key`].
 ///
-/// Index `i` and number of parties `n` must match the input key share. Only non-threshold
-/// (additive) keys are supported; threshold keys will cause the protocol to abort.
+/// Only non-threshold (additive) keys are supported; threshold keys will cause the protocol
+/// to abort.
 ///
 /// # Concurrency Remark
 ///
-/// Do not run signing, presigning, or another share refresh on the same key concurrently
-pub fn share_refresh<'a, E, L>(
+/// Do not run signing, presigning, or another key refresh on the same key concurrently
+pub fn key_refresh<'a, E, L>(
     eid: ExecutionId<'a>,
-    i: u16,
-    n: u16,
-    core: &'a IncompleteKeyShare<E>,
-) -> key_refresh::ShareRefreshBuilder<'a, E, L>
+    share: &'a IncompleteKeyShare<E>,
+) -> key_refresh::KeyRefreshBuilder<'a, E, L>
 where
     E: Curve,
     L: SecurityLevel,
 {
-    key_refresh::ShareRefreshBuilder::new_share_refresh(eid, i, n, core)
+    key_refresh::KeyRefreshBuilder::new_key_refresh(eid, share)
 }
 
 /// Protocol for finalizing the keygen by generating aux info.
@@ -481,7 +479,7 @@ mod tests {
         crate::keygen::msg::threshold::Msg<E, L, D>,
 
         crate::key_refresh::msg::Msg<D, L>,
-        crate::key_refresh::share_refresh_msg::Msg<E, L, D>,
+        crate::key_refresh::key_refresh_msg::Msg<E, L, D>,
 
         crate::signing::msg::Msg<E, D>,
         crate::signing::Presignature<E>,
