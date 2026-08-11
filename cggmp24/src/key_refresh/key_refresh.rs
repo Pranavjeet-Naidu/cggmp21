@@ -1,4 +1,4 @@
-#![allow(non_snake_case, clippy::non_snake_case)]
+#![allow(non_snake_case)]
 
 use digest::Digest;
 use futures::SinkExt;
@@ -491,3 +491,14 @@ where
 
     Ok(KeyRefreshOutput { share: share_out, rid })
 }
+
+
+//skip_ith helper will be used in the crate where the protocol is defined, will be added back in cggmp24-key-refresh crate in the future.
+//pub fn skip_ith<I>(i: usize, iter: I) -> impl Iterator<Item = I::Item>
+//where
+//    I: IntoIterator,
+//{
+//    iter.into_iter()
+//        .enumerate()
+//        .filter_map(move |(j, x)| (i != j).then_some(x))
+//}

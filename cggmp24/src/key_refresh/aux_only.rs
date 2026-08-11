@@ -19,7 +19,7 @@ use crate::{
     ExecutionId,
 };
 
-use super::{Bug, AuxInfoError, PregeneratedPrimes, ProtocolAborted};
+use super::{Bug, KeyRefreshError, PregeneratedPrimes, ProtocolAborted};
 
 macro_rules! prefixed {
     ($name:tt) => {
@@ -158,7 +158,7 @@ pub async fn run_aux_gen<R, M, L, D>(
     mut tracer: Option<&mut dyn Tracer>,
     reliable_broadcast_enforced: bool,
     compute_multiexp_table: bool,
-) -> Result<AuxInfo<L>, AuxInfoError>
+) -> Result<AuxInfo<L>, KeyRefreshError>
 where
     R: RngCore + CryptoRng,
     M: Mpc<ProtocolMessage = Msg<D, L>>,

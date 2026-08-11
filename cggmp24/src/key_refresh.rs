@@ -3,13 +3,7 @@
 /// Auxiliary info (re)generation protocol specific types
 mod aux_only;
 
-/// Key refresh protocol specific types
-mod key_refresh;
-
-pub use key_refresh::KeyRefreshOutput;
-
 use digest::Digest;
-use generic_ec::Curve;
 use rand_core::{CryptoRng, RngCore};
 use round_based::Mpc;
 use thiserror::Error;
@@ -17,12 +11,8 @@ use thiserror::Error;
 use crate::backend::Integer;
 use crate::utils;
 use crate::{
-    errors::IoError,
-    key_share::{AuxInfo, IncompleteKeyShare},
-    progress::Tracer,
-    security_level::SecurityLevel,
-    utils::AbortBlame,
-    ExecutionId,
+    errors::IoError, key_share::AuxInfo, progress::Tracer, security_level::SecurityLevel,
+    utils::AbortBlame, ExecutionId,
 };
 
 #[doc(no_inline)]
@@ -32,13 +22,6 @@ pub use self::msg::Msg;
 pub mod msg {
     pub use crate::key_refresh::aux_only::{
         Msg, MsgReliabilityCheck, MsgRound1, MsgRound2, MsgRound3,
-    };
-}
-
-#[doc = include_str!("../docs/mpc_message.md")]
-pub mod key_refresh_msg {
-    pub use crate::key_refresh::key_refresh::{
-        Msg, MsgReliabilityCheck, MsgRound1, MsgRound2, MsgRound3Broadcast, MsgRound3Unicast,
     };
 }
 
@@ -137,7 +120,7 @@ where
     }
 
     /// Carry out the aux info generation procedure. Takes a lot of time
-    pub async fn start<R, M>(self, rng: &mut R, party: M) -> Result<AuxInfo<L>, AuxInfoError>
+    pub async fn start<R, M>(self, rng: &mut R, party: M) -> Result<AuxInfo<L>, KeyRefreshError>
     where
         R: RngCore + CryptoRng,
         M: Mpc<ProtocolMessage = aux_only::Msg<D, L>>,
@@ -166,7 +149,7 @@ where
         self,
         rng: &'a mut R,
     ) -> impl round_based::state_machine::StateMachine<
-        Output = Result<AuxInfo<L>, AuxInfoError>,
+        Output = Result<AuxInfo<L>, KeyRefreshError>,
         Msg = aux_only::Msg<D, L>,
     > + 'a
     where
@@ -222,172 +205,16 @@ where
     }
 }
 
-/// Entry point for non-threshold key refresh protocol
-pub struct KeyRefreshBuilder<
-    'a,
-    E,
-    L = crate::default_choice::SecurityLevel,
-    D = crate::default_choice::Digest,
-> where
-    E: Curve,
-    L: SecurityLevel,
-    D: Digest,
-{
-    execution_id: ExecutionId<'a>,
-    share: &'a IncompleteKeyShare<E>,
-    tracer: Option<&'a mut dyn Tracer>,
-    enforce_reliable_broadcast: bool,
-    _curve: std::marker::PhantomData<E>,
-    _level: std::marker::PhantomData<L>,
-    _digest: std::marker::PhantomData<D>,
-}
-
-impl<'a, E, L, D> KeyRefreshBuilder<'a, E, L, D>
-where
-    E: Curve,
-    L: SecurityLevel,
-    D: Digest,
-{
-    /// Build key refresh operation. Start it with [`start`](Self::start).
-    pub fn new_key_refresh(
-        eid: ExecutionId<'a>,
-        share: &'a IncompleteKeyShare<E>,
-    ) -> Self {
-        Self {
-            execution_id: eid,
-            share,
-            tracer: None,
-            enforce_reliable_broadcast: true,
-            _curve: std::marker::PhantomData,
-            _level: std::marker::PhantomData,
-            _digest: std::marker::PhantomData,
-        }
-    }
-
-    /// Carry out the key refresh procedure
-    pub async fn start<R, M>(
-        self,
-        rng: &mut R,
-        party: M,
-    ) -> Result<KeyRefreshOutput<E, L>, KeyRefreshError>
-    where
-        R: RngCore + CryptoRng,
-        M: Mpc<ProtocolMessage = key_refresh::Msg<E, L, D>>,
-        D: Digest + Clone + 'static,
-    {
-        key_refresh::run_key_refresh(
-            rng,
-            party,
-            self.execution_id,
-            self.share,
-            self.tracer,
-            self.enforce_reliable_broadcast,
-        )
-        .await
-    }
-
-    /// Returns a state machine that can be used to carry out the key refresh protocol
-    ///
-    /// See [`round_based::state_machine`] for details on how that can be done.
-    #[cfg(feature = "state-machine")]
-    pub fn into_state_machine<R>(
-        self,
-        rng: &'a mut R,
-    ) -> impl round_based::state_machine::StateMachine<
-        Output = Result<KeyRefreshOutput<E, L>, KeyRefreshError>,
-        Msg = key_refresh::Msg<E, L, D>,
-    > + 'a
-    where
-        R: RngCore + CryptoRng,
-        D: Digest<OutputSize = digest::typenum::U32> + Clone + 'static,
-    {
-        round_based::state_machine::wrap_protocol(|party| self.start(rng, party))
-    }
-}
-
-impl<'a, E, L, D> KeyRefreshBuilder<'a, E, L, D>
-where
-    E: Curve,
-    L: SecurityLevel,
-    D: Digest,
-{
-    /// Specifies another hash function to use
-    pub fn set_digest<D2: Digest>(self) -> KeyRefreshBuilder<'a, E, L, D2> {
-        KeyRefreshBuilder {
-            execution_id: self.execution_id,
-            share: self.share,
-            tracer: self.tracer,
-            enforce_reliable_broadcast: self.enforce_reliable_broadcast,
-            _curve: std::marker::PhantomData,
-            _level: std::marker::PhantomData,
-            _digest: std::marker::PhantomData,
-        }
-    }
-
-    /// Sets a tracer that tracks progress of protocol execution
-    pub fn set_progress_tracer(mut self, tracer: &'a mut dyn Tracer) -> Self {
-        self.tracer = Some(tracer);
-        self
-    }
-
-    #[doc = include_str!("../docs/enforce_reliable_broadcast.md")]
-    pub fn enforce_reliable_broadcast(self, v: bool) -> Self {
-        Self {
-            enforce_reliable_broadcast: v,
-            ..self
-        }
-    }
-}
-
-/// Error of the non-threshold key refresh protocol
+/// Error of key refresh and aux info generation protocols
 #[derive(Debug, Error)]
 #[error("key refresh protocol failed to complete")]
-pub struct KeyRefreshError(#[source] KeyRefreshReason);
+pub struct KeyRefreshError(#[source] Reason);
 
 crate::errors::impl_from! {
     impl From for KeyRefreshError {
-        err: ProtocolAborted => KeyRefreshError(KeyRefreshReason::Aborted(err)),
-        err: IoError => KeyRefreshError(KeyRefreshReason::IoError(err)),
-        err: KeyRefreshBug => KeyRefreshError(KeyRefreshReason::InternalError(err)),
-        err: KeyRefreshReason => KeyRefreshError(err),
-    }
-}
-
-#[derive(Debug, Error)]
-enum KeyRefreshReason {
-    /// Protocol was maliciously aborted by another party
-    #[error("protocol was aborted by malicious party")]
-    Aborted(#[source] ProtocolAborted),
-    #[error("i/o error")]
-    IoError(#[source] IoError),
-    #[error("internal error")]
-    InternalError(#[from] KeyRefreshBug),
-    /// Key refresh only supports additive (non-threshold) keys
-    #[error("key refresh only supports additive (non-threshold) keys")]
-    NotAdditive,
-}
-
-/// Unexpected error in key refresh not caused by other parties
-#[derive(Debug, Error)]
-enum KeyRefreshBug {
-    #[error("invalid key share generated")]
-    Invalid(#[source] crate::key_share::InvalidIncompleteKeyShare),
-    #[error("refreshed secret share is zero")]
-    ZeroSecret,
-    #[error("refreshed public share is zero")]
-    ZeroPublic,
-}
-
-/// Error of auxiliary info generation protocol
-#[derive(Debug, Error)]
-#[error("auxiliary info generation protocol failed to complete")]
-pub struct AuxInfoError(#[source] Reason);
-
-crate::errors::impl_from! {
-    impl From for AuxInfoError {
-        err: ProtocolAborted => AuxInfoError(Reason::Aborted(err)),
-        err: IoError => AuxInfoError(Reason::IoError(err)),
-        err: Bug => AuxInfoError(Reason::InternalError(err)),
+        err: ProtocolAborted => KeyRefreshError(Reason::Aborted(err)),
+        err: IoError => KeyRefreshError(Reason::IoError(err)),
+        err: Bug => KeyRefreshError(Reason::InternalError(err)),
         err: utils::GenPedersenError => Bug::GenPedersen(err).into(),
     }
 }
@@ -445,10 +272,6 @@ enum ProtocolAbortReason {
     InvalidRingPedersenParameters,
     #[error("round 1 was not reliable")]
     Round1NotReliable,
-    #[error("party provided invalid masked share")]
-    InvalidMaskedShare,
-    #[error("party provided invalid schnorr proof")]
-    InvalidSchnorrProof,
 }
 
 macro_rules! make_factory {
@@ -470,6 +293,4 @@ impl ProtocolAborted {
         InvalidRingPedersenParameters
     );
     make_factory!(round1_not_reliable, Round1NotReliable);
-    make_factory!(invalid_masked_share, InvalidMaskedShare);
-    make_factory!(invalid_schnorr_proof, InvalidSchnorrProof);
 }

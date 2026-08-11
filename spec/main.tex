@@ -2328,7 +2328,6 @@ Share-refresh protocol from~\cite[Figure~7]{cggmp24}, without Paillier/Pedersen 
         \State Compute $\rid = \bigoplus_{j \in [n]} \rid_j$
         \For{$j \in [n] \setminus \{i\}$}
             \State Compute $\rho_{i,j} \in \Z_q = \hashtoscalar\bigl(\Encode[refresh\_mask](\sid, \rid, i, j, y_{i,j} \cdot Y_{j,i})\bigr)$
-                   \Comment{\parbox[t]{.45\linewidth}{$i$ is sender, $j$ is recipient; explicit recipient index for domain separation}}
             \State Compute $C_{j,i} = x'_{i,j} + \rho_{i,j} \bmod q$
         \EndFor
         \For{$j \in [n]$}
