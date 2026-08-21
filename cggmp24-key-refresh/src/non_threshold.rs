@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
 use digest::Digest;
-use futures::SinkExt;
+use futures_util::SinkExt;
 use generic_ec::{Curve, NonZero, Point, Scalar, SecretScalar};
 use generic_ec_zkp::schnorr_pok;
 use rand_core::{CryptoRng, RngCore};
@@ -13,13 +13,15 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::errors::IoError;
-use crate::key_share::{DirtyIncompleteKeyShare, DirtyKeyInfo, IncompleteKeyShare, Validate};
+use crate::{
+    DirtyIncompleteKeyShare, DirtyKeyInfo, IncompleteKeyShare, Validate,
+};
 use crate::progress::Tracer;
 use crate::security_level::SecurityLevel;
 use crate::utils::{self, AbortBlame};
 use crate::ExecutionId;
 
-use super::{KeyRefreshBug, KeyRefreshError, KeyRefreshReason, ProtocolAborted};
+use super::{Bug, KeyRefreshError, Reason, ProtocolAborted};
 
 macro_rules! prefixed {
     ($name:tt) => {
@@ -117,11 +119,11 @@ pub struct MsgRound2<E: Curve, L: SecurityLevel> {
     #[udigest(as_bytes)]
     pub rid: L::KappaBytes,
     /// $X'_{i,k}$
-    pub x_prime_points: Vec<Point<E>>,
+    pub x_prime_points: alloc::vec::Vec<Point<E>>,
     /// $Y_{i,k}$
-    pub y_points: Vec<Point<E>>,
+    pub y_points: alloc::vec::Vec<Point<E>>,
     /// $A_{i,k}$
-    pub sch_commits: Vec<schnorr_pok::Commit<E>>,
+    pub sch_commits: alloc::vec::Vec<schnorr_pok::Commit<E>>,
     /// $u_i$
     #[serde_as(as = "utils::HexOrBin")]
     #[udigest(as_bytes)]
@@ -143,7 +145,7 @@ pub struct MsgReliabilityCheck<D: Digest> {
 #[serde(bound = "")]
 pub struct MsgRound3Broadcast<E: Curve> {
     /// $\hat\psi_{i,k}$
-    pub sch_proofs: Vec<schnorr_pok::Proof<E>>,
+    pub sch_proofs: alloc::vec::Vec<schnorr_pok::Proof<E>>,
 }
 
 /// Round 3 unicast message
@@ -178,7 +180,7 @@ where
     M: Mpc<ProtocolMessage = Msg<E, L, D>>,
 {
     if share.key_info.vss_setup.is_some() {
-        return Err(KeyRefreshReason::NotAdditive.into());
+        return Err(Reason::NotThreshold.into());
     }
     let i = share.i;
     let n = share.n();
@@ -195,20 +197,22 @@ where
     let mut rounds = rounds.listen(incomings);
 
     tracer.round_begins();
-    let y: Vec<SecretScalar<E>> = (0..n).map(|_| SecretScalar::random(rng)).collect();
-    let Y: Vec<Point<E>> = y.iter().map(|y_ij| Point::generator() * y_ij).collect();
+    let y: alloc::vec::Vec<SecretScalar<E>> = (0..n).map(|_| SecretScalar::random(rng)).collect();
+    let Y: alloc::vec::Vec<Point<E>> = y.iter().map(|y_ij| Point::generator() * y_ij).collect();
 
-    let mut x_prime: Vec<Scalar<E>> = (0..n - 1).map(|_| Scalar::random(rng)).collect();
+    let mut x_prime: alloc::vec::Vec<Scalar<E>> =
+        (0..n - 1).map(|_| Scalar::random(rng)).collect();
     let sum_head: Scalar<E> = x_prime.iter().sum();
     x_prime.push(-sum_head);
     debug_assert_eq!(x_prime.iter().sum::<Scalar<E>>(), Scalar::zero());
 
-    let X_prime: Vec<Point<E>> = x_prime.iter().map(|x| Point::generator() * x).collect();
+    let X_prime: alloc::vec::Vec<Point<E>> = x_prime.iter().map(|x| Point::generator() * x).collect();
 
-    let (tau, A): (Vec<_>, Vec<_>) =
-        std::iter::repeat_with(|| schnorr_pok::prover_commits_ephemeral_secret::<E, _>(rng))
-            .take(usize::from(n))
-            .unzip();
+    let (tau, A): (alloc::vec::Vec<_>, alloc::vec::Vec<_>) = core::iter::repeat_with(|| {
+        schnorr_pok::prover_commits_ephemeral_secret::<E, _>(rng)
+    })
+    .take(usize::from(n))
+    .unzip();
 
     let mut rid_i = L::KappaBytes::default();
     rng.fill_bytes(rid_i.as_mut());
@@ -276,7 +280,7 @@ where
             .into_iter_indexed()
             .filter(|(_j, _msg_id, hash_j)| hash_j.hash != h_i)
             .map(|(j, msg_id, _)| AbortBlame::new(j, msg_id, msg_id))
-            .collect::<Vec<_>>();
+            .collect::<alloc::vec::Vec<_>>();
         if !parties_have_different_hashes.is_empty() {
             return Err(ProtocolAborted::round1_not_reliable(parties_have_different_hashes).into());
         }
@@ -322,7 +326,7 @@ where
         .map(|d| &d.rid)
         .fold(L::KappaBytes::default(), utils::xor_array);
 
-    let all_decoms: Vec<_> = decommitments.iter_including_me(&my_decommitment).collect();
+    let all_decoms: alloc::vec::Vec<_> = decommitments.iter_including_me(&my_decommitment).collect();
 
     tracer.stage("Mask refresh shares");
     let Y_col = decommitments.iter().map(|d| d.y_points[usize::from(i)]);
@@ -339,13 +343,13 @@ where
                 dh_shared: &dh,
             })
         });
-    let C: Vec<Scalar<E>> = utils::skip_ith(usize::from(i), &x_prime)
+    let C: alloc::vec::Vec<Scalar<E>> = utils::skip_ith(usize::from(i), &x_prime)
         .zip(rhos)
         .map(|(x_prime_j, rho_j)| x_prime_j + rho_j)
         .collect();
 
     tracer.stage("Prove knowledge of x' scalars");
-    let psi_hat: Vec<_> = X_prime
+    let psi_hat: alloc::vec::Vec<_> = X_prime
         .iter()
         .zip(&A)
         .zip(&tau)
@@ -401,8 +405,8 @@ where
         .iter()
         .map(|d| d.x_prime_points[usize::from(i)]);
 
-    let mut masked_blame = Vec::new();
-    let peer_contribs: Vec<Scalar<E>> = masked
+    let mut masked_blame = alloc::vec::Vec::new();
+    let peer_contribs: alloc::vec::Vec<Scalar<E>> = masked
         .iter_indexed()
         .zip(Y_col)
         .zip(X_prime_col)
@@ -463,13 +467,13 @@ where
     let delta: Scalar<E> = peer_contribs.iter().sum::<Scalar<E>>() + x_prime[usize::from(i)];
     let mut x_star_scalar = *AsRef::<Scalar<E>>::as_ref(&share.x) + delta;
     let x_star = NonZero::from_secret_scalar(SecretScalar::new(&mut x_star_scalar))
-        .ok_or(KeyRefreshBug::ZeroSecret)?;
+        .ok_or(Bug::ZeroSecret)?;
 
-    let mut public_shares = Vec::with_capacity(usize::from(n));
+    let mut public_shares = alloc::vec::Vec::with_capacity(usize::from(n));
     for k in 0..usize::from(n) {
         let add: Point<E> = all_decoms.iter().map(|d| d.x_prime_points[k]).sum();
         let xk = share.public_shares[k] + add;
-        public_shares.push(NonZero::from_point(xk).ok_or(KeyRefreshBug::ZeroPublic)?);
+        public_shares.push(NonZero::from_point(xk).ok_or(Bug::ZeroPublic)?);
     }
 
     let share_out = DirtyIncompleteKeyShare {
@@ -485,20 +489,9 @@ where
         },
     }
     .validate()
-    .map_err(|err| KeyRefreshBug::Invalid(err.into_error()))?;
+    .map_err(|err| Bug::Invalid(err.into_error()))?;
 
     tracer.protocol_ends();
 
     Ok(KeyRefreshOutput { share: share_out, rid })
 }
-
-
-//skip_ith helper will be used in the crate where the protocol is defined, will be added back in cggmp24-key-refresh crate in the future.
-//pub fn skip_ith<I>(i: usize, iter: I) -> impl Iterator<Item = I::Item>
-//where
-//    I: IntoIterator,
-//{
-//    iter.into_iter()
-//        .enumerate()
-//        .filter_map(move |(j, x)| (i != j).then_some(x))
-//}

@@ -2258,11 +2258,10 @@ The signing protocol has two parts: one that takes the output from the presignat
 \subsection{Key Refresh}
 \label{sec:key-refresh}
 
-Key refresh re-randomizes additive secret shares without changing the joint public key. It is the share-refresh protocol of~\cite[Figure~7]{cggmp24} with auxiliary-information generation removed (that is performed by Section~\ref{section:aux_data_gen}). Parties may run it periodically for proactive security; each successful execution outputs a new epoch identifier~$\rid$, an updated secret share~$x^*_i$, and updated public key shares~$\vec X^* = (X^*_k)_{k\in[n]}$.
-
+Key refresh re-randomizes secret shares without changing the joint public key.
+Section~\ref{sec:n-of-n-refresh} covers additive ($n$-out-of-$n$) shares; Section~\ref{sec:t-of-n-refresh} covers Shamir ($t$-out-of-$n$) shares produced by Section~\ref{sec:t-of-n-dkg}.
 \paragraph{Remark.}
 As in~\cite[Remark~4.1]{cggmp24}, while key refresh is in progress for a given key (parties and shares identified by~$\sid$), no other protocol operation on that same key--including presigning, signing, or another concurrent key refresh--should be executed.
-Implementations should enforce this at the application or orchestration layer.
 
 \subsubsection{Non-Threshold ($n$-out-of-$n$) Key Refresh}
 \label{sec:n-of-n-refresh}
@@ -2297,7 +2296,7 @@ Share-refresh protocol from~\cite[Figure~7]{cggmp24}, without Paillier/Pedersen 
                and set $\vec Y_i = (Y_{i,j} = y_{i,j} \cdot G)_{j \in [n]}$
         \State Sample $x'_{i,0}, \ldots, x'_{i,n-2} \gets \Z_q^{n-1}$
         \State Set $x'_{i,n-1} = -\sum_{j=0}^{n-2} x'_{i,j} \bmod q$
-               \Comment{\parbox[t]{.45\linewidth}{implements~\cite[Fig.~7 step~(d)]{cggmp24}: $\sum_{k \in [n]} x'_{i,k} = 0$}}
+               \Comment{\parbox[t]{.4\linewidth}{implements~\cite[Fig.~7 step~(d)]{cggmp24}: $\sum_{k \in [n]} x'_{i,k} = 0$}}
         \State Set $\vec X'_i = (X'_{i,j} = x'_{i,j} \cdot G)_{j \in [n]}$
         \State For each $j \in [n]$, compute $(A_{i,j}; \tau_{i,j}) \gets \commit{sch}()$;
                let $\vec A_i = (A_{i,j})_{j \in [n]}$
@@ -2323,7 +2322,7 @@ Share-refresh protocol from~\cite[Figure~7]{cggmp24}, without Paillier/Pedersen 
             \State Assert $(\rid_j, \vec X'_j, \vec Y_j, \vec A_j, u_j) \? \in (\Bit^\kappa, \E^n, \E^n, \E^n, \Bit^\kappa)$
             \State Assert $V_j \? = H(\Encode[hash\_refresh\_com](\sid, j, \rid_j, \vec X'_j, \vec Y_j, \vec A_j, u_j))$
             \State Assert $\sum_{k \in [n]} X'_{j,k} \? = \mathcal{O}$
-                   \Comment{\parbox[t]{.45\linewidth}{$\mathcal{O}$ is the identity of $\E$; checks that $P_j$'s contributions sum to zero}}
+                   \Comment{\parbox[t]{.35\linewidth}{$\mathcal{O}$ is the identity of $\E$; checks that $P_j$'s contributions sum to zero}}
         \EndFor
         \State Compute $\rid = \bigoplus_{j \in [n]} \rid_j$
         \For{$j \in [n] \setminus \{i\}$}
@@ -2344,7 +2343,7 @@ Share-refresh protocol from~\cite[Figure~7]{cggmp24}, without Paillier/Pedersen 
                and $C_{i,j} \in \Z_q$ from each $P_j$ with $j \neq i$
         \For{$j \in [n] \setminus \{i\}$}
             \State Compute $\rho_{j,i} \in \Z_q = \hashtoscalar\bigl(\Encode[refresh\_mask](\sid, \rid, j, i, y_{j,i} \cdot Y_{i,j})\bigr)$
-                   \Comment{\parbox[t]{.45\linewidth}{$j$ is sender, $i$ is recipient}}
+                   \Comment{\parbox[t]{.3\linewidth}{$j$ is sender, $i$ is recipient}}
             \State Compute $x'_{j,i} = C_{i,j} - \rho_{j,i} \bmod q$
             \State Assert $x'_{j,i} \cdot G \? = X'_{j,i}$
         \EndFor
@@ -2353,7 +2352,7 @@ Share-refresh protocol from~\cite[Figure~7]{cggmp24}, without Paillier/Pedersen 
             \State Assert $\verify{sch}(X'_{j,k}, A_{j,k}, e_{j,k}, \hat\psi_{j,k})$
         \EndFor
         \State Set $x^*_i = x_i + \sum_{j \in [n]} x'_{j,i} \bmod q$
-               \Comment{the $j = i$ term $x'_{i,i}$ is known locally}
+               \Comment{\parbox[t]{.35\linewidth}{the $j = i$ term $x'_{i,i}$ is known locally}}
         \State Set $X^*_k = X_k + \sum_{j \in [n]} X'_{j,k}$ for every $k \in [n]$;
                let $\vec X^* = (X^*_k)_{k \in [n]}$
         \State \Return $(\rid, x^*_i, \vec X^*)$

@@ -1,4 +1,5 @@
 mod aux_info;
+mod key_refresh;
 mod keygen;
 mod old_shares;
 mod pipeline;

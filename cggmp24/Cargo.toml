@@ -13,6 +13,7 @@ readme = "../README.md"
 
 [dependencies]
 cggmp24-keygen = { workspace = true }
+cggmp24-key-refresh = { workspace = true }
 key-share = { workspace = true, features = ["serde"] }
 
 generic-ec = { workspace = true, features = ["serde", "udigest", "hash-to-scalar"] }
@@ -53,7 +54,7 @@ curve-secp256k1 = ["generic-ec/curve-secp256k1", "hd-wallet?/curve-secp256k1"]
 curve-secp256r1 = ["generic-ec/curve-secp256r1", "hd-wallet?/curve-secp256r1"]
 curve-secp384r1 = ["generic-ec/curve-secp384r1"]
 curve-stark = ["generic-ec/curve-stark", "hd-wallet?/curve-stark"]
-hd-wallet = ["dep:hd-wallet", "cggmp24-keygen/hd-wallet"]
+hd-wallet = ["dep:hd-wallet", "cggmp24-keygen/hd-wallet", "cggmp24-key-refresh/hd-wallet"]
 hd-slip10 = ["hd-wallet/slip10"]
 hd-stark = ["hd-wallet/stark"]
 spof = ["key-share/spof"]
@@ -68,7 +69,7 @@ backend-num-bigint = ["paillier-zk/backend-num-bigint"]
 # for advanced users. Be sure you fully understand the implications if you enable this feature.
 insecure-assume-preimage-known = []
 
-state-machine = ["cggmp24-keygen/state-machine"]
+state-machine = ["cggmp24-keygen/state-machine", "cggmp24-key-refresh/state-machine"]
 
 [package.metadata.docs.rs]
 all-features = true

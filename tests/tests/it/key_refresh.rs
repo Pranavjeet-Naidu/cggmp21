@@ -40,6 +40,10 @@ where
     .into_vec();
 
     let original_pk = incomplete_shares[0].shared_public_key;
+    let original_shares: Vec<_> = incomplete_shares
+        .iter()
+        .map(|s| s.public_shares.clone())
+        .collect();
 
     let eid: [u8; 32] = rng.gen();
     let eid = ExecutionId::new(&eid);
@@ -49,7 +53,8 @@ where
         let mut party_rng = rng.fork();
         let share = &incomplete_shares[usize::from(i)];
         async move {
-            cggmp24::key_refresh::<E, E::SecurityLevel>(eid, share)
+            cggmp24::refresh_key_share(eid, share)
+                .set_security_level::<E::SecurityLevel>()
                 .set_digest::<E::Digest>()
                 .enforce_reliable_broadcast(reliable_broadcast)
                 .start(&mut party_rng, party)
@@ -60,7 +65,9 @@ where
     .expect_ok()
     .into_vec();
 
-    for output in &refreshed {
+    for (i, output) in refreshed.iter().enumerate() {
         assert_eq!(output.share.shared_public_key, original_pk);
+        assert!(output.share.vss_setup.is_none());
+        assert_ne!(output.share.public_shares, original_shares[i]);
     }
 }

@@ -300,6 +300,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 name = "cggmp24"
 version = "0.7.0-alpha.4"
 dependencies = [
+ "cggmp24-key-refresh",
  "cggmp24-keygen",
  "digest",
  "futures",
@@ -314,6 +315,28 @@ dependencies = [
  "rand_core",
  "rand_dev",
  "rand_hash",
+ "round-based",
+ "serde",
+ "serde_with",
+ "sha2",
+ "thiserror 1.0.48",
+ "udigest",
+]
+
+[[package]]
+name = "cggmp24-key-refresh"
+version = "0.7.0-alpha.4"
+dependencies = [
+ "cggmp24-keygen",
+ "digest",
+ "displaydoc",
+ "futures-util",
+ "generic-ec",
+ "generic-ec-zkp",
+ "hd-wallet",
+ "hex",
+ "key-share",
+ "rand_core",
  "round-based",
  "serde",
  "serde_with",
