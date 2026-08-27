@@ -42,18 +42,18 @@ use round_based::Mpc;
 
 #[doc(inline)]
 pub use key_share::{
-    CoreKeyShare as IncompleteKeyShare, DirtyCoreKeyShare as DirtyIncompleteKeyShare,
-    DirtyKeyInfo, InvalidCoreShare, Validate,
+    CoreKeyShare as IncompleteKeyShare, DirtyCoreKeyShare as DirtyIncompleteKeyShare, DirtyKeyInfo,
+    InvalidCoreShare, Validate,
 };
 
 use crate::errors::IoError;
 use crate::progress::Tracer;
 use crate::security_level::SecurityLevel;
 
-pub use cggmp24_keygen::ExecutionId;
 pub use self::non_threshold::KeyRefreshOutput;
 #[doc(no_inline)]
 pub use self::non_threshold::Msg as NonThresholdMsg;
+pub use cggmp24_keygen::ExecutionId;
 
 /// Default digest and security level used by [`key_refresh`]
 mod default_choice {
@@ -97,6 +97,9 @@ enum Reason {
     /// Bug occurred
     #[displaydoc("bug occurred")]
     Bug(#[cfg_attr(feature = "std", source)] Bug),
+    /// Threshold key share passed to non-threshold refresh
+    #[displaydoc("threshold key share is not supported by non-threshold key refresh")]
+    NotThreshold,
 }
 
 impl From<ProtocolAborted> for Reason {

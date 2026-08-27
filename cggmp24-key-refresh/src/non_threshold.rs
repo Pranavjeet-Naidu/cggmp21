@@ -13,15 +13,13 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::errors::IoError;
-use crate::{
-    DirtyIncompleteKeyShare, DirtyKeyInfo, IncompleteKeyShare, Validate,
-};
 use crate::progress::Tracer;
 use crate::security_level::SecurityLevel;
 use crate::utils::{self, AbortBlame};
 use crate::ExecutionId;
+use crate::{DirtyIncompleteKeyShare, DirtyKeyInfo, IncompleteKeyShare, Validate};
 
-use super::{Bug, KeyRefreshError, Reason, ProtocolAborted};
+use super::{Bug, KeyRefreshError, ProtocolAborted, Reason};
 
 macro_rules! prefixed {
     ($name:tt) => {
@@ -200,19 +198,18 @@ where
     let y: alloc::vec::Vec<SecretScalar<E>> = (0..n).map(|_| SecretScalar::random(rng)).collect();
     let Y: alloc::vec::Vec<Point<E>> = y.iter().map(|y_ij| Point::generator() * y_ij).collect();
 
-    let mut x_prime: alloc::vec::Vec<Scalar<E>> =
-        (0..n - 1).map(|_| Scalar::random(rng)).collect();
+    let mut x_prime: alloc::vec::Vec<Scalar<E>> = (0..n - 1).map(|_| Scalar::random(rng)).collect();
     let sum_head: Scalar<E> = x_prime.iter().sum();
     x_prime.push(-sum_head);
     debug_assert_eq!(x_prime.iter().sum::<Scalar<E>>(), Scalar::zero());
 
-    let X_prime: alloc::vec::Vec<Point<E>> = x_prime.iter().map(|x| Point::generator() * x).collect();
+    let X_prime: alloc::vec::Vec<Point<E>> =
+        x_prime.iter().map(|x| Point::generator() * x).collect();
 
-    let (tau, A): (alloc::vec::Vec<_>, alloc::vec::Vec<_>) = core::iter::repeat_with(|| {
-        schnorr_pok::prover_commits_ephemeral_secret::<E, _>(rng)
-    })
-    .take(usize::from(n))
-    .unzip();
+    let (tau, A): (alloc::vec::Vec<_>, alloc::vec::Vec<_>) =
+        core::iter::repeat_with(|| schnorr_pok::prover_commits_ephemeral_secret::<E, _>(rng))
+            .take(usize::from(n))
+            .unzip();
 
     let mut rid_i = L::KappaBytes::default();
     rng.fill_bytes(rid_i.as_mut());
@@ -326,7 +323,8 @@ where
         .map(|d| &d.rid)
         .fold(L::KappaBytes::default(), utils::xor_array);
 
-    let all_decoms: alloc::vec::Vec<_> = decommitments.iter_including_me(&my_decommitment).collect();
+    let all_decoms: alloc::vec::Vec<_> =
+        decommitments.iter_including_me(&my_decommitment).collect();
 
     tracer.stage("Mask refresh shares");
     let Y_col = decommitments.iter().map(|d| d.y_points[usize::from(i)]);
@@ -369,9 +367,11 @@ where
 
     tracer.send_msg();
     outgoings
-        .send(Outgoing::broadcast(Msg::Round3Broadcast(MsgRound3Broadcast {
-            sch_proofs: psi_hat.clone(),
-        })))
+        .send(Outgoing::broadcast(Msg::Round3Broadcast(
+            MsgRound3Broadcast {
+                sch_proofs: psi_hat.clone(),
+            },
+        )))
         .await
         .map_err(IoError::send_message)?;
 
@@ -454,9 +454,7 @@ where
                     sch_commit: A_k,
                 });
                 let challenge = schnorr_pok::Challenge { nonce: challenge };
-                proof
-                    .verify(A_k, &challenge, X_k)
-                    .is_err()
+                proof.verify(A_k, &challenge, X_k).is_err()
             })
     });
     if !blame.is_empty() {
@@ -493,5 +491,8 @@ where
 
     tracer.protocol_ends();
 
-    Ok(KeyRefreshOutput { share: share_out, rid })
+    Ok(KeyRefreshOutput {
+        share: share_out,
+        rid,
+    })
 }
