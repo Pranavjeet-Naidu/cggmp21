@@ -16,7 +16,6 @@
 //! * Threshold (i.e., t-out-of-n) and non-threshold (i.e., n-out-of-n) key generation
 //! * (3+1)-round general threshold and non-threshold signing
 //! * Auxiliary info generation protocol
-//! * Non-threshold (`n`-out-of-`n`) key share refresh via [`share_refresh`]
 //! * HD-wallets support based on [slip10] standard (compatible with [bip32]) \
 //!   Requires `hd-wallets` feature
 //!
@@ -27,7 +26,7 @@
 //! * [Trusted dealer](crate::trusted_dealer) (importing key into TSS)
 //!
 //! This crate **does not** (currently) support:
-//! * Threshold (`t`-out-of-`n`) key share refresh (non-threshold refresh is supported via [`share_refresh`])
+//! * Key refresh for both threshold (i.e., t-out-of-n) and non-threshold (i.e., n-out-of-n) keys
 //! * Identifiable abort
 //!
 //! Our implementation has been audited by Kudelski. Report can be found [here][report].
@@ -377,37 +376,14 @@ pub mod keygen {
     pub use msg::threshold::Msg as ThresholdMsg;
 }
 
-/// Non-threshold key share refresh
-pub mod share_refresh {
-    #[doc(inline)]
-    pub use cggmp24_key_refresh::{
-        key_refresh, KeyRefreshBuilder, KeyRefreshError, KeyRefreshOutput, NonThresholdMsg,
-    };
-
-    pub use cggmp24_key_refresh::msg;
-}
-
 pub use self::{
     key_refresh::{KeyRefreshError, PregeneratedPrimes},
     key_share::{IncompleteKeyShare, KeyShare},
     keygen::KeygenError,
-    share_refresh::KeyRefreshOutput,
     signing::{
         DataToSign, PartialSignature, PrehashedDataToSign, Presignature, Signature, SigningError,
     },
 };
-
-/// Non-threshold key share refresh
-/// Refreshes additive (`n`-out-of-`n`) secret shares without changing the joint public key.
-pub fn refresh_key_share<'a, E>(
-    eid: ExecutionId<'a>,
-    share: &'a IncompleteKeyShare<E>,
-) -> share_refresh::KeyRefreshBuilder<'a, E>
-where
-    E: Curve,
-{
-    cggmp24_key_refresh::key_refresh(eid, share)
-}
 
 /// Protocol for finalizing the keygen by generating aux info.
 ///
@@ -481,8 +457,6 @@ mod tests {
         crate::keygen::msg::threshold::Msg<E, L, D>,
 
         crate::key_refresh::msg::Msg<D, L>,
-
-        crate::share_refresh::msg::non_threshold::Msg<E, L, D>,
 
         crate::signing::msg::Msg<E, D>,
         crate::signing::Presignature<E>,

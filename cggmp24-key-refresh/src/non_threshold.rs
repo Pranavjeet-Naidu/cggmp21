@@ -162,6 +162,9 @@ pub struct KeyRefreshOutput<E: Curve, L: SecurityLevel> {
     pub rid: L::KappaBytes,
 }
 
+/// Carries out non-threshold key share refresh
+/// Refreshes additive secret shares without changing the joint public key. Fails if `share`
+/// is a threshold key share.
 pub async fn run_key_refresh<E, R, M, L, D>(
     rng: &mut R,
     party: M,

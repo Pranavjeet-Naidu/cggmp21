@@ -300,7 +300,6 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 name = "cggmp24"
 version = "0.7.0-alpha.4"
 dependencies = [
- "cggmp24-key-refresh",
  "cggmp24-keygen",
  "digest",
  "futures",
@@ -373,6 +372,7 @@ dependencies = [
  "anyhow",
  "bpaf",
  "cggmp24",
+ "cggmp24-key-refresh",
  "ciborium",
  "criterion",
  "digest",
