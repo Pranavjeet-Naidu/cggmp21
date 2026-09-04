@@ -14,6 +14,7 @@ extern crate alloc;
 extern crate std;
 
 mod errors;
+/// Non-threshold (`n`-out-of-`n`) key share refresh
 pub mod non_threshold;
 mod utils;
 

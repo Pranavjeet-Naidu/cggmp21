@@ -1,3 +1,4 @@
+//! Non-threshold (`n`-out-of-`n`) key share refresh.
 #![allow(non_snake_case)]
 
 use alloc::vec::Vec;
