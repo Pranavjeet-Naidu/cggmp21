@@ -1,6 +1,7 @@
 use generic_ec::Point;
 use rand::Rng;
 
+use crate::keygen::validate_keygen_output;
 use cggmp24::ExecutionId;
 
 cggmp24_tests::test_suite! {
@@ -40,7 +41,7 @@ where
     .into_vec();
 
     let original_pk = incomplete_shares[0].shared_public_key;
-    let original_shares: Vec<_> = incomplete_shares
+    let original_public_shares: Vec<_> = incomplete_shares
         .iter()
         .map(|s| s.public_shares.clone())
         .collect();
@@ -57,6 +58,7 @@ where
                 &mut party_rng,
                 party,
                 eid,
+                i,
                 share,
                 None,
                 reliable_broadcast,
@@ -68,9 +70,12 @@ where
     .expect_ok()
     .into_vec();
 
-    for (i, output) in refreshed.iter().enumerate() {
-        assert_eq!(output.share.shared_public_key, original_pk);
-        assert!(output.share.vss_setup.is_none());
-        assert_ne!(output.share.public_shares, original_shares[i]);
+    let shares: Vec<_> = refreshed.into_iter().map(|o| o.share).collect();
+    validate_keygen_output::<E, cggmp24_tests::HdDisabled>(&mut rng, &shares);
+
+    for (i, share) in shares.iter().enumerate() {
+        assert_eq!(share.shared_public_key, original_pk);
+        assert!(share.vss_setup.is_none());
+        assert_ne!(share.public_shares, original_public_shares[i]);
     }
 }
