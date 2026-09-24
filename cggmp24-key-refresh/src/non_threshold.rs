@@ -22,7 +22,7 @@ use crate::utils::{self, AbortBlame};
 use crate::ExecutionId;
 use crate::{DirtyIncompleteKeyShare, DirtyKeyInfo, IncompleteKeyShare, Validate};
 
-use super::{Bug, KeyRefreshError, ProtocolAborted, Reason};
+use super::{Bug, InvalidArgs, KeyRefreshError, ProtocolAborted, Reason};
 
 macro_rules! prefixed {
     ($name:tt) => {
@@ -196,7 +196,9 @@ where
         return Err(Reason::NotThreshold.into());
     }
     let n = share.n();
-    debug_assert!(i < n);
+    if i >= n {
+        return Err(InvalidArgs::PartyIndexOutOfBounds.into());
+    }
 
     let MpcParty { delivery, .. } = party.into_party();
     let (incomings, mut outgoings) = delivery.split();
@@ -211,7 +213,9 @@ where
 
     // Round 1
     tracer.round_begins();
-    let y = (0..n).map(|_| SecretScalar::random(rng)).collect::<Vec<_>>();
+    let y = (0..n)
+        .map(|_| SecretScalar::random(rng))
+        .collect::<Vec<_>>();
     // $\vec Y_i = (Y_{i,j} = y_{i,j} \cdot G)_{j \in [n]}$
     let Y = y
         .iter()
@@ -377,7 +381,7 @@ where
         .zip(&A)
         .zip(&tau)
         .zip(&x_prime)
-        .map(|(((X_ij_prime, A_ij), tau_ij), x_ij)| {
+        .map(|(((X_ij_prime, A_ij), tau_ij), x_ij_prime)| {
             let e = Scalar::from_hash::<D>(&unambiguous::SchnorrPok {
                 sid,
                 prover: i,
@@ -386,30 +390,25 @@ where
                 sch_commit: A_ij,
             });
             let challenge = schnorr_pok::Challenge { nonce: e };
-            schnorr_pok::prove(tau_ij, &challenge, *x_ij)
+            schnorr_pok::prove(tau_ij, &challenge, *x_ij_prime)
         })
         .collect::<Vec<_>>();
 
     tracer.send_msg();
+    let messages = core::iter::once(Outgoing::broadcast(Msg::Round3Broadcast(
+        MsgRound3Broadcast {
+            sch_proofs: psi_hat.clone(),
+        },
+    )))
+    .chain(
+        utils::iter_peers(i, n)
+            .zip(Cs)
+            .map(|(j, C_j)| Outgoing::p2p(j, Msg::Round3Unicast(MsgRound3Unicast { c: C_j }))),
+    );
     outgoings
-        .send(Outgoing::broadcast(Msg::Round3Broadcast(
-            MsgRound3Broadcast {
-                sch_proofs: psi_hat.clone(),
-            },
-        )))
+        .send_all(&mut futures_util::stream::iter(messages.map(Ok)))
         .await
         .map_err(IoError::send_message)?;
-
-    for (j, C_j) in utils::iter_peers(i, n).zip(Cs) {
-        outgoings
-            .send(Outgoing::p2p(
-                j,
-                Msg::Round3Unicast(MsgRound3Unicast { c: C_j }),
-            ))
-            .await
-            .map_err(IoError::send_message)?;
-    }
-    outgoings.flush().await.map_err(IoError::send_message)?;
     tracer.msg_sent();
 
     // Output
@@ -434,14 +433,12 @@ where
         .iter()
         .map(|d| d.x_prime_points[usize::from(i)]);
 
-    let mut masked_blame = Vec::new();
     // $x'_{j,i}$ in the specsheet (unmasked contribution from each peer $j$ to us)
     let peer_contribs = masked
         .iter_indexed()
         .zip(Y_col)
-        .zip(X_prime_col)
         .zip(utils::skip_ith(usize::from(i), &y))
-        .filter_map(|((((j, msg_id, msg), Y_ji), X_prime_ji), y_ij)| {
+        .map(|(((j, msg_id, msg), Y_ji), y_ij)| {
             // specsheet: $\rho_{j,i}$ from $y_{j,i} \cdot Y_{i,j}$.
             // Same DH point as $y_{i,j} \cdot Y_{j,i}$ ($Y$ subscripts swapped vs the specsheet).
             let dh = Y_ji * y_ij;
@@ -452,24 +449,29 @@ where
                 recipient: i,
                 dh_shared: &dh,
             });
-            let x_ji_prime = msg.c - rho;
-            if Point::generator() * x_ji_prime != X_prime_ji {
-                masked_blame.push(AbortBlame::new(j, msg_id, msg_id));
-                return None;
-            }
-            Some(x_ji_prime)
+            (j, msg_id, msg.c - rho)
+        })
+        .collect::<Vec<_>>();
+
+    let masked_blame = peer_contribs
+        .iter()
+        .zip(X_prime_col)
+        .filter_map(|(&(j, msg_id, x_ji_prime), X_prime_ji)| {
+            (Point::generator() * x_ji_prime != X_prime_ji)
+                .then_some(AbortBlame::new(j, msg_id, msg_id))
         })
         .collect::<Vec<_>>();
     if !masked_blame.is_empty() {
         return Err(ProtocolAborted::invalid_masked_share(masked_blame).into());
     }
+    let peer_contribs = peer_contribs
+        .into_iter()
+        .map(|(_, _, x_ji_prime)| x_ji_prime)
+        .collect::<Vec<_>>();
 
     tracer.stage("Validate schnorr proofs");
     let blame = utils::collect_blame(&decommitments, &sch_proofs_r, |j, decom, msg| {
-        if msg.sch_proofs.len() != usize::from(n)
-            || decom.x_prime_points.len() != usize::from(n)
-            || decom.sch_commits.len() != usize::from(n)
-        {
+        if msg.sch_proofs.len() != usize::from(n) {
             return true;
         }
         decom

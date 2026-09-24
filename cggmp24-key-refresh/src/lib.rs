@@ -71,6 +71,7 @@ crate::errors::impl_from! {
         err: ProtocolAborted => KeyRefreshError(Reason::Aborted(err)),
         err: IoError => KeyRefreshError(Reason::IoError(err)),
         err: Bug => KeyRefreshError(Reason::Bug(err)),
+        err: InvalidArgs => KeyRefreshError(Reason::InvalidArgs(err)),
         err: Reason => KeyRefreshError(err),
     }
 }
@@ -86,9 +87,20 @@ enum Reason {
     /// Bug occurred
     #[displaydoc("bug occurred")]
     Bug(#[cfg_attr(feature = "std", source)] Bug),
+    /// Invalid arguments were provided
+    #[displaydoc("invalid arguments")]
+    InvalidArgs(#[cfg_attr(feature = "std", source)] InvalidArgs),
     /// Threshold key share passed to non-threshold refresh
     #[displaydoc("threshold key share is not supported by non-threshold key refresh")]
     NotThreshold,
+}
+
+/// Error indicating that caller supplied invalid arguments
+#[derive(Debug, displaydoc::Display)]
+#[cfg_attr(feature = "std", derive(thiserror::Error))]
+enum InvalidArgs {
+    #[displaydoc("party index `i` is out of bounds (must be < n)")]
+    PartyIndexOutOfBounds,
 }
 
 impl From<ProtocolAborted> for Reason {

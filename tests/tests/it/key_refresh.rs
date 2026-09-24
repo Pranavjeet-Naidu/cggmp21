@@ -54,7 +54,13 @@ where
         let mut party_rng = rng.fork();
         let share = &incomplete_shares[usize::from(i)];
         async move {
-            cggmp24_key_refresh::non_threshold::run_key_refresh::<E, _, _, E::SecurityLevel, E::Digest>(
+            cggmp24_key_refresh::non_threshold::run_key_refresh::<
+                E,
+                _,
+                _,
+                E::SecurityLevel,
+                E::Digest,
+            >(
                 &mut party_rng,
                 party,
                 eid,
