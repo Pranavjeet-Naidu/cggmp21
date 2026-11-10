@@ -2375,19 +2375,8 @@ Share-refresh protocol from~\cite[Figure~7]{cggmp24}, without Paillier/Pedersen 
     \item security level $L$ (see Section~\ref{sec:security-params}),
     \item flag $\var{echo\_enabled} \in \Bit$ indicating whether reliability check is enabled,
     \item curve $\E$ with generator $G$ of prime order $q$,
+    \item key share $K_i$, as produced in Section~\ref{sec:t-of-n-dkg} and Section~\ref{sec:t-of-n-refresh},
     \end{itemize}
-    \textbf{From key share (Section~\ref{sec:t-of-n-dkg}, optionally updated by prior Section~\ref{sec:t-of-n-refresh} runs).}
-    \begin{itemize}[noitemsep,topsep=0pt]
-    \item Shamir secret share $x_i \in \Z_q$,
-    \item list of signers' public key shares $\vec X = (X_k)_{k\in[n]} \in \E^n$,
-    \item number of signers $n \ge 2$,
-    \item party index $i$, $0 \le i < n$,
-    \item threshold parameter $t$, $2 \le t \le n$,
-    \item joint public key $Y \in \E$,
-    \item an injective map $I : [n] \to \Z_q \setminus \{0\}$,
-    \item if HD wallets are enabled, chain code $c \in \Byte^{32}$,
-    \end{itemize}
-    Paillier/Pedersen auxiliary data from Section~\ref{section:aux_data_gen} are \emph{not} inputs; they remain unchanged.
 
     \item[\bf Outputs.] \
     \begin{itemize}[noitemsep,topsep=0pt]
@@ -2397,6 +2386,21 @@ Share-refresh protocol from~\cite[Figure~7]{cggmp24}, without Paillier/Pedersen 
     \end{itemize}
     The joint public key $Y$, threshold $t$, number of parties $n$, injective map $I$, HD chain code $c$ (if enabled), context string $\sid$, and auxiliary data remain unchanged.
 
+    \item[] \
+    \begin{algorithmic}[1]
+        \State Extract data from key share $K_i$, which contains:
+        \begin{itemize}[noitemsep,topsep=0pt]
+        \item Shamir secret share $x_i \in \Z_q$,
+        \item list of signers' public key shares $\vec X = (X_k)_{k\in[n]} \in \E^n$,
+        \item number of signers $n \ge 2$,
+        \item party index $i$, $0 \le i < n$,
+        \item threshold parameter $t$, $2 \le t \le n$,
+        \item joint public key $Y \in \E$,
+        \item an injective map $I : [n] \to \Z_q \setminus \{0\}$,
+        \item if HD wallets are enabled, chain code $c \in \Byte^{32}$,
+        \end{itemize}
+    \end{algorithmic}
+
     \item[\textbf{Round 1.}] \
     \begin{algorithmic}[1]
         \State Sample ephemeral Diffie--Hellman keys $(y_{i,j})_{j \in [n] \setminus \{i\}} \gets \Z_q^{n-1}$,
@@ -2405,9 +2409,9 @@ Share-refresh protocol from~\cite[Figure~7]{cggmp24}, without Paillier/Pedersen 
         \State Sample $s_{i,1}, \ldots, s_{i,t-1} \gets \Z_q^{t-1}$
         \State Set $s_{i,0} = 0$
                \Comment{implements $\varphi_i(0) = 0$}
-        \State Set $S_{i,k} = s_{i,k} \cdot G$ for every $k \in \{1, \ldots, t-1\}$,
-               and let $\vec S_i = (S_{i,k})_{k \in \{1, \ldots, t-1\}}$
-               \Comment{\parbox[t]{.35\linewidth}{$S_{i,0}$ is the identity and is not transmitted}}
+        \State Set $S_{i,k} = s_{i,k} \cdot G$ for every $k \in \{1, \ldots, t-1\}$
+        \State Let $\vec S_i = (S_{i,k})_{k \in \{1, \ldots, t-1\}}$
+               \Comment{$S_{i,0}$ is the identity and is not transmitted}
         \State Let $\varphi_i(x) = \sum_{k \in [t]} s_{i,k} \cdot x^k$
         \State For each $k \in \{1, \ldots, t-1\}$, compute $(A_{i,k}; \tau_{i,k}) \gets \commit{sch}()$;
                let $\vec A_i = (A_{i,k})_{k \in \{1, \ldots, t-1\}}$

@@ -227,10 +227,9 @@ where
         .map(|y_ij| Point::generator() * y_ij)
         .collect::<Vec<_>>();
 
-    let mut s = (1..t_usize)
-        .map(|_| Scalar::random(rng))
+    let s = core::iter::once(Scalar::zero())
+        .chain((1..t_usize).map(|_| Scalar::random(rng)))
         .collect::<Vec<_>>();
-    s.insert(0, Scalar::zero());
     // $S_{i,0}$ is the identity, so only $k \in \{1, \ldots, t-1\}$ is sent.
     let S = s
         .iter()
@@ -355,11 +354,8 @@ where
         .map(|d| &d.rid)
         .fold(L::KappaBytes::default(), utils::xor_array);
 
-    // Per-party $\Phi_j$ in the exponent. $S_{j,0}$ is the identity, so only
-    // $k \in \{1, \ldots, t-1\}$ is sent. `iter_including_me` inserts our own
-    // message at position `i`, so `S_polys[j]` belongs to the party at protocol
-    // index `j`. The blame check evaluates each one; the public-share update
-    // evaluates their sum.
+    // Per-party $\Phi_j$ in the exponent. $S_{j,0}$ is the identity and was not
+    // sent, so we insert it before constructing the polynomial.
     let S_polys = decommitments
         .iter_including_me(&my_decommitment)
         .map(|d| {
