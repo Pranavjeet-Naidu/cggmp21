@@ -38,6 +38,7 @@ pub mod security_level {
     };
 }
 
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 
 #[doc(inline)]
@@ -83,18 +84,92 @@ pub struct KeyRefreshOutput<E: generic_ec::Curve, L: SecurityLevel> {
 }
 
 /// Key refresh protocol error
-#[derive(Debug, displaydoc::Display)]
-#[cfg_attr(feature = "std", derive(thiserror::Error))]
-#[displaydoc("key refresh protocol failed to complete")]
-pub struct KeyRefreshError(#[cfg_attr(feature = "std", source)] Reason);
+///
+/// If the error happened during the final ACK round, after this party had already proven
+/// knowledge of its refreshed share to the other parties, the error carries that refreshed
+/// share. See [`KeyRefreshError::pending_share`].
+pub struct KeyRefreshError<E: generic_ec::Curve, L: SecurityLevel> {
+    reason: Reason,
+    // Boxed to keep `Result<_, KeyRefreshError>` small on the happy path
+    pending: Option<Box<KeyRefreshOutput<E, L>>>,
+}
+
+impl<E: generic_ec::Curve, L: SecurityLevel> KeyRefreshError<E, L> {
+    /// Refreshed share that this party had already acknowledged when the protocol failed
+    ///
+    /// Returns `Some(_)` only when the protocol failed during the ACK round, after this
+    /// party had computed and validated its refreshed share and started broadcasting its ACK.
+    /// At that point other parties may have collected every ACK and switched to the new share,
+    /// even though this party did not see every ACK. It is also possible that no party has
+    /// switched.
+    ///
+    /// **Do not drop this share.** Persist it next to the old share, mark it as pending,
+    /// and do not delete the old share until you have resolved which generation the other
+    /// parties use (for example, by checking which public shares they use in the next signing
+    /// session). If the share is dropped and the other parties switched, this party can no
+    /// longer take part in signing.
+    pub fn pending_share(&self) -> Option<&KeyRefreshOutput<E, L>> {
+        self.pending.as_deref()
+    }
+
+    /// Takes the pending refreshed share out of the error
+    ///
+    /// See [`KeyRefreshError::pending_share`].
+    pub fn into_pending_share(self) -> Option<KeyRefreshOutput<E, L>> {
+        self.pending.map(|pending| *pending)
+    }
+
+    /// Error raised while the ACK round was collecting ACKs, carrying the refreshed share
+    fn ack_incomplete(err: IoError, pending: KeyRefreshOutput<E, L>) -> Self {
+        Self {
+            reason: Reason::AckIncomplete(err),
+            pending: Some(Box::new(pending)),
+        }
+    }
+}
+
+impl<E: generic_ec::Curve, L: SecurityLevel> core::fmt::Debug for KeyRefreshError<E, L> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // The pending share contains secret material, so only its presence is printed
+        f.debug_struct("KeyRefreshError")
+            .field("reason", &self.reason)
+            .field("has_pending_share", &self.pending.is_some())
+            .finish()
+    }
+}
+
+impl<E: generic_ec::Curve, L: SecurityLevel> core::fmt::Display for KeyRefreshError<E, L> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("key refresh protocol failed to complete")
+    }
+}
+
+#[cfg(feature = "std")]
+impl<E: generic_ec::Curve, L: SecurityLevel> std::error::Error for KeyRefreshError<E, L> {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.reason)
+    }
+}
+
+macro_rules! impl_from_reason {
+    ($($ty:ty),+ $(,)?) => {$(
+        impl<E: generic_ec::Curve, L: SecurityLevel> From<$ty> for KeyRefreshError<E, L> {
+            fn from(err: $ty) -> Self {
+                Self {
+                    reason: err.into(),
+                    pending: None,
+                }
+            }
+        }
+    )+}
+}
+impl_from_reason!(ProtocolAborted, IoError, Bug, InvalidArgs, Reason);
 
 crate::errors::impl_from! {
-    impl From for KeyRefreshError {
-        err: ProtocolAborted => KeyRefreshError(Reason::Aborted(err)),
-        err: IoError => KeyRefreshError(Reason::IoError(err)),
-        err: Bug => KeyRefreshError(Reason::Bug(err)),
-        err: InvalidArgs => KeyRefreshError(Reason::InvalidArgs(err)),
-        err: Reason => KeyRefreshError(err),
+    impl From for Reason {
+        err: IoError => Reason::IoError(err),
+        err: Bug => Reason::Bug(err),
+        err: InvalidArgs => Reason::InvalidArgs(err),
     }
 }
 
@@ -118,6 +193,9 @@ enum Reason {
     /// Additive key share passed to threshold refresh
     #[displaydoc("additive key share is not supported by threshold key refresh")]
     ExpectedThresholdShare,
+    /// ACK round failed after this party had already sent its ACK
+    #[displaydoc("i/o error in ack round, refreshed share may have been adopted by other parties")]
+    AckIncomplete(#[cfg_attr(feature = "std", source)] IoError),
 }
 
 /// Error indicating that caller supplied invalid arguments

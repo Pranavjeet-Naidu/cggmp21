@@ -194,6 +194,17 @@ pub struct MsgRound3Unicast<E: Curve> {
 /// Fails if `share` is a threshold key share. The new share is returned only after every
 /// party has acknowledged its refreshed share.
 ///
+/// ## Failures during the ACK round
+/// If the protocol fails after this party has started broadcasting the ACK for its refreshed
+/// share, the returned [`KeyRefreshError`] carries the refreshed share, see
+/// [`KeyRefreshError::pending_share`]. Other parties may already have switched to the new
+/// share, so the caller must not drop it.
+///
+/// The ACK round waits until an ACK is held for every party and has no timeout of its own.
+/// To bound it, enforce the timeout in the transport layer: make the incoming message stream
+/// yield an error (or end) when the deadline passes. The protocol then returns the pending
+/// share in its error. Dropping the protocol future instead discards the pending share.
+///
 /// Indexes of all participants of the protocol should match exactly their indexes from
 /// the key generation protocol execution. E.g. if party occupied index `j` in keygen,
 /// it must have the same index `j` in key refresh execution. In particular, the local
@@ -205,7 +216,7 @@ pub async fn run_key_refresh<E, R, M, L, D>(
     share: &IncompleteKeyShare<E>,
     mut tracer: Option<&mut dyn Tracer>,
     reliable_broadcast_enforced: bool,
-) -> Result<KeyRefreshOutput<E, L>, KeyRefreshError>
+) -> Result<KeyRefreshOutput<E, L>, KeyRefreshError<E, L>>
 where
     E: Curve,
     L: SecurityLevel,
@@ -584,7 +595,7 @@ where
 
     let x_star = &share_out.x;
     let public_shares = &share_out.public_shares;
-    ack::collect_acks(
+    let ack_result = ack::collect_acks(
         rng,
         &mut outgoings,
         &mut rounds,
@@ -605,12 +616,18 @@ where
         },
         Msg::Ack,
     )
-    .await?;
+    .await;
+    let output = KeyRefreshOutput {
+        share: share_out,
+        rid,
+    };
+    if let Err(err) = ack_result {
+        // This party has already started broadcasting the ACK for its refreshed share, so
+        // other parties may adopt it. Hand the share back instead of dropping it.
+        return Err(KeyRefreshError::ack_incomplete(err, output));
+    }
 
     tracer.protocol_ends();
 
-    Ok(KeyRefreshOutput {
-        share: share_out,
-        rid,
-    })
+    Ok(output)
 }
